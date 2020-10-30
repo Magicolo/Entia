@@ -146,7 +146,6 @@ namespace Entia.Check
                 }
                 return Option.None();
             }
-
         }
     }
 }

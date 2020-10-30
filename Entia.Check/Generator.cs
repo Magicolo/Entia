@@ -141,6 +141,10 @@ namespace Entia.Check
             All(generator1.Box(), generator2.Box()).Map(values => ((T1)values[0], (T2)values[1]));
         public static Generator<(T1, T2, T3)> And<T1, T2, T3>(this Generator<T1> generator1, Generator<T2> generator2, Generator<T3> generator3) =>
             All(generator1.Box(), generator2.Box(), generator3.Box()).Map(values => ((T1)values[0], (T2)values[1], (T3)values[2]));
+        public static Generator<(T1, T2, T3, T4)> And<T1, T2, T3, T4>(this Generator<T1> generator1, Generator<T2> generator2, Generator<T3> generator3, Generator<T4> generator4) =>
+            All(generator1.Box(), generator2.Box(), generator3.Box(), generator4.Box()).Map(values => ((T1)values[0], (T2)values[1], (T3)values[2], (T4)values[3]));
+        public static Generator<(T1, T2, T3, T4, T5)> And<T1, T2, T3, T4, T5>(this Generator<T1> generator1, Generator<T2> generator2, Generator<T3> generator3, Generator<T4> generator4, Generator<T5> generator5) =>
+            All(generator1.Box(), generator2.Box(), generator3.Box(), generator4.Box(), generator5.Box()).Map(values => ((T1)values[0], (T2)values[1], (T3)values[2], (T4)values[3], (T5)values[4]));
 
         public static Generator<T[]> All<T>(this IEnumerable<Generator<T>> generators) => All(generators.ToArray());
         public static Generator<T[]> All<T>(params Generator<T>[] generators) =>
@@ -175,7 +179,7 @@ namespace Entia.Check
             return state =>
             {
                 var random = Interpolate(minimum, maximum, state.Random.NextDouble());
-                var value = (long)Math.Round(Interpolate(random, target, 1.0 - state.Size));
+                var value = (long)Math.Round(Interpolate(target, random, state.Size));
                 return (value, ShrinkNumber(value, target));
             };
         }
@@ -188,7 +192,7 @@ namespace Entia.Check
             return state =>
             {
                 var random = Interpolate(minimum, maximum, state.Random.NextDouble());
-                var value = Interpolate(random, target, 1.0 - state.Size);
+                var value = Interpolate(target, random, state.Size);
                 return (value, ShrinkNumber(value, target));
             };
         }

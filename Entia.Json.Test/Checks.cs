@@ -23,6 +23,7 @@ namespace Entia.Json.Test
             Character.Map(Node.Number),
             Rational.Map(Node.Number),
             Rational.Map(value => Node.Number(1f / value)),
+            // Rational.And(Rational).Map(pair => Node.Number(pair.Item1 / pair.Item2)),
             Enumeration<Boba>().Map(value => Node.Number(value)));
         static readonly Generator<Node> _string = Any(
             Constant(Node.EmptyString),
