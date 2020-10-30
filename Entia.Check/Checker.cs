@@ -90,7 +90,7 @@ namespace Entia.Check
                {
                    Console.WriteLine();
                    Console.CursorVisible = true;
-                   if (failures.Length == 0) Console.WriteLine("Success");
+                   if (failures.Length == 0) Console.WriteLine("Success.");
                    else Console.WriteLine($"{string.Join("", failures.Select(failure => $"{Environment.NewLine}-> Property '{failure.Property.Name}' failed with value '{failure.Shrinked}'"))}");
                });
         }

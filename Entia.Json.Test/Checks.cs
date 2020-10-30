@@ -18,21 +18,18 @@ namespace Entia.Json.Test
             Constant(Node.False),
             Generator.Boolean.Map(Node.Boolean));
         static readonly Generator<Node> _number = Any(
-            Constant(Node.Zero),
+            Any(Constant(Node.Zero), Constant(Node.Number(float.NaN)), Infinity.Map(Node.Number)),
+            Any(Enumeration<Boba>().Map(value => Node.Number(value)), Character.Map(Node.Number)),
             Integer.Map(Node.Number),
-            Character.Map(Node.Number),
             Rational.Map(Node.Number),
-            Rational.Map(value => Node.Number(1f / value)),
-            // Rational.And(Rational).Map(pair => Node.Number(pair.Item1 / pair.Item2)),
-            Enumeration<Boba>().Map(value => Node.Number(value)));
+            // Rational.Map(value => Node.Number(1f / value)),
+            All(Rational, Rational).Map(values => Node.Number(values[0] / values[1])));
         static readonly Generator<Node> _string = Any(
             Constant(Node.EmptyString),
-            Any(ASCII, Letter, Digit, Any('\\', '\"', '/', '\t', '\f', '\b', '\n', '\r'), Character).String(Range(100)).Map(Node.String),
-            Enumeration<Boba>().Map(value => Node.String(value)));
+            Enumeration<Boba>().Map(value => Node.String(value)),
+            Any(ASCII, Letter, Digit, Any('\\', '\"', '/', '\t', '\f', '\b', '\n', '\r'), Character).String(Range(100)).Map(Node.String));
         static readonly Generator<Node> _root = Any(
-            Constant(Node.Null),
-            Constant(Node.EmptyArray),
-            Constant(Node.EmptyObject),
+            Any(Constant(Node.Null), Constant(Node.EmptyArray), Constant(Node.EmptyObject)),
             _boolean,
             _string,
             _number,
