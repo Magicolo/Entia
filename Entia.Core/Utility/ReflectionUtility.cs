@@ -202,8 +202,9 @@ namespace Entia.Core
             type.EnumerableArgument(generic)
                 .Bind(argument => argument.ArrayType())
                 .Bind(array => type.Constructors(true, false).FirstOrNone(constructor =>
-                    constructor.GetParameters().TryFirst(out var parameter) &&
-                    array.Is(parameter.ParameterType)));
+                    constructor.GetParameters() is var parameters &&
+                    parameters.Length == 1 &&
+                    array.Is(parameters[0].ParameterType)));
 
         public static Option<Type> ArrayType(this Type type) => Option.Try(() => type.MakeArrayType());
 

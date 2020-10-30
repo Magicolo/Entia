@@ -12,6 +12,7 @@ namespace Entia.Json.Test
         enum Boba { A, B, C, D, E, F, G, H, I, J }
 
         static readonly Settings _settings = Settings.Default.With(Features.All);
+        static readonly Random _random = new Random();
 
         static readonly Generator<Node> _boolean = Any(
             Constant(Node.True),
@@ -28,18 +29,27 @@ namespace Entia.Json.Test
             Constant(Node.EmptyString),
             Enumeration<Boba>().Map(value => Node.String(value)),
             Any(ASCII, Letter, Digit, Any('\\', '\"', '/', '\t', '\f', '\b', '\n', '\r'), Character).String(Range(100)).Map(Node.String));
-        static readonly Generator<Node> _root = Any(
-            Any(Constant(Node.Null), Constant(Node.EmptyArray), Constant(Node.EmptyObject)),
+        static readonly Generator<Node> _array = Lazy(() => _node).Repeat(Range(10).Attenuate(10)).Map(Node.Array);
+        static readonly Generator<Node> _object = All(_string, Lazy(() => _node)).Repeat(Range(10).Attenuate(10)).Map(nodes => Node.Object(nodes.Flatten()));
+        static readonly Generator<Node> _leaf = Any(
+            Constant(Node.Null),
+            Constant(Node.EmptyArray),
+            Constant(Node.EmptyObject),
             _boolean,
             _string,
-            _number,
-            Lazy(() => _array.Depth()),
-            Lazy(() => _object.Depth()));
-        static readonly Generator<Node> _array = _root.Repeat(Range(10).Attenuate(10)).Map(Node.Array);
-        static readonly Generator<Node> _object = All(_string, _root).Repeat(Range(10).Attenuate(10)).Map(nodes => Node.Object(nodes.Flatten()));
+            _number);
+        static readonly Generator<Node> _branch = Any(_array, _object).Depth();
+        static readonly Generator<Node> _node = Any(_leaf, _branch);
 
-        static readonly Generator<(object, string, Result<object>)> _default = ReflectionUtility.AllTypes
-            .Where(type => type.IsPublic && !type.IsGenericTypeDefinition && !type.IsAbstract)
+        static readonly Generator<(Node, string, Result<Node>, Node)> _rational = _number.Map(node =>
+            {
+                var generated = Serialization.Generate(node);
+                var parsed = Serialization.Parse(generated);
+                return (node, generated, parsed, node.IsNull() ? node : Node.Number(double.Parse(generated, CultureInfo.InvariantCulture)));
+            });
+
+        static readonly (Type[] definitions, Type[] concretes) _types = ReflectionUtility.AllTypes
+            .Where(type => type.IsPublic && !type.IsAbstract)
             .Where(type =>
                 type.IsPrimitive ||
                 type.IsEnum ||
@@ -51,50 +61,73 @@ namespace Entia.Json.Test
                 type.Namespace.Contains($"{nameof(System)}.{nameof(System.Buffers)}") ||
                 type.Namespace.Contains($"{nameof(System)}.{nameof(System.Data)}") ||
                 type.Namespace.Contains($"{nameof(System)}.{nameof(System.Collections)}") ||
-                type.Namespace.Contains($"{nameof(System)}.{nameof(System.ComponentModel)}") ||
-                type.Namespace.Contains($"{nameof(System)}.{nameof(System.Numerics)}"))
-            .Select(type => type.DefaultConstructor()
-                .Bind(constructor => Option.Try(() => constructor.Invoke(Array.Empty<object>()))))
+                type.Namespace.Contains($"{nameof(System)}.{nameof(System.ComponentModel)}"))
+            .Distinct()
+            .Split(type => type.IsGenericTypeDefinition);
+        static readonly Type[] _generics = _types.definitions
+            .Repeat(10)
+            .Select(definition => Option.Try(() => definition.MakeGenericType(definition.GetGenericArguments()
+                .Select(_ => _types.concretes[_random.Next(_types.concretes.Length)]))))
+            .Choose()
+            .ToArray();
+        static readonly Type[] _concretes = _types.concretes.Append(_generics);
+
+        static readonly Generator<object> _arrays = _concretes
+            .Select(type => Option.Try(() => Array.CreateInstance(type, 1)).Box())
             .Choose()
             .Select(Constant)
-            .Any()
-            .Map(value =>
+            .Any();
+        static readonly Generator<object> _enumerable = _concretes
+            .Select(type => Option.And(type.EnumerableArgument(true), type.EnumerableConstructor(true)))
+            .Choose()
+            .Select(pair => Option.Try(() => pair.Item2.Invoke(new[] { Array.CreateInstance(pair.Item1, 0) })))
+            .Choose()
+            .Select(Constant)
+            .Any();
+        static readonly Generator<object> _default = _concretes
+            .Select(type => type.DefaultConstructor())
+            .Choose()
+            .Select(constructor => Option.Try(() => constructor.Invoke(Array.Empty<object>())))
+            .Choose()
+            .Select(Constant)
+            .Any();
+        static readonly Generator<object> _instance = Any(_default, _arrays, _enumerable);
+
+        public static void Run()
+        {
+            _string.Check("Generate/parse symmetry for String nodes.");
+            _number.Check("Generate/parse symmetry for Number nodes.");
+            _node.Check("Generate/parse symmetry for Root nodes.");
+
+            _number.Map(node =>
             {
-                var json = Serialization.Serialize(value, _settings);
-                var result = Serialization.Deserialize<object>(json, _settings);
-                return (value, json, result);
-            });
-        static readonly Generator<(Node, string, Node)> _nested = _root
-            .Map(node =>
+                var generated = Serialization.Generate(node);
+                var parsed = Serialization.Parse(generated);
+                var system = node.IsNull() ? node : Node.Number(double.Parse(generated, CultureInfo.InvariantCulture));
+                return (node, generated, parsed, system);
+            }).Check("Generate/parse/double.Parse symmetry for Number nodes.", tuple =>
+                tuple.node == tuple.parsed &&
+                tuple.node == tuple.system &&
+                tuple.parsed == tuple.system);
+
+            _node.Map(node =>
             {
                 string Generate(Node node) => Serialization.Generate(node.Map(child => Generate(child)));
                 Node Parse(string json) => Serialization.Parse(json).Or(Node.Null).Map(child => Parse(child.AsString()));
                 var generated = Generate(node);
                 var parsed = Parse(generated);
                 return (node, generated, parsed);
-            });
-        static readonly Generator<(Node, string, Result<Node>, Node)> _rational = _number.Map(node =>
-            {
-                var generated = Serialization.Generate(node);
-                var parsed = Serialization.Parse(generated);
-                return (node, generated, parsed, node.IsNull() ? node : Node.Number(double.Parse(generated, CultureInfo.InvariantCulture)));
-            });
+            }).Check("Generate/parse symmetry for nested json.", tuple => tuple.node == tuple.parsed);
 
-        public static void Run()
-        {
-            _string.Check("Generate/parse symmetry for String nodes.");
-            _number.Check("Generate/parse symmetry for Number nodes.");
-            _rational.Check("Generate/parse/double.Parse symmetry for Number nodes.", tuple =>
-                tuple.Item1 == tuple.Item3 &&
-                tuple.Item1 == tuple.Item4 &&
-                tuple.Item3 == tuple.Item4);
-            _root.Check("Generate/parse symmetry for Root nodes.");
-            _nested.Check("Generate/parse symmetry for nested json.", tuple => tuple.Item1 == tuple.Item3);
-            _default.Check("Serialize/deserialize abstract instances to same type.", tuple =>
-                tuple.Item1 != null &&
-                tuple.Item3.TryValue(out var value) &&
-                value != null &&
-                tuple.Item1.GetType() == value.GetType());
+            _instance.Map(value =>
+            {
+                var generated = Serialization.Serialize(value, _settings);
+                var parsed = Serialization.Deserialize<object>(generated, _settings);
+                return (value, generated, parsed);
+            }).Check("Serialize/deserialize abstract instances to same type.", tuple =>
+                tuple.value is object &&
+                tuple.parsed.TryValue(out var value) && value is object &&
+                tuple.value.GetType() == value.GetType());
 
             // TODO: Add test for parsing foreign jsons
             // TODO: Add test for comparing output with Json.Net and .Net Json parser.

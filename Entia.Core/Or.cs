@@ -96,6 +96,7 @@ namespace Entia.Core
         public Option<TLeft> Left => this.Match(left => Option.From(left), _ => Option.None());
         public Option<TRight> Right => this.Match(_ => Option.None(), right => Option.From(right));
         object IOr.Value => this.Match(left => (object)left, right => (object)right);
+
         readonly TLeft _left;
         readonly TRight _right;
 
@@ -125,14 +126,14 @@ namespace Entia.Core
         {
             Or.Tags.Left => Or.Left(_left).GetHashCode(),
             Or.Tags.Right => Or.Right(_right).GetHashCode(),
-            _ => throw new InvalidOperationException()
+            _ => 0
         };
 
         public override string ToString() => Tag switch
         {
             Or.Tags.Left => Or.Left(_left).ToString(),
             Or.Tags.Right => Or.Right(_right).ToString(),
-            _ => throw new InvalidOperationException()
+            _ => ""
         };
 
         public bool Equals(Or<TLeft, TRight> other) => this == other;

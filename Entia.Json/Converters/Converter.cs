@@ -364,7 +364,7 @@ namespace Entia.Json.Converters
 
         static IConverter CreateDefault(Type type)
         {
-            if (type.IsArray) return CreateArray(type);
+            if (type.IsArray) return CreateArray(type, type.GetElementType());
             if (type == typeof(DateTime)) return new ConcreteDateTime();
             if (type == typeof(TimeSpan)) return new ConcreteTimeSpan();
             if (type == typeof(Guid)) return new ConcreteGuid();
@@ -405,9 +405,15 @@ namespace Entia.Json.Converters
                 .Cast<IConverter>()
                 .Or(() => new AbstractNullable(type, argument));
 
-        static IConverter CreateArray(Type type)
+        static IConverter CreateArray(Type type, Type element)
         {
-            var element = type.GetElementType();
+            IConverter Default() =>
+                // This may fail for targets that do not support JIT compilation.
+                Option.Try(() => Activator.CreateInstance(typeof(ConcreteArray<>).MakeGenericType(element)))
+                    .Cast<IConverter>()
+                    .Or(() => new AbstractArray(element));
+
+            if (element.IsEnum) return Default();
             switch (Type.GetTypeCode(element))
             {
                 case TypeCode.Char: return new PrimitiveArray<char>(_ => _, node => node.AsChar());
@@ -424,16 +430,19 @@ namespace Entia.Json.Converters
                 case TypeCode.Decimal: return new PrimitiveArray<decimal>(_ => _, node => node.AsDecimal());
                 case TypeCode.Boolean: return new PrimitiveArray<bool>(_ => _, node => node.AsBool());
                 case TypeCode.String: return new PrimitiveArray<string>(_ => _, node => node.AsString());
-                default:
-                    // This may fail for targets that do not support JIT compilation.
-                    return Option.Try(() => Activator.CreateInstance(typeof(ConcreteArray<>).MakeGenericType(element)))
-                        .Cast<IConverter>()
-                        .Or(() => new AbstractArray(element));
+                default: return Default();
             }
         }
 
         static IConverter CreateList(Type type, Type argument)
         {
+            IConverter Default() =>
+                // This may fail for targets that do not support JIT compilation.
+                Option.Try(() => Activator.CreateInstance(typeof(ConcreteList<>).MakeGenericType(argument)))
+                    .Cast<IConverter>()
+                    .Or(() => CreateIList(type));
+
+            if (argument.IsEnum) return Default();
             switch (Type.GetTypeCode(argument))
             {
                 case TypeCode.Char: return new PrimitiveList<char>(_ => _, node => node.AsChar());
@@ -450,11 +459,7 @@ namespace Entia.Json.Converters
                 case TypeCode.Decimal: return new PrimitiveList<decimal>(_ => _, node => node.AsDecimal());
                 case TypeCode.Boolean: return new PrimitiveList<bool>(_ => _, node => node.AsBool());
                 case TypeCode.String: return new PrimitiveList<string>(_ => _, node => node.AsString());
-                default:
-                    // This may fail for targets that do not support JIT compilation.
-                    return Option.Try(() => Activator.CreateInstance(typeof(ConcreteList<>).MakeGenericType(argument)))
-                        .Cast<IConverter>()
-                        .Or(() => CreateIList(type));
+                default: return Default();
             }
         }
 
@@ -465,6 +470,13 @@ namespace Entia.Json.Converters
             if (type.EnumerableArgument(true).TryValue(out var argument) &&
                 type.EnumerableConstructor(true).TryValue(out var constructor))
             {
+                IConverter Default() =>
+                    // This may fail for targets that do not support JIT compilation.
+                    Option.Try(() => Activator.CreateInstance(typeof(AbstractEnumerable<>).MakeGenericType(argument), constructor))
+                        .Cast<IConverter>()
+                        .Or(() => new AbstractEnumerable(argument, constructor));
+
+                if (argument.IsEnum) return Default();
                 switch (Type.GetTypeCode(argument))
                 {
                     case TypeCode.Char: return new PrimitiveEnumerable<char>(_ => _, node => node.AsChar(), constructor);
@@ -481,11 +493,7 @@ namespace Entia.Json.Converters
                     case TypeCode.Decimal: return new PrimitiveEnumerable<decimal>(_ => _, node => node.AsDecimal(), constructor);
                     case TypeCode.Boolean: return new PrimitiveEnumerable<bool>(_ => _, node => node.AsBool(), constructor);
                     case TypeCode.String: return new PrimitiveEnumerable<string>(_ => _, node => node.AsString(), constructor);
-                    default:
-                        // This may fail for targets that do not support JIT compilation.
-                        return Option.Try(() => Activator.CreateInstance(typeof(AbstractEnumerable<>).MakeGenericType(argument), constructor))
-                            .Cast<IConverter>()
-                            .Or(() => new AbstractEnumerable(argument, constructor));
+                    default: return Default();
                 }
             }
 

@@ -173,6 +173,7 @@ namespace Entia.Core
             }
         }
 
+        static object _lock = new();
         static Entry[] _entries = { };
         static Dictionary<Type, Entry> _typeToEntry = new();
 
@@ -185,7 +186,7 @@ namespace Entia.Core
 
             static Entry CreateEntry(Type type)
             {
-                lock (_typeToEntry)
+                lock (_lock)
                 {
                     if (_typeToEntry.TryGetValue(type, out var entry)) return entry;
                     // 'super', 'sub' and 'entry' must stay within the lock since they access '_entries' which can be
@@ -199,7 +200,7 @@ namespace Entia.Core
                     // trying to guess the index of that entry, but such hackish speculation will not be considered.
                     Interlocked.Exchange(ref _entries, _entries.Append(entry));
                     // This must happen last to make sure that no thread can observe an entry that is not full initialized.
-                    Interlocked.Exchange(ref _typeToEntry, new(_typeToEntry) { [type] = entry });
+                    Interlocked.Exchange(ref _typeToEntry, new(_typeToEntry) { { type, entry } });
                     return entry;
                 }
             }

@@ -101,6 +101,9 @@ namespace Entia.Json.Test
             Test(anonymous.GetType(), out var json23, out var node23, out var value23, withAbstract);
             Test(new Dictionary<string, object> { { "boba", "fett" } }, out var json24, out var node24, out var value24, withAll);
             Test(new BitArray(new byte[] { 0, 1, 2, 3, 4, 5 }), out var json25, out var node25, out var value25);
+            Test(new HashSet<byte>(new byte[] { 0, 1, 2, 3, 4, 5 }), out var json26, out var node26, out var value26);
+            Test(new HashSet<Features>(new[] { Features.Abstract, Features.Reference }), out var json27, out var node27, out var value27);
+            Test(new[] { Features.Abstract, Features.Reference }, out var json28, out var node28, out var value28);
 
             void SerializeA<T>(T value)
             {

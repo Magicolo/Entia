@@ -73,21 +73,22 @@ namespace Entia.Json
 
         public readonly Features Features;
         public readonly Formats Format;
-        public readonly TypeMap<object, IConverter> Converters;
+
+        readonly TypeMap<object, IConverter> _converters;
 
         public Settings(Features features, Formats formats, params IConverter[] converters)
         {
             Features = features;
             Format = formats;
-            Converters = new TypeMap<object, IConverter>(converters.Select(converter => (converter.Type, converter)));
+            _converters = new TypeMap<object, IConverter>(converters.Select(converter => (converter.Type, converter)));
         }
 
         public IConverter Converter(Type type, IConverter @default = null, IConverter @override = null) =>
-            @override ?? Converters.Get(type, out _, true, false) ?? @default ?? Json.Converters.Converter.Default(type);
+            @override ?? _converters.Get(type, out _, true, false) ?? @default ?? Json.Converters.Converter.Default(type);
         public IConverter Converter<T>(IConverter @default = null, IConverter @override = null) =>
-            @override ?? Converters.Get<T>(out _, true, false) ?? @default ?? Json.Converters.Converter.Default<T>();
+            @override ?? _converters.Get<T>(out _, true, false) ?? @default ?? Json.Converters.Converter.Default<T>();
 
         public Settings With(Features? features = null, Formats? format = null, IConverter[] converters = null) =>
-            new Settings(features ?? Features, format ?? Format, converters ?? Converters.Values.ToArray());
+            new Settings(features ?? Features, format ?? Format, converters ?? _converters.Values.ToArray());
     }
 }
