@@ -23,7 +23,6 @@ namespace Entia.Json.Test
             Any(Enumeration<Boba>().Map(value => Node.Number(value)), Character.Map(Node.Number)),
             Integer.Map(Node.Number),
             Rational.Map(Node.Number),
-            // Rational.Map(value => Node.Number(1f / value)),
             All(Rational, Rational).Map(values => Node.Number(values[0] / values[1])));
         static readonly Generator<Node> _string = Any(
             Constant(Node.EmptyString),
@@ -95,6 +94,7 @@ namespace Entia.Json.Test
 
         public static void Run()
         {
+            Serialization.Parse("123.456e-5");
             _string.Check("Generate/parse symmetry for String nodes.");
             _number.Check("Generate/parse symmetry for Number nodes.");
             _node.Check("Generate/parse symmetry for Root nodes.");
@@ -131,6 +131,8 @@ namespace Entia.Json.Test
 
             // TODO: Add test for parsing foreign jsons
             // TODO: Add test for comparing output with Json.Net and .Net Json parser.
+
+            // BUG: Generate/Parse are not symmetric for very large or very small rational numbers.
         }
 
         static Failure<T>[] Check<T>(this Generator<T> generator, string name, Func<T, bool> prove) =>

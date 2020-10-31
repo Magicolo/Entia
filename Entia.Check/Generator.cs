@@ -48,7 +48,7 @@ namespace Entia.Check
         public static readonly Generator<int> Zero = Constant(0);
         public static readonly Generator<int> One = Constant(1);
         public static readonly Generator<int> Integer = Range(int.MinValue, int.MaxValue).Size(size => Math.Pow(size, 5));
-        public static readonly Generator<float> Rational = Range(-1E15f, 1E15f).Size(size => Math.Pow(size, 15));
+        public static readonly Generator<float> Rational = Range(-1e15f, 1e15f).Size(size => Math.Pow(size, 15));
         public static readonly Generator<float> Infinity = Any(float.NegativeInfinity, float.PositiveInfinity);
 
         public static Generator<T> Default<T>() => Cache<T>.Default;

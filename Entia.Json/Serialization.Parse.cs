@@ -287,18 +287,40 @@ namespace Entia.Json
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static unsafe Node ParseNumber(ref char* head, char* tail, long value, long sign)
         {
+            var start = head;
             var character = ParseInteger(ref head, tail, ref value);
+            var fraction = 0.0;
+            var multiplier = 1.0;
+
             if (character == _dot)
             {
                 head++;
-                return Node.Rational(ParseFraction(ref head, tail, value) * sign);
+                start = head;
+                var right = 0L;
+                character = ParseInteger(ref head, tail, ref right);
+                fraction = right * _negatives[Index(start, head)];
             }
-            else if (character == _e || character == _E)
+
+            if (character == _e || character == _E)
             {
                 head++;
-                return Node.Number(ParseExponent(ref head, tail, value) * sign);
+                var exponent = 0L;
+                if (*head == _minus)
+                {
+                    head++;
+                    ParseInteger(ref head, tail, ref exponent);
+                    multiplier = _negatives[exponent];
+                }
+                else
+                {
+                    if (*head == _plus) head++;
+                    ParseInteger(ref head, tail, ref exponent);
+                    multiplier = _positives[exponent];
+                }
             }
-            else return Node.Number(value * sign);
+
+            if (fraction == 0.0 && multiplier == 1.0) return Node.Number(value * sign);
+            return Node.Number((value + fraction) * multiplier * sign);
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             static unsafe char ParseInteger(ref char* head, char* tail, ref long value)
@@ -306,55 +328,22 @@ namespace Entia.Json
                 while (head != tail)
                 {
                     var character = *head;
-                    if (character >= _0 && character <= _9)
-                    {
-                        head++;
-                        value = value * 10 + (character - _0);
-                    }
-                    else return character;
-                }
-                return default;
-            }
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            static unsafe double ParseFraction(ref char* head, char* tail, double value)
-            {
-                var start = head;
-                var fraction = 0L;
-                var character = ParseInteger(ref head, tail, ref fraction);
-                if (character == _e || character == _E)
-                {
-                    head++;
-                    return ParseExponent(ref head, tail, value + fraction / _positives[Index(start, head) - 1]);
-                }
-                else return value + fraction / _positives[Index(start, head)];
-            }
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            static unsafe double ParseExponent(ref char* head, char* tail, double value)
-            {
-                var exponent = 0u;
-                var powers = _positives;
-                while (head != tail)
-                {
                     switch (*head)
                     {
-                        case _0: head++; exponent *= 10u; continue;
-                        case _1: head++; exponent = exponent * 10u + 1u; continue;
-                        case _2: head++; exponent = exponent * 10u + 2u; continue;
-                        case _3: head++; exponent = exponent * 10u + 3u; continue;
-                        case _4: head++; exponent = exponent * 10u + 4u; continue;
-                        case _5: head++; exponent = exponent * 10u + 5u; continue;
-                        case _6: head++; exponent = exponent * 10u + 6u; continue;
-                        case _7: head++; exponent = exponent * 10u + 7u; continue;
-                        case _8: head++; exponent = exponent * 10u + 8u; continue;
-                        case _9: head++; exponent = exponent * 10u + 9u; continue;
-                        case _plus: head++; powers = _positives; continue;
-                        case _minus: head++; powers = _negatives; continue;
+                        case _0: head++; value *= 10; continue;
+                        case _1: head++; value = value * 10 + 1; continue;
+                        case _2: head++; value = value * 10 + 2; continue;
+                        case _3: head++; value = value * 10 + 3; continue;
+                        case _4: head++; value = value * 10 + 4; continue;
+                        case _5: head++; value = value * 10 + 5; continue;
+                        case _6: head++; value = value * 10 + 6; continue;
+                        case _7: head++; value = value * 10 + 7; continue;
+                        case _8: head++; value = value * 10 + 8; continue;
+                        case _9: head++; value = value * 10 + 9; continue;
+                        default: return character;
                     }
-                    break;
                 }
-                return value * powers[exponent];
+                return default;
             }
         }
 
