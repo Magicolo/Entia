@@ -94,7 +94,6 @@ namespace Entia.Json.Test
 
         public static void Run()
         {
-            Serialization.Parse("123.456e-5");
             _string.Check("Generate/parse symmetry for String nodes.");
             _number.Check("Generate/parse symmetry for Number nodes.");
             _node.Check("Generate/parse symmetry for Root nodes.");
