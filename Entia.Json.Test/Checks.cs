@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Entia.Check;
@@ -10,11 +11,10 @@ namespace Entia.Json.Test
     public static class Checks
     {
         static readonly Settings _settings = Settings.Default.With(Features.All);
-        static readonly Random _random = new Random();
-
         static readonly Lazy<Type[]> _types = new Lazy<Type[]>(() =>
         {
-            var (definitions, concretes) = ReflectionUtility.AllTypes
+            var random = new Random();
+            var (definitionTypes, concreteTypes) = ReflectionUtility.AllTypes
                 .Where(type => type.IsPublic && !type.IsAbstract)
                 .Where(type =>
                     type.IsPrimitive ||
@@ -30,13 +30,27 @@ namespace Entia.Json.Test
                     type.Namespace.Contains($"{nameof(System)}.{nameof(System.ComponentModel)}"))
                 .Distinct()
                 .Split(type => type.IsGenericTypeDefinition);
-            var generics = definitions
-                .Repeat(10)
-                .Select(definition => Option.Try(() => definition.MakeGenericType(definition.GetGenericArguments()
-                    .Select(_ => concretes[_random.Next(concretes.Length)]))))
-                .Choose()
-                .ToArray();
-            return ArrayUtility.Concatenate(concretes, generics);
+            var valueTypes = concreteTypes.Where(type => type.IsValueType).ToArray();
+            return ArrayUtility.Concatenate(
+                concreteTypes,
+                definitionTypes.SelectMany(definition => Generics(definition, concreteTypes, 10)).ToArray(),
+                Generics(typeof(Nullable<>), valueTypes, 100).ToArray(),
+                Generics(typeof(Option<>), concreteTypes, 100).ToArray(),
+                Generics(typeof(Result<>), concreteTypes, 100).ToArray(),
+                Generics(typeof(List<>), concreteTypes, 100).ToArray(),
+                Generics(typeof(Dictionary<,>), concreteTypes, 100).ToArray());
+
+            IEnumerable<Type> Generics(Type definition, Type[] types, uint count)
+            {
+                var parameters = definition.GetGenericArguments();
+                while (count-- > 0)
+                {
+                    for (int i = 0; i < parameters.Length; i++)
+                        parameters[i] = types[random.Next(types.Length)];
+                    if (Option.Try(() => definition.MakeGenericType(parameters)).TryValue(out var generic))
+                        yield return generic;
+                }
+            }
         });
 
         static readonly Generator<Enum> _enum = _types.Value
