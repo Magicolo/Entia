@@ -54,7 +54,7 @@ namespace Entia.Check
         }
 
         public Checker<T> With(Generator<T> generator = null, Property<T>[] properties = null, int? iterations = null, int? parallel = null, Action onPre = null, Action<Failure<T>[]> onPost = null, Action<double> onProgress = null) =>
-            new Checker<T>(generator ?? Generator, properties ?? Properties, iterations ?? Iterations, parallel ?? Parallel, onPre ?? OnPre, onPost ?? OnPost, onProgress ?? OnProgress);
+            new Checker<T>(generator ?? Generator, properties ?? Properties, iterations ?? Iterations, parallel ?? Parallel, OnPre + onPre, OnPost + onPost, OnProgress + onProgress);
     }
 
     public static class Checker
