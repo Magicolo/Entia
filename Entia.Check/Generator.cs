@@ -17,16 +17,8 @@ namespace Entia.Check
 
         public readonly string Name;
         public readonly Generate<T> Generate;
-
-        public Generator(string name, Generate<T> generate)
-        {
-            Name = name;
-            Generate = generate;
-        }
-
-        public Generator<T> With(string name = null, Generate<T> generate = null) =>
-            new Generator<T>(name ?? Name, generate ?? Generate);
-
+        public Generator(string name, Generate<T> generate) { Name = name; Generate = generate; }
+        public Generator<T> With(string name = null, Generate<T> generate = null) => new Generator<T>(name ?? Name, generate ?? Generate);
         public override string ToString() => Name;
     }
 
@@ -57,7 +49,6 @@ namespace Entia.Check
                 .DistinctBy(type => type.GUID)
                 .ToArray();
             static readonly Type[] _definitions = _types.Where(type => type.IsGenericTypeDefinition).ToArray();
-            static readonly Type[] _constructables = _definitions.Where(definition => definition.GetGenericArguments().All(argument => argument.GetGenericParameterConstraints().None())).ToArray();
             static readonly Type[] _abstracts = _types.Except(_definitions).Where(type => type.IsAbstract).ToArray();
             static readonly Type[] _interfaces = _abstracts.Where(type => type.IsInterface).ToArray();
             static readonly Type[] _concretes = _types.Except(_abstracts).Except(_definitions).ToArray();
@@ -71,13 +62,18 @@ namespace Entia.Check
             static readonly Type[] _arrays = _arguments.Select(type => type.ArrayType()).Choose().ToArray();
             static readonly Type[] _pointers = _values.Select(type => type.PointerType()).Choose().ToArray();
             static readonly Type[] _defaults = _concretes.Where(type => type.DefaultConstructor().TryValue(out var constructor) && constructor.IsPublic).ToArray();
+            static readonly (Type definition, Type[] arguments)[] _constructables = _definitions
+                .Select(definition => (definition, arguments: definition.GetGenericArguments()))
+                .Where(pair => pair.arguments.All(argument => argument.GetGenericParameterConstraints().None()))
+                .OrderBy(pair => pair.arguments.Length)
+                .ToArray();
 
             public static readonly Generator<Type> Type = Any(_types).With($"{nameof(Types)}.{nameof(Type)}");
             public static readonly Generator<Type> Abstract = Any(_abstracts).With($"{nameof(Types)}.{nameof(Abstract)}");
             public static readonly Generator<Type> Interface = Any(_interfaces).With($"{nameof(Types)}.{nameof(Interface)}");
             public static readonly Generator<Type> Primitive = Any(_primitives).With($"{nameof(Types)}.{nameof(Primitive)}");
             public static readonly Generator<Type> Enumeration = Any(_enumerations).With($"{nameof(Types)}.{nameof(Enumeration)}");
-            public static readonly Generator<Type> Definition = Any(_constructables).With($"{nameof(Types)}.{nameof(Definition)}");
+            public static readonly Generator<Type> Definition = Range(_constructables).Map(pair => pair.definition).With($"{nameof(Types)}.{nameof(Definition)}");
             public static readonly Generator<Type> Enumerable = Any(_enumerables).With($"{nameof(Types)}.{nameof(Enumerable)}");
             public static readonly Generator<Type> Serializable = Any(_serializables).With($"{nameof(Types)}.{nameof(Serializable)}");
             public static readonly Generator<Type> Reference = Any(_references).With($"{nameof(Types)}.{nameof(Reference)}");
@@ -100,30 +96,11 @@ namespace Entia.Check
             public static readonly Generator<Type> Option = Make(typeof(Option<>)).With($"{nameof(Types)}.{nameof(Option)}");
             public static readonly Generator<Type> Result = Make(typeof(Result<>)).With($"{nameof(Types)}.{nameof(Result)}");
 
-            static readonly Generator<Type>[] _referenceTuples =
-            {
-                Make(typeof(Tuple<>)),
-                Make(typeof(Tuple<,>)),
-                Make(typeof(Tuple<,,>)),
-                Make(typeof(Tuple<,,,>)),
-                Make(typeof(Tuple<,,,,>)),
-                Make(typeof(Tuple<,,,,,>)),
-                Make(typeof(Tuple<,,,,,,>)),
-            };
-            static readonly Generator<Type>[] _valueTuples =
-            {
-                Make(typeof(ValueTuple<>)),
-                Make(typeof(ValueTuple<,>)),
-                Make(typeof(ValueTuple<,,>)),
-                Make(typeof(ValueTuple<,,,>)),
-                Make(typeof(ValueTuple<,,,,>)),
-                Make(typeof(ValueTuple<,,,,,>)),
-                Make(typeof(ValueTuple<,,,,,,>)),
-            };
             public static readonly Generator<Type> Tuple =
                 Any(
-                    Range(0, 6).Bind(index => _referenceTuples[index]),
-                    Range(0, 6).Bind(index => _valueTuples[index]))
+                    Range(Make(typeof(Tuple<>)), Make(typeof(Tuple<,>)), Make(typeof(Tuple<,,>)), Make(typeof(Tuple<,,,>)), Make(typeof(Tuple<,,,,>)), Make(typeof(Tuple<,,,,,>)), Make(typeof(Tuple<,,,,,,>))),
+                    Range(Make(typeof(ValueTuple<>)), Make(typeof(ValueTuple<,>)), Make(typeof(ValueTuple<,,>)), Make(typeof(ValueTuple<,,,>)), Make(typeof(ValueTuple<,,,,>)), Make(typeof(ValueTuple<,,,,,>)), Make(typeof(ValueTuple<,,,,,,>))))
+                .Flatten()
                 .With($"{nameof(Types)}.{nameof(Tuple)}");
 
             public static Generator<Type> Make(Type definition) => definition.GetGenericArguments()
@@ -140,7 +117,7 @@ namespace Entia.Check
                 })
                 .All()
                 .Choose(arguments => Core.Option.Try(() => definition.MakeGenericType(arguments)))
-                .With(nameof(Make).Format(definition));
+                .With(nameof(Make).Format(definition.Name));
         }
 
         static class Cache<T>
@@ -220,7 +197,7 @@ namespace Entia.Check
 
         public static Generator<T> Default<T>() => Cache<T>.Default;
         public static Generator<T[]> Empty<T>() => Cache<T>.Empty;
-        public static Generator<Array> Empty(Type type) => Constant(Array.CreateInstance(type, 0)).With(nameof(Empty).Format(type));
+        public static Generator<Array> Empty(Type type) => Constant(Array.CreateInstance(type, 0)).With(nameof(Empty).Format(type.Name));
 
         public static Generator<T> From<T>(string name, Generate<T> generate) => new Generator<T>(name, generate);
         public static Generator<T> Constant<T>(T value, Shrinker<T> shrinker) => From(Format(value), _ => (value, shrinker));
@@ -268,6 +245,8 @@ namespace Entia.Check
         public static Generator<int> Range(int maximum) => Range(0, maximum);
         public static Generator<int> Range(int minimum, int maximum) =>
             Number(minimum, maximum, minimum).Map(value => (int)Math.Round(value)).With(NameCache<int>.Range.Format(minimum, maximum));
+        public static Generator<T> Range<T>(params T[] values) =>
+            Range(values.Length - 1).Map(index => values[index]).With(NameCache<T>.Range.Format(values));
 
         public static Generator<T[]> Repeat<T>(this Generator<T> generator, Generator<int> count) =>
             From(NameCache<T>.Repeat.Format(generator, count), state =>

@@ -11,16 +11,19 @@ namespace Entia.Check
         public readonly string Name;
         public readonly Shrink<T> Shrink;
         public Shrinker(string name, Shrink<T> shrink) { Name = name; Shrink = shrink; }
+        public Shrinker<T> With(string name = null, Shrink<T> shrink = null) => new Shrinker<T>(name ?? Name, shrink ?? Shrink);
+        public override string ToString() => Name;
     }
 
     public static class Shrinker
     {
         static class Cache<T>
         {
-            public static Shrinker<T> Empty = From($"Empty({typeof(T).FullFormat()})", () => Array.Empty<Generator<T>>());
+            public static Shrinker<T> Empty = From($"{nameof(Empty)}<{typeof(T).Name}>", () => Array.Empty<Generator<T>>());
         }
 
         public static Shrinker<T> From<T>(string name, Shrink<T> shrink) => new Shrinker<T>(name, shrink);
+        public static Shrinker<T> From<T>(string name, IEnumerable<Generator<T>> shrinked) => new Shrinker<T>(name, () => shrinked);
         public static Shrinker<T> Empty<T>() => Cache<T>.Empty;
         public static Shrinker<TTarget> Map<TSource, TTarget>(this Shrinker<TSource> shrinker, Func<TSource, TTarget> map) =>
             From(nameof(Map), () => shrinker.Shrink().Select(generator => generator.Map(map)));
