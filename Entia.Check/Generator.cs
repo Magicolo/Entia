@@ -9,7 +9,20 @@ using Entia.Core;
 
 namespace Entia.Check
 {
-    public delegate (T value, IEnumerable<Generator<T>> shrinked) Generator<T>(Generator.State state);
+    public delegate (T value, Shrinker<T> shrinker) Generate<T>(Generator.State state);
+    public readonly struct Generator<T>
+    {
+        public static implicit operator Generator<T>(T value) => Generator.Constant(value);
+
+        public readonly string Name;
+        public readonly Generate<T> Generate;
+
+        public Generator(string name, Generate<T> generator)
+        {
+            Name = name;
+            Generate = generator;
+        }
+    }
 
     public static class Generator
     {
@@ -123,8 +136,8 @@ namespace Entia.Check
 
         static class Cache<T>
         {
-            public static readonly Generator<T> Default = Constant(default(T));
-            public static readonly Generator<T[]> Empty = Constant(Array.Empty<T>());
+            public static readonly Generator<T> Default = default(T);
+            public static readonly Generator<T[]> Empty = Array.Empty<T>();
         }
 
         static class EnumCache<T> where T : struct, Enum
@@ -136,38 +149,56 @@ namespace Entia.Check
         public static readonly Generator<char> Digit = Range('0', '9');
         public static readonly Generator<char> ASCII = Any(Letter, Digit, Range((char)127));
         public static readonly Generator<char> Character = Range(char.MinValue, char.MaxValue);
-        public static readonly Generator<bool> True = Constant(true);
-        public static readonly Generator<bool> False = Constant(false);
+        public static readonly Generator<bool> True = true;
+        public static readonly Generator<bool> False = false;
         public static readonly Generator<bool> Boolean = Any(True, False);
-        public static readonly Generator<int> Zero = Constant(0);
-        public static readonly Generator<int> One = Constant(1);
+        public static readonly Generator<int> Zero = 0;
+        public static readonly Generator<int> One = 1;
         public static readonly Generator<int> Integer = Number(int.MinValue, int.MaxValue, 0m).Map(value => (int)Math.Round(value)).Size(size => Math.Pow(size, 5));
         public static readonly Generator<float> Rational = Number(-1e15m, 1e15m, 0m).Map(value => (float)value).Size(size => Math.Pow(size, 15));
         public static readonly Generator<float> Infinity = Any(float.NegativeInfinity, float.PositiveInfinity);
+
+        static readonly Generator<Enum> _enumeration = Types.Enumeration.Bind(Enumeration);
 
         public static Generator<T> Default<T>() => Cache<T>.Default;
         public static Generator<T[]> Empty<T>() => Cache<T>.Empty;
         public static Generator<Array> Empty(Type type) => Constant(Array.CreateInstance(type, 0));
 
-        public static Generator<T> Constant<T>(T value, IEnumerable<Generator<T>> shrinked) => _ => (value, shrinked);
-        public static Generator<T> Constant<T>(T value) => Constant(value, Array.Empty<Generator<T>>());
+        public static Generator<T> From<T>(string name, Generate<T> generate) => new Generator<T>(name, generate);
+        public static Generator<T> Constant<T>(T value, Shrinker<T> shrinker) => From(nameof(Constant), _ => (value, shrinker));
+        public static Generator<T> Constant<T>(T value) => Constant(value, Shrinker.Empty<T>());
 
         public static Generator<T> Lazy<T>(Func<T> provide) => Lazy(() => Constant(provide()));
         public static Generator<T> Lazy<T>(Func<Generator<T>> provide)
         {
             var generator = new Lazy<Generator<T>>(provide);
-            return state => generator.Value(state);
+            return From(nameof(Lazy), state => generator.Value.Generate(state));
         }
 
+        public static Generator<T> Adapt<T>(this Generator<T> generator, Func<State, State> map) =>
+            From(nameof(Adapt), state => generator.Generate(map(state)));
         public static Generator<T> Size<T>(this Generator<T> generator, Func<double, double> map) =>
-            state => generator(state.With(map(state.Size)));
-        public static Generator<T> Depth<T>(this Generator<T> generator) => state =>
-            generator(state.With(depth: state.Depth + 1));
-        public static Generator<T> Attenuate<T>(this Generator<T> generator, uint depth) => state =>
-            generator(state.With(state.Size * Math.Max(1.0 - (double)state.Depth / depth, 0.0)));
+            generator.Adapt(state => state.With(map(state.Size)));
+        public static Generator<T> Depth<T>(this Generator<T> generator) =>
+            generator.Adapt(state => state.With(depth: state.Depth + 1));
+        public static Generator<T> Attenuate<T>(this Generator<T> generator, Generator<uint> depth) =>
+            depth.Bind(depth => generator.Adapt(state => state.With(state.Size * Math.Max(1.0 - (double)state.Depth / depth, 0.0))));
+
+        public static Generator<sbyte> Signed(this Generator<byte> generator) => generator.Map(value => (sbyte)value);
+        public static Generator<short> Signed(this Generator<ushort> generator) => generator.Map(value => (short)value);
+        public static Generator<int> Signed(this Generator<uint> generator) => generator.Map(value => (int)value);
+        public static Generator<long> Signed(this Generator<ulong> generator) => generator.Map(value => (long)value);
+        public static Generator<byte> Unsigned(this Generator<sbyte> generator) => generator.Map(value => (byte)value);
+        public static Generator<ushort> Unsigned(this Generator<short> generator) => generator.Map(value => (ushort)value);
+        public static Generator<uint> Unsigned(this Generator<int> generator) => generator.Map(value => (uint)value);
+        public static Generator<ulong> Unsigned(this Generator<long> generator) => generator.Map(value => (ulong)value);
 
         public static Generator<T> Enumeration<T>() where T : struct, Enum => EnumCache<T>.Any;
         public static Generator<Enum> Enumeration(Type type) => Enum.GetValues(type).OfType<Enum>().Select(Constant).Any();
+        public static Generator<Enum> Enumeration() => _enumeration;
+        public static Generator<string> String(Generator<int> count) => Character.String(count);
+        public static Generator<string> String(this Generator<char> character, Generator<int> count) =>
+            character.Repeat(count).Map(characters => new string(characters));
 
         public static Generator<char> Range(char maximum) => Range('\0', maximum);
         public static Generator<char> Range(char minimum, char maximum) =>
@@ -179,72 +210,63 @@ namespace Entia.Check
         public static Generator<int> Range(int minimum, int maximum) =>
             Number(minimum, maximum, minimum).Map(value => (int)Math.Round(value));
 
-        public static Generator<string> String(int count) => Character.String(count);
-        public static Generator<string> String(Generator<int> count) => Character.String(count);
-        public static Generator<string> String(this Generator<char> character, int count) =>
-            character.Repeat(count).Map(characters => new string(characters));
-        public static Generator<string> String(this Generator<char> character, Generator<int> count) =>
-            character.Repeat(count).Map(characters => new string(characters));
-
-        public static Generator<T[]> Repeat<T>(this Generator<T> generator, int count) =>
-            count == 0 ? Cache<T>.Empty : generator.Repeat(Constant(count));
-        public static Generator<T[]> Repeat<T>(this Generator<T> generator, Generator<int> count) => state =>
+        public static Generator<T[]> Repeat<T>(this Generator<T> generator, Generator<int> count) => From(nameof(Repeat), state =>
         {
-            var length = count(state).value;
-            if (length == 0) return Cache<T>.Empty(state);
+            var length = count.Generate(state).value;
+            if (length == 0) return Empty<T>().Generate(state);
 
             var values = new T[length];
-            var shrinked = new IEnumerable<Generator<T>>[length];
-            for (int i = 0; i < length; i++) (values[i], shrinked[i]) = generator(state);
-            return (values, ShrinkRepeat(values, shrinked));
-        };
+            var shrinkers = new Shrinker<T>[length];
+            for (int i = 0; i < length; i++) (values[i], shrinkers[i]) = generator.Generate(state);
+            return (values, Shrinker.Repeat(values, shrinkers));
+        });
 
         public static Generator<TTarget> Map<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, TTarget> map) =>
-            state =>
+            From(nameof(Map), state =>
             {
-                var (value, shrinked) = generator(state);
-                return (map(value), shrinked.Select(shrink => shrink.Map(map)));
-            };
+                var (value, shrinker) = generator.Generate(state);
+                return (map(value), shrinker.Map(map));
+            });
 
         public static Generator<TTarget> Bind<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, Generator<TTarget>> bind) =>
             generator.Map(bind).Flatten();
 
         public static Generator<TTarget> Choose<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, Option<TTarget>> map) =>
-            state =>
+            From(nameof(Choose), state =>
             {
                 while (true)
                 {
-                    var (source, shrinked) = generator(state);
-                    if (map(source).TryValue(out var target)) return (target, shrinked.Select(shrink => shrink.Choose(map)));
+                    var (source, shrinker) = generator.Generate(state);
+                    if (map(source).TryValue(out var target)) return (target, shrinker.Choose(map));
                 }
-            };
+            });
 
-        public static Generator<T> Flatten<T>(this Generator<Generator<T>> generator) => state =>
+        public static Generator<T> Flatten<T>(this Generator<Generator<T>> generator) => From(nameof(Flatten), state =>
         {
-            var pair1 = generator(state);
-            var pair2 = pair1.value(state);
-            return (pair2.value, pair1.shrinked.Select(shrink => shrink.Flatten()).Concat(pair2.shrinked));
-        };
+            var pair1 = generator.Generate(state);
+            var pair2 = pair1.value.Generate(state);
+            return (pair2.value, pair1.shrinker.Flatten().And(pair2.shrinker));
+        });
 
-        public static Generator<T> Filter<T>(this Generator<T> generator, Func<T, bool> filter) => state =>
+        public static Generator<T> Filter<T>(this Generator<T> generator, Func<T, bool> filter) => From(nameof(Filter), state =>
         {
             while (true)
             {
-                var (value, shrinked) = generator(state);
-                if (filter(value)) return (value, shrinked);
+                var (value, shrinker) = generator.Generate(state);
+                if (filter(value)) return (value, shrinker);
             }
-        };
+        });
 
         public static Generator<T> Any<T>(params T[] values) => Any(values.Select(Constant));
         public static Generator<T> Any<T>(this IEnumerable<Generator<T>> generators) => Any(generators.ToArray());
         public static Generator<T> Any<T>(params Generator<T>[] generators) =>
             generators.Length == 0 ? throw new ArgumentException(nameof(generators)) :
             generators.Length == 1 ? generators[0] :
-            state =>
+            From(nameof(Any), state =>
             {
                 var index = state.Random.Next(generators.Length);
-                return generators[index](state);
-            };
+                return generators[index].Generate(state);
+            });
 
         public static Generator<T> Any<T>(params (float weight, Generator<T> generator)[] generators)
         {
@@ -252,12 +274,12 @@ namespace Entia.Check
             if (generators.Length == 1) return generators[0].generator;
 
             var sum = generators.Sum(pair => pair.weight);
-            return state =>
+            return From(nameof(Any), state =>
             {
                 var random = state.Random.NextDouble() * sum;
                 var current = 0d;
-                return generators.First(pair => random < (current += pair.weight)).generator(state);
-            };
+                return generators.First(pair => random < (current += pair.weight)).generator.Generate(state);
+            });
         }
 
         public static Generator<object> Box<T>(this Generator<T> generator) => generator.Map(value => (object)value);
@@ -274,13 +296,13 @@ namespace Entia.Check
         public static Generator<T[]> All<T>(this IEnumerable<Generator<T>> generators) => All(generators.ToArray());
         public static Generator<T[]> All<T>(params Generator<T>[] generators) =>
             generators.Length == 0 ? Empty<T>() :
-            state =>
+            From(nameof(All), state =>
             {
                 var values = new T[generators.Length];
-                var shrinked = new IEnumerable<Generator<T>>[generators.Length];
-                for (int i = 0; i < generators.Length; i++) (values[i], shrinked[i]) = generators[i](state);
-                return (values, ShrinkAll(values, shrinked));
-            };
+                var shrinkers = new Shrinker<T>[generators.Length];
+                for (int i = 0; i < generators.Length; i++) (values[i], shrinkers[i]) = generators[i].Generate(state);
+                return (values, Shrinker.All(values, shrinkers));
+            });
 
         public static IEnumerable<T> Sample<T>(this Generator<T> generator, int count)
         {
@@ -291,63 +313,21 @@ namespace Entia.Check
                 var seed = random.Next() ^ Thread.CurrentThread.ManagedThreadId ^ i;
                 var size = Math.Min(i / maximum, 1.0);
                 var state = new Generator.State(size, 0, new Random(seed));
-                yield return generator(state).value;
+                yield return generator.Generate(state).value;
             }
         }
 
         static Generator<decimal> Number(decimal minimum, decimal maximum, decimal target)
         {
-            if (minimum == maximum) return Constant(minimum);
-            return state =>
+            if (minimum == maximum) return minimum;
+            return From(nameof(Number), state =>
             {
                 var random = Interpolate(minimum, maximum, (decimal)state.Random.NextDouble());
                 var value = Interpolate(target, random, (decimal)state.Size);
-                return (value, ShrinkNumber(value, target));
-            };
+                return (value, Shrinker.Number(value, target));
+            });
 
             static decimal Interpolate(decimal source, decimal target, decimal ratio) => (target - source) * ratio + source;
-        }
-
-        static IEnumerable<Generator<decimal>> ShrinkNumber(decimal source, decimal target)
-        {
-            var difference = target - source;
-            var sign = Math.Sign(difference);
-            var magnitude = Math.Abs(difference);
-            var direction = magnitude / 100m;
-            for (int i = 0; i < 100 && magnitude > 0; i++, magnitude -= direction)
-            {
-                var middle = Math.Round(magnitude * 0.5m * sign + source, 9);
-                if (middle == source) yield break;
-                yield return Constant(middle, ShrinkNumber(middle, target));
-            }
-        }
-
-        static IEnumerable<Generator<T[]>> ShrinkRepeat<T>(T[] values, IEnumerable<Generator<T>>[] shrinked)
-        {
-            // Try to remove irrelevant generators.
-            for (int i = 0; i < values.Length; i++)
-            {
-                var pair = (values.RemoveAt(i), shrinked.RemoveAt(i));
-                yield return Constant(pair.Item1, ShrinkRepeat(pair.Item1, pair.Item2));
-            }
-            // Try to shrink relevant generators.
-            foreach (var generator in ShrinkAll(values, shrinked)) yield return generator;
-        }
-
-        static IEnumerable<Generator<T[]>> ShrinkAll<T>(T[] values, IEnumerable<Generator<T>>[] shrinked)
-        {
-            for (int i = 0; i < shrinked.Length; i++)
-            {
-                foreach (var shrink in shrinked[i])
-                {
-                    yield return new Generator<T[]>(state =>
-                    {
-                        var pair = (CloneUtility.Shallow(values), CloneUtility.Shallow(shrinked));
-                        (pair.Item1[i], pair.Item2[i]) = shrink(state);
-                        return (pair.Item1, ShrinkAll(pair.Item1, pair.Item2));
-                    });
-                }
-            }
         }
     }
 }

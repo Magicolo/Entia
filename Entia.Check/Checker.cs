@@ -53,7 +53,7 @@ namespace Entia.Check
             OnProgress = onProgress;
         }
 
-        public Checker<T> With(Generator<T> generator = null, Property<T>[] properties = null, int? iterations = null, int? parallel = null, Action onPre = null, Action<Failure<T>[]> onPost = null, Action<double> onProgress = null) =>
+        public Checker<T> With(Generator<T>? generator = null, Property<T>[] properties = null, int? iterations = null, int? parallel = null, Action onPre = null, Action<Failure<T>[]> onPost = null, Action<double> onProgress = null) =>
             new Checker<T>(generator ?? Generator, properties ?? Properties, iterations ?? Iterations, parallel ?? Parallel, OnPre + onPre, OnPost + onPost, OnProgress + onProgress);
     }
 
@@ -74,7 +74,7 @@ namespace Entia.Check
 
         public static Checker<T> Log<T>(this Checker<T> checker, string name = null)
         {
-            name ??= checker.Generator.Method.Name;
+            name ??= checker.Generator.Name;
             return checker.With(
                 onPre: () =>
                 {
@@ -120,7 +120,7 @@ namespace Entia.Check
                     var seed = random.Next() ^ Thread.CurrentThread.ManagedThreadId ^ i ^ index ^ Environment.TickCount;
                     var size = Math.Min(i / maximum, 1.0);
                     var state = new Generator.State(size, 0, new Random(seed));
-                    var (value, shrinked) = checker.Generator(state);
+                    var (value, shrinker) = checker.Generator.Generate(state);
                     foreach (var property in checker.Properties)
                     {
                         if (property.Prove(value)) continue;
@@ -131,12 +131,12 @@ namespace Entia.Check
                             var @continue = true;
                             while (@continue.Change(false))
                             {
-                                foreach (var generator in shrinked)
+                                foreach (var generator in shrinker.Shrink())
                                 {
                                     var state = new Generator.State(size, 0, new Random(seed));
-                                    var pair = generator(state);
+                                    var pair = generator.Generate(state);
                                     if (property.Prove(pair.value)) continue;
-                                    (value, shrinked) = pair;
+                                    (value, shrinker) = pair;
                                     @continue = true;
                                     break;
                                 }
