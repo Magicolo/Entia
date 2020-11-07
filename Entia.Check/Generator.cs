@@ -141,8 +141,8 @@ namespace Entia.Check
         public static readonly Generator<bool> Boolean = Any(True, False);
         public static readonly Generator<int> Zero = Constant(0);
         public static readonly Generator<int> One = Constant(1);
-        public static readonly Generator<int> Integer = Range(int.MinValue, int.MaxValue).Size(size => Math.Pow(size, 5));
-        public static readonly Generator<float> Rational = Range(-1e15f, 1e15f).Size(size => Math.Pow(size, 15));
+        public static readonly Generator<int> Integer = Number(int.MinValue, int.MaxValue, 0m).Map(value => (int)Math.Round(value)).Size(size => Math.Pow(size, 5));
+        public static readonly Generator<float> Rational = Number(-1e15m, 1e15m, 0m).Map(value => (float)value).Size(size => Math.Pow(size, 15));
         public static readonly Generator<float> Infinity = Any(float.NegativeInfinity, float.PositiveInfinity);
 
         public static Generator<T> Default<T>() => Cache<T>.Default;
@@ -171,13 +171,13 @@ namespace Entia.Check
 
         public static Generator<char> Range(char maximum) => Range('\0', maximum);
         public static Generator<char> Range(char minimum, char maximum) =>
-            Number(minimum, maximum).Map(value => (char)value);
+            Number(minimum, maximum, minimum).Map(value => (char)Math.Round(value));
         public static Generator<float> Range(float maximum) => Range(0f, maximum);
         public static Generator<float> Range(float minimum, float maximum) =>
-            Number(minimum, maximum).Map(value => (float)value);
+            Number((decimal)minimum, (decimal)maximum, (decimal)minimum).Map(value => (float)value);
         public static Generator<int> Range(int maximum) => Range(0, maximum);
         public static Generator<int> Range(int minimum, int maximum) =>
-            Number(minimum, maximum).Map(value => (int)value);
+            Number(minimum, maximum, minimum).Map(value => (int)Math.Round(value));
 
         public static Generator<string> String(int count) => Character.String(count);
         public static Generator<string> String(Generator<int> count) => Character.String(count);
@@ -285,75 +285,38 @@ namespace Entia.Check
         public static IEnumerable<T> Sample<T>(this Generator<T> generator, int count)
         {
             var random = new Random();
+            var maximum = count * 0.9;
             for (int i = 0; i < count; i++)
             {
                 var seed = random.Next() ^ Thread.CurrentThread.ManagedThreadId ^ i;
-                var size = i / (double)count;
+                var size = Math.Min(i / maximum, 1.0);
                 var state = new Generator.State(size, 0, new Random(seed));
                 yield return generator(state).value;
             }
         }
 
-        static double Interpolate(double source, double target, double ratio) => (target - source) * ratio + source;
-
-        static Generator<long> Number(long minimum, long maximum)
+        static Generator<decimal> Number(decimal minimum, decimal maximum, decimal target)
         {
-            if (minimum == maximum || minimum > maximum || maximum < minimum) return Constant(minimum);
-
-            var target = maximum < 0L ? maximum : minimum > 0L ? minimum : 0L;
+            if (minimum == maximum) return Constant(minimum);
             return state =>
             {
-                var random = Interpolate(minimum, maximum, state.Random.NextDouble());
-                var value = (long)Math.Round(Interpolate(target, random, state.Size));
+                var random = Interpolate(minimum, maximum, (decimal)state.Random.NextDouble());
+                var value = Interpolate(target, random, (decimal)state.Size);
                 return (value, ShrinkNumber(value, target));
             };
+
+            static decimal Interpolate(decimal source, decimal target, decimal ratio) => (target - source) * ratio + source;
         }
 
-        static Generator<double> Number(double minimum, double maximum)
-        {
-            if (minimum == maximum || minimum > maximum || maximum < minimum) return Constant(minimum);
-
-            var target = maximum < 0.0 ? maximum : minimum > 0.0 ? minimum : 0.0;
-            return state =>
-            {
-                var random = Interpolate(minimum, maximum, state.Random.NextDouble());
-                var value = Interpolate(target, random, state.Size);
-                return (value, ShrinkNumber(value, target));
-            };
-        }
-
-        static IEnumerable<Generator<long>> ShrinkNumber(long source, long target)
-        {
-            static long Round(double value)
-            {
-                var positive = Math.Abs(value);
-                var integer = (long)positive;
-                var fraction = positive - integer;
-                var add = fraction < 0.5 ? 0L : 1L;
-                return integer + add;
-            }
-
-            var difference = target - source;
-            var sign = Math.Sign(difference);
-            var magnitude = Math.Abs(difference);
-            var direction = Math.Max(1L, magnitude / 100L);
-            for (int i = 0; i < 100 && magnitude > 0; i++, magnitude -= direction)
-            {
-                var middle = Round(magnitude / 2.0) * sign + source;
-                if (middle == source) yield break;
-                yield return Constant(middle, ShrinkNumber(middle, target));
-            }
-        }
-
-        static IEnumerable<Generator<double>> ShrinkNumber(double source, double target)
+        static IEnumerable<Generator<decimal>> ShrinkNumber(decimal source, decimal target)
         {
             var difference = target - source;
             var sign = Math.Sign(difference);
             var magnitude = Math.Abs(difference);
-            var direction = magnitude / 100.0;
+            var direction = magnitude / 100m;
             for (int i = 0; i < 100 && magnitude > 0; i++, magnitude -= direction)
             {
-                var middle = Math.Round(magnitude * 0.5 * sign + source, 9);
+                var middle = Math.Round(magnitude * 0.5m * sign + source, 9);
                 if (middle == source) yield break;
                 yield return Constant(middle, ShrinkNumber(middle, target));
             }

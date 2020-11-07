@@ -10,7 +10,6 @@ namespace Entia.Check
     {
         public static void Run()
         {
-            Constant("").Check("Constant is constant.", value => value == "");
             Zero.Check("Zero == 0.", value => value == 0);
             One.Check("One == 1.", value => value == 1);
             Letter.Check("Letter is letter.", char.IsLetter);
@@ -20,6 +19,7 @@ namespace Entia.Check
             Digit.String(Range(100)).Check("String(Digit) is digit.", value => value.Length <= 100 && value.All(char.IsDigit));
             ASCII.String(Range(100)).Check("String(ASCII) is ascii.", value => value.Length <= 100 && value.All(value => value < 128));
             Infinity.Check("Infinity 'float' generator.", float.IsInfinity);
+            String(Range(100)).Bind(value => Constant(value).Map(constant => (value, constant))).Check("Constant is constant.", pair => pair.value == pair.constant);
 
             All(Zero).Check("All(1) produces arrays of length 1.", values => values.Length == 1 && values.All(value => value == 0));
             All(Zero, Zero).Check("All(2) produces arrays of length 2.", values => values.Length == 2 && values.All(value => value == 0));

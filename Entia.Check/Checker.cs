@@ -112,11 +112,13 @@ namespace Entia.Check
             Option<Failure<T>> Run(int index)
             {
                 var iterations = checker.Iterations / checker.Parallel;
+                var maximum = iterations * 0.9; // 10% of tests will have a size of 1.
                 var random = new Random();
                 for (var i = 0; i <= iterations; i++)
                 {
+                    progress[index] = i / (double)iterations;
                     var seed = random.Next() ^ Thread.CurrentThread.ManagedThreadId ^ i ^ index ^ Environment.TickCount;
-                    var size = progress[index] = i / (double)iterations;
+                    var size = Math.Min(i / maximum, 1.0);
                     var state = new Generator.State(size, 0, new Random(seed));
                     var (value, shrinked) = checker.Generator(state);
                     foreach (var property in checker.Properties)
