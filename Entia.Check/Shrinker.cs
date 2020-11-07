@@ -24,8 +24,8 @@ namespace Entia.Check
         public static Shrinker<T> Empty<T>() => Cache<T>.Empty;
         public static Shrinker<TTarget> Map<TSource, TTarget>(this Shrinker<TSource> shrinker, Func<TSource, TTarget> map) =>
             From(nameof(Map), () => shrinker.Shrink().Select(generator => generator.Map(map)));
-        public static Shrinker<TTarget> Choose<TSource, TTarget>(this Shrinker<TSource> shrinker, Func<TSource, Option<TTarget>> map) =>
-            From(nameof(Choose), () => shrinker.Shrink().Select(generator => generator.Choose(map)));
+        public static Shrinker<TTarget> Choose<TSource, TTarget>(this Shrinker<TSource> shrinker, Func<TSource, Option<TTarget>> choose) =>
+            From(nameof(Choose), () => shrinker.Shrink().Select(generator => generator.Choose(choose)));
         public static Shrinker<T> Flatten<T>(this Shrinker<Generator<T>> shrinker) =>
             From(nameof(Flatten), () => shrinker.Shrink().Select(generator => generator.Flatten()));
         public static Shrinker<T> And<T>(this Shrinker<T> shrinker1, Shrinker<T> shrinker2)

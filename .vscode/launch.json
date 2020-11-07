@@ -12,7 +12,7 @@
 			"internalConsoleOptions": "neverOpen"
 		},
 		{
-			"name": "Entia.Test.Checks",
+			"name": "Entia.Test.Debug",
 			"type": "coreclr",
 			"request": "launch",
 			"preLaunchTask": "build debug",
@@ -22,7 +22,7 @@
 			"internalConsoleOptions": "neverOpen"
 		},
 		{
-			"name": "Entia.Test.Benches",
+			"name": "Entia.Test.Release",
 			"type": "coreclr",
 			"request": "launch",
 			"preLaunchTask": "build release",
