@@ -9,31 +9,20 @@ namespace Entia.Json
     public static class Checks
     {
         static readonly Settings _settings = Settings.Default.With(Features.All);
-        static readonly Generator<Enum> _enumeration = Types.Enumeration.Bind(Enumeration);
-        static readonly Generator<Node> _boolean = Any(
-            Constant(Node.True),
-            Constant(Node.False),
-            Generator.Boolean.Map(Node.Boolean));
+        static readonly Generator<Node> _boolean = Any(Node.True, Node.False, Generator.Boolean.Map(Node.Boolean));
         static readonly Generator<Node> _number = Any(
-            Any(Constant(Node.Zero), Constant(Node.Number(float.NaN)), Infinity.Map(Node.Number)),
-            Any(_enumeration.Map(Node.Number), Character.Map(Node.Number)),
+            Any(Node.Zero, Node.Number(float.NaN), Infinity.Map(Node.Number)),
+            Any(Enumeration().Map(Node.Number), Character.Map(Node.Number)),
             Integer.Map(Node.Number),
             Rational.Map(Node.Number),
             All(Rational, Rational).Map(values => Node.Number(values[0] / values[1])));
         static readonly Generator<Node> _string = Any(
-            Any(Constant(Node.EmptyString), _enumeration.Map(Node.String)),
-            Any(ASCII, Letter, Digit, Any('\\', '\"', '/', '\t', '\f', '\b', '\n', '\r'), Character).String(Range(100)).Map(Node.String));
+            Any(Node.EmptyString, Enumeration().Map(Node.String)),
+            Any(ASCII, Letter, Digit, Character, '\\', '\"', '/', '\t', '\f', '\b', '\n', '\r').String(Range(100)).Map(Node.String));
         static readonly Generator<Node> _type = Types.Type.Map(Node.Type);
         static readonly Generator<Node> _array = Lazy(() => _node).Repeat(Range(10).Attenuate(10)).Map(Node.Array);
         static readonly Generator<Node> _object = All(_string, Lazy(() => _node)).Repeat(Range(10).Attenuate(10)).Map(nodes => Node.Object(nodes.Flatten()));
-        static readonly Generator<Node> _leaf = Any(
-            Constant(Node.Null),
-            Constant(Node.EmptyArray),
-            Constant(Node.EmptyObject),
-            _boolean,
-            _string,
-            _number,
-            _type);
+        static readonly Generator<Node> _leaf = Any(Node.Null, Node.EmptyArray, Node.EmptyObject, _boolean, _string, _number, _type);
         static readonly Generator<Node> _branch = Any(_array, _object).Depth();
         static readonly Generator<Node> _node = Any(_leaf, _branch);
 

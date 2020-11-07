@@ -20,6 +20,7 @@ namespace Entia.Check
             ASCII.String(Range(100)).Check("String(ASCII) is ascii.", value => value.Length <= 100 && value.All(value => value < 128));
             Infinity.Check("Infinity 'float' generator.", float.IsInfinity);
             String(Range(100)).Bind(value => Constant(value).Map(constant => (value, constant))).Check("Constant is constant.", pair => pair.value == pair.constant);
+            Enumeration().Check("Enumeration is enum.", value => value is Enum);
 
             All(Zero).Check("All(1) produces arrays of length 1.", values => values.Length == 1 && values.All(value => value == 0));
             All(Zero, Zero).Check("All(2) produces arrays of length 2.", values => values.Length == 2 && values.All(value => value == 0));
