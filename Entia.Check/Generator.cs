@@ -394,13 +394,22 @@ namespace Entia.Check
                 return (value, Shrinker.Number(value, target));
             });
 
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             static decimal Interpolate(decimal source, decimal target, decimal ratio) => (target - source) * ratio + source;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static string Format<T>(T value) =>
 #if DEBUG
-            $"({value})";
+            $"{value}";
+#else
+            "";
+#endif
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static string Format<T>(T[] values) =>
+#if DEBUG
+            $"{string.Join(", ", values)}";
 #else
             "";
 #endif
@@ -408,7 +417,7 @@ namespace Entia.Check
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static string Format<T>(this string name, T value) =>
 #if DEBUG
-            $"{name}({value})";
+            $"{name}({Format(value)})";
 #else
             name;
 #endif
@@ -416,7 +425,7 @@ namespace Entia.Check
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static string Format<T1, T2>(this string name, T1 value1, T2 value2) =>
 #if DEBUG
-            $"{name}({value1}, {value2})";
+            $"{name}({Format(value1)}, {Format(value2)})";
 #else
             name;
 #endif
@@ -424,7 +433,7 @@ namespace Entia.Check
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static string Format<T1, T2, T3>(this string name, T1 value1, T2 value2, T3 value3) =>
 #if DEBUG
-            $"{name}({value1}, {value2}, {value3})";
+            $"{name}({Format(value1)}, {Format(value2)}, {Format(value3)})";
 #else
             name;
 #endif
@@ -432,7 +441,7 @@ namespace Entia.Check
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static string Format<T1, T2, T3, T4>(this string name, T1 value1, T2 value2, T3 value3, T4 value4) =>
 #if DEBUG
-            $"{name}({value1}, {value2}, {value3}, {value4})";
+            $"{name}({Format(value1)}, {Format(value2)}, {Format(value3)}, {Format(value4)})";
 #else
             name;
 #endif
@@ -440,7 +449,7 @@ namespace Entia.Check
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static string Format<T1, T2, T3, T4, T5>(this string name, T1 value1, T2 value2, T3 value3, T4 value4, T5 value5) =>
 #if DEBUG
-            $"{name}({value1}, {value2}, {value3}, {value4}, {value5})";
+            $"{name}({Format(value1)}, {Format(value2)}, {Format(value3)}, {Format(value4)}, {Format(value5)})";
 #else
             name;
 #endif
@@ -448,7 +457,7 @@ namespace Entia.Check
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static string Format<T>(this string name, T[] values) =>
 #if DEBUG
-            $"{name}({string.Join(", ", values)})";
+            $"{name}({Format(values)})";
 #else
             name;
 #endif
