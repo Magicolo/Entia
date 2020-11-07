@@ -1,6 +1,9 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.Serialization;
 using System.Threading;
 using Entia.Core;
 
@@ -25,6 +28,97 @@ namespace Entia.Check
 
             public State With(double? size = null, uint? depth = null) =>
                 new State(size ?? Size, depth ?? Depth, Random);
+        }
+
+        public static class Types
+        {
+            static readonly Type[] _types = ReflectionUtility.AllTypes
+                .Except(typeof(void), typeof(TypedReference))
+                .Where(type => type.IsPublic)
+                .DistinctBy(type => type.GUID)
+                .ToArray();
+            static readonly Type[] _definitions = _types.Where(type => type.IsGenericTypeDefinition).ToArray();
+            static readonly Type[] _constructables = _definitions.Where(definition => definition.GetGenericArguments().All(argument => argument.GetGenericParameterConstraints().None())).ToArray();
+            static readonly Type[] _abstracts = _types.Except(_definitions).Where(type => type.IsAbstract).ToArray();
+            static readonly Type[] _interfaces = _abstracts.Where(type => type.IsInterface).ToArray();
+            static readonly Type[] _concretes = _types.Except(_abstracts).Except(_definitions).ToArray();
+            static readonly Type[] _references = _concretes.Where(type => type.IsClass).ToArray();
+            static readonly Type[] _values = _concretes.Where(type => type.IsValueType).ToArray();
+            static readonly Type[] _enumerations = _values.Where(type => type.IsEnum).ToArray();
+            static readonly Type[] _primitives = _values.Where(type => type.IsPrimitive).ToArray();
+            static readonly Type[] _enumerables = _concretes.Where(type => type.Is<IEnumerable>()).ToArray();
+            static readonly Type[] _serializables = _concretes.Where(type => type.Is<ISerializable>()).ToArray();
+            static readonly Type[] _arguments = _types.Where(type => !type.IsByRef && !type.IsPointer && !type.IsGenericTypeDefinition).ToArray();
+            static readonly Type[] _arrays = _arguments.Select(type => type.ArrayType()).Choose().ToArray();
+            static readonly Type[] _pointers = _values.Select(type => type.PointerType()).Choose().ToArray();
+            static readonly Type[] _defaults = _concretes.Where(type => type.DefaultConstructor().TryValue(out var constructor) && constructor.IsPublic).ToArray();
+
+            public static readonly Generator<Type> Type = Any(_types);
+            public static readonly Generator<Type> Abstract = Any(_abstracts);
+            public static readonly Generator<Type> Interface = Any(_interfaces);
+            public static readonly Generator<Type> Primitive = Any(_primitives);
+            public static readonly Generator<Type> Enumeration = Any(_enumerations);
+            public static readonly Generator<Type> Definition = Any(_constructables);
+            public static readonly Generator<Type> Enumerable = Any(_enumerables);
+            public static readonly Generator<Type> Serializable = Any(_serializables);
+            public static readonly Generator<Type> Reference = Any(_references);
+            public static readonly Generator<Type> Value = Any(_values);
+            public static readonly Generator<Type> Concrete = Any(_concretes);
+            public static readonly Generator<Type> Array = Any(_arrays);
+            public static readonly Generator<Type> Pointer = Any(_pointers);
+            public static readonly Generator<Type> Default = Any(_defaults);
+
+            static readonly Generator<Type> _argument = Any(_arguments);
+            static readonly Generator<Type> _referenceArgument = Any(_arguments.Intersect(_references).ToArray());
+            static readonly Generator<Type> _valueArgument = Any(_arguments.Intersect(_values).ToArray());
+            static readonly Generator<Type> _defaultArgument = Any(_arguments.Intersect(_defaults).ToArray());
+
+            public static readonly Generator<Type> Generic = Definition.Bind(Make);
+            public static readonly Generator<Type> Unmanaged = Any(Primitive, Enumeration, Pointer);
+            public static readonly Generator<Type> List = Make(typeof(List<>));
+            public static readonly Generator<Type> Dictionary = Make(typeof(Dictionary<,>));
+            public static readonly Generator<Type> Nullable = Make(typeof(Nullable<>));
+            public static readonly Generator<Type> Option = Make(typeof(Option<>));
+            public static readonly Generator<Type> Result = Make(typeof(Result<>));
+
+            static readonly Generator<Type>[] _referenceTuples =
+            {
+                Make(typeof(Tuple<>)),
+                Make(typeof(Tuple<,>)),
+                Make(typeof(Tuple<,,>)),
+                Make(typeof(Tuple<,,,>)),
+                Make(typeof(Tuple<,,,,>)),
+                Make(typeof(Tuple<,,,,,>)),
+                Make(typeof(Tuple<,,,,,,>)),
+            };
+            static readonly Generator<Type>[] _valueTuples =
+            {
+                Make(typeof(ValueTuple<>)),
+                Make(typeof(ValueTuple<,>)),
+                Make(typeof(ValueTuple<,,>)),
+                Make(typeof(ValueTuple<,,,>)),
+                Make(typeof(ValueTuple<,,,,>)),
+                Make(typeof(ValueTuple<,,,,,>)),
+                Make(typeof(ValueTuple<,,,,,,>)),
+            };
+            public static readonly Generator<Type> Tuple = Any(
+                Range(0, 6).Bind(index => _referenceTuples[index]),
+                Range(0, 6).Bind(index => _valueTuples[index]));
+
+            public static Generator<Type> Make(Type definition) => definition.GetGenericArguments()
+                .Select(argument =>
+                {
+                    var attributes = argument.GenericParameterAttributes;
+                    if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0)
+                        return _defaultArgument;
+                    if ((attributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0)
+                        return _referenceArgument;
+                    if ((attributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0)
+                        return _valueArgument;
+                    return _argument;
+                })
+                .All()
+                .Choose(arguments => Core.Option.Try(() => definition.MakeGenericType(arguments)));
         }
 
         static class Cache<T>
@@ -53,6 +147,7 @@ namespace Entia.Check
 
         public static Generator<T> Default<T>() => Cache<T>.Default;
         public static Generator<T[]> Empty<T>() => Cache<T>.Empty;
+        public static Generator<Array> Empty(Type type) => Constant(Array.CreateInstance(type, 0));
 
         public static Generator<T> Constant<T>(T value, IEnumerable<Generator<T>> shrinked) => _ => (value, shrinked);
         public static Generator<T> Constant<T>(T value) => Constant(value, Array.Empty<Generator<T>>());
@@ -110,6 +205,35 @@ namespace Entia.Check
                 var (value, shrinked) = generator(state);
                 return (map(value), shrinked.Select(shrink => shrink.Map(map)));
             };
+
+        public static Generator<TTarget> Bind<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, Generator<TTarget>> bind) =>
+            generator.Map(bind).Flatten();
+
+        public static Generator<TTarget> Choose<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, Option<TTarget>> map) =>
+            state =>
+            {
+                while (true)
+                {
+                    var (source, shrinked) = generator(state);
+                    if (map(source).TryValue(out var target)) return (target, shrinked.Select(shrink => shrink.Choose(map)));
+                }
+            };
+
+        public static Generator<T> Flatten<T>(this Generator<Generator<T>> generator) => state =>
+        {
+            var pair1 = generator(state);
+            var pair2 = pair1.value(state);
+            return (pair2.value, pair1.shrinked.Select(shrink => shrink.Flatten()).Concat(pair2.shrinked));
+        };
+
+        public static Generator<T> Filter<T>(this Generator<T> generator, Func<T, bool> filter) => state =>
+        {
+            while (true)
+            {
+                var (value, shrinked) = generator(state);
+                if (filter(value)) return (value, shrinked);
+            }
+        };
 
         public static Generator<T> Any<T>(params T[] values) => Any(values.Select(Constant));
         public static Generator<T> Any<T>(this IEnumerable<Generator<T>> generators) => Any(generators.ToArray());

@@ -1,10 +1,15 @@
 ﻿using System;
-using System.Diagnostics;
 
-namespace Entia.Test
+namespace Entia
 {
     static class Program
     {
-        static void Main() => Tests.Run();
+        static void Main()
+        {
+            Check.Checks.Run();
+            Json.Checks.Run();
+            Console.ReadLine();
+            Tests.Run();
+        }
     }
 }

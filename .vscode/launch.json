@@ -12,31 +12,21 @@
 			"internalConsoleOptions": "neverOpen"
 		},
 		{
-			"name": "Entia.Json.Checks",
-			"type": "coreclr",
-			"request": "launch",
-			"preLaunchTask": "build debug",
-			"program": "${workspaceFolder}/Entia.Json.Test/bin/Debug/netcoreapp3.1/Entia.Json.Test.dll",
-			"cwd": "${workspaceFolder}/Entia.Json.Test/",
-			"console": "externalTerminal",
-			"internalConsoleOptions": "neverOpen"
-		},
-		{
-			"name": "Entia.Json.Benches",
-			"type": "coreclr",
-			"request": "launch",
-			"preLaunchTask": "build release",
-			"program": "${workspaceFolder}/Entia.Json.Test/bin/Release/netcoreapp3.1/Entia.Json.Test.dll",
-			"cwd": "${workspaceFolder}/Entia.Json.Test/",
-			"console": "externalTerminal",
-			"internalConsoleOptions": "neverOpen"
-		},
-		{
-			"name": "Entia.Test",
+			"name": "Entia.Test.Checks",
 			"type": "coreclr",
 			"request": "launch",
 			"preLaunchTask": "build debug",
 			"program": "${workspaceFolder}/Entia.Test/bin/Debug/netcoreapp3.1/Entia.Test.dll",
+			"cwd": "${workspaceFolder}/Entia.Test/",
+			"console": "externalTerminal",
+			"internalConsoleOptions": "neverOpen"
+		},
+		{
+			"name": "Entia.Test.Benches",
+			"type": "coreclr",
+			"request": "launch",
+			"preLaunchTask": "build release",
+			"program": "${workspaceFolder}/Entia.Test/bin/Release/netcoreapp3.1/Entia.Test.dll",
 			"cwd": "${workspaceFolder}/Entia.Test/",
 			"console": "externalTerminal",
 			"internalConsoleOptions": "neverOpen"

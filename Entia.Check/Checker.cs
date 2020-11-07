@@ -76,23 +76,22 @@ namespace Entia.Check
         {
             name ??= checker.Generator.Method.Name;
             return checker.With(
-               onPre: () =>
-               {
-                   Console.CursorVisible = false;
-                   Console.WriteLine();
-               },
-               onProgress: progress =>
-               {
-                   Console.CursorLeft = 0;
-                   Console.Write($"Checking '{name}' {checker.Iterations / checker.Parallel}x{checker.Parallel}... {progress * 100:0.00}%");
-               },
-               onPost: failures =>
-               {
-                   Console.WriteLine();
-                   Console.CursorVisible = true;
-                   if (failures.Length == 0) Console.WriteLine("Success.");
-                   else Console.WriteLine($"{string.Join("", failures.Select(failure => $"{Environment.NewLine}-> Property '{failure.Property.Name}' failed with value '{failure.Shrinked}'"))}");
-               });
+                onPre: () =>
+                {
+                    Console.CursorVisible = false;
+                    Console.WriteLine();
+                },
+                onProgress: progress =>
+                {
+                    Console.CursorLeft = 0;
+                    Console.Write($"Checking '{name}' {checker.Iterations / checker.Parallel}x{checker.Parallel}... {progress * 100:0.00}%");
+                },
+                onPost: failures =>
+                {
+                    Console.CursorVisible = true;
+                    if (failures.Length > 0)
+                        Console.WriteLine($"{string.Join("", failures.Select(failure => $"{Environment.NewLine}-> Property '{failure.Property.Name}' failed with value '{failure.Shrinked}'"))}");
+                });
         }
 
         public static Failure<T>[] Check<T>(this Checker<T> checker)

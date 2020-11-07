@@ -8,7 +8,7 @@ using Entia.Core;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace Entia.Json.Test
+namespace Entia.Json
 {
     public static class Benches
     {
@@ -23,6 +23,7 @@ namespace Entia.Json.Test
 
         public static void Run()
         {
+            const string twitterPath = @"C:\Projects\C#\Entia\Entia.Test\Resources\twitter.json";
             var withReference = Settings.Default.With(Features.Reference);
             var withAbstract = Settings.Default.With(Features.Abstract);
             var withAll = Settings.Default.With(Features.All);
@@ -43,8 +44,8 @@ namespace Entia.Json.Test
                 Formatting = Formatting.None,
                 ObjectCreationHandling = ObjectCreationHandling.Replace
             };
-            var twitterJson = File.ReadAllText(@"C:\Projects\C#\Entia\Entia.Json.Test\twitter.json");
-            var twitterBytes = File.ReadAllBytes(@"C:\Projects\C#\Entia\Entia.Json.Test\twitter.json"); ;
+            var twitterJson = File.ReadAllText(twitterPath);
+            var twitterBytes = File.ReadAllBytes(twitterPath);
             var twitterNode = Serialization.Parse(twitterJson).Or(Node.Null);
             var twitterObject = JsonConvert.DeserializeObject<JObject>(twitterJson, settings);
 

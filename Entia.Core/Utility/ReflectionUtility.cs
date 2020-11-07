@@ -45,7 +45,8 @@ namespace Entia.Core
                         _types.TryAdd(type.Name, type);
                         _types.TryAdd(type.FullName, type);
                         _types.TryAdd(type.AssemblyQualifiedName, type);
-                        if (type.HasGuid()) _guidToType.TryAdd(type.GUID, type);
+                        // If multiple guids collide, the guid is not a unique identifier, so it is discarded.
+                        if (type.HasGuid()) _guidToType.AddOrUpdate(type.GUID, type, (_, __) => null);
                     }
                 }
                 catch { }
@@ -74,11 +75,11 @@ namespace Entia.Core
 
         public static bool TryGetAssembly(string name, out Assembly assembly) => _assemblies.TryGetValue(name, out assembly);
         public static bool TryGetType(string name, out Type type) => _types.TryGetValue(name, out type);
-        public static bool TryGetType(Guid guid, out Type type) => _guidToType.TryGetValue(guid, out type);
+        public static bool TryGetType(Guid guid, out Type type) => _guidToType.TryGetValue(guid, out type) && type != null;
         public static bool TryGetGuid(Type type, out Guid guid)
         {
             guid = type.GUID;
-            return type.HasGuid();
+            return TryGetType(guid, out var other) && type == other;
         }
 
         public static bool HasGuid(this Type type) => type.IsDefined(typeof(GuidAttribute));
@@ -206,7 +207,8 @@ namespace Entia.Core
                     parameters.Length == 1 &&
                     array.Is(parameters[0].ParameterType)));
 
-        public static Option<Type> ArrayType(this Type type) => Option.Try(() => type.MakeArrayType());
+        public static Option<Type> ArrayType(this Type type) => Option.Try(type, state => state.MakeArrayType());
+        public static Option<Type> PointerType(this Type type) => Option.Try(type, state => state.MakePointerType());
 
         public static Option<ConstructorInfo> SerializableConstructor(this Type type) =>
             type.Is<ISerializable>() ?

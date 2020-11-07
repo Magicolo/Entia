@@ -3,12 +3,13 @@ using Entia.Injectables;
 using Entia.Modules;
 using Entia.Modules.Family;
 using Entia.Queryables;
+using Entia.Test;
 using FsCheck;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Entia.Test
+namespace Entia
 {
     public static class Tests
     {

@@ -11,10 +11,14 @@
   <ItemGroup>
     <ProjectReference Include="..\Entia.Core\Entia.Core.csproj" />
     <ProjectReference Include="..\Entia\Entia.csproj" />
+    <ProjectReference Include="..\Entia.Json\Entia.Json.csproj" />
+    <ProjectReference Include="..\Entia.Check\Entia.Check.csproj" />
+    <ProjectReference Include="..\Entia.Bench\Entia.Bench.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="FsCheck" Version="2.13.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
   </ItemGroup>
 
 </Project>
