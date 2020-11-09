@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -8,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Threading;
 using Entia.Core;
+using static Entia.Check.Formatting;
 
 namespace Entia.Check
 {
@@ -132,63 +132,14 @@ namespace Entia.Check
 
         static class GeneratorCache<T>
         {
-            public static readonly Generator<T> Default = Constant(default(T)).With(NameCache<T>.Default);
-            public static readonly Generator<T[]> Empty = Constant(Array.Empty<T>()).With(NameCache<T>.Empty);
-        }
-
-        static class NameCache<T>
-        {
-            public static readonly string Parameters = $"<{typeof(T).Name}>";
-            public static readonly string Constant = $"{nameof(Constant)}{Parameters}";
-            public static readonly string Factory = $"{nameof(Factory)}{Parameters}";
-            public static readonly string Lazy = $"{nameof(Lazy)}{Parameters}";
-            public static readonly string Default = $"{nameof(Default)}{Parameters}";
-            public static readonly string Empty = $"{nameof(Empty)}{Parameters}";
-            public static readonly string Adapt = $"{nameof(Adapt)}{Parameters}";
-            public static readonly string Size = $"{nameof(Size)}{Parameters}";
-            public static readonly string Depth = $"{nameof(Depth)}{Parameters}";
-            public static readonly string Attenuate = $"{nameof(Attenuate)}{Parameters}";
-            public static readonly string Range = $"{nameof(Range)}{Parameters}";
-            public static readonly string Repeat = $"{nameof(Repeat)}{Parameters}";
-            public static readonly string Flatten = $"{nameof(Flatten)}{Parameters}";
-            public static readonly string Filter = $"{nameof(Filter)}{Parameters}";
-            public static readonly string Any = $"{nameof(Any)}{Parameters}";
-            public static readonly string All = $"{nameof(All)}{Parameters}";
-            public static readonly string Box = $"{nameof(Box)}{Parameters}";
-            public static readonly string Number = $"{nameof(Number)}{Parameters}";
-        }
-
-        static class NameCache<T1, T2>
-        {
-            public static readonly string Parameters = $"<{typeof(T1).Name}, {typeof(T2).Name}>";
-            public static readonly string Map = $"{nameof(Map)}{Parameters}";
-            public static readonly string Bind = $"{nameof(Bind)}{Parameters}";
-            public static readonly string Choose = $"{nameof(Choose)}{Parameters}";
-            public static readonly string And = $"{nameof(And)}{Parameters}";
-        }
-
-        static class NameCache<T1, T2, T3>
-        {
-            public static readonly string Parameters = $"<{typeof(T1).Name}, {typeof(T2).Name}, {typeof(T3).Name}>";
-            public static readonly string And = $"{nameof(And)}{Parameters}";
-        }
-
-        static class NameCache<T1, T2, T3, T4>
-        {
-            public static readonly string Parameters = $"<{typeof(T1).Name}, {typeof(T2).Name}, {typeof(T3).Name}, {typeof(T4).Name}>";
-            public static readonly string And = $"{nameof(And)}{Parameters}";
-        }
-
-        static class NameCache<T1, T2, T3, T4, T5>
-        {
-            public static readonly string Parameters = $"<{typeof(T1).Name}, {typeof(T2).Name}, {typeof(T3).Name}, {typeof(T4).Name}, {typeof(T5).Name}>";
-            public static readonly string And = $"{nameof(And)}{Parameters}";
+            public static readonly Generator<T> Default = Constant(default(T)).With(Name<T>.Default);
+            public static readonly Generator<T[]> Empty = Constant(Array.Empty<T>()).With(Name<T>.Empty);
         }
 
         static class EnumCache<T> where T : struct, Enum
         {
             public static readonly Generator<T> Any = Enum.GetValues(typeof(T)).OfType<T>().Select(Constant).Any()
-                .With($"{nameof(Enumeration)}{NameCache<T>.Parameters}");
+                .With($"{nameof(Enumeration)}{Name<T>.Parameters}");
         }
 
         public static readonly Generator<char> Letter = Any(Range('A', 'Z'), Range('a', 'z')).With(nameof(Letter));
@@ -213,24 +164,24 @@ namespace Entia.Check
         public static Generator<T> Constant<T>(T value) => Constant(value, Shrinker.Empty<T>());
         public static Generator<T> Constant<T>(T value, Shrinker<T> shrinker) => From(Format(value), _ => (value, shrinker));
         public static Generator<T> Factory<T>(Func<T> create) => Factory(create, Shrinker.Empty<T>());
-        public static Generator<T> Factory<T>(Func<T> create, Shrinker<T> shrinker) => From(NameCache<T>.Factory, _ => (create(), shrinker));
+        public static Generator<T> Factory<T>(Func<T> create, Shrinker<T> shrinker) => From(Name<T>.Factory, _ => (create(), shrinker));
         public static Generator<T> Lazy<T>(Func<T> provide) => Lazy(() => Constant(provide()));
         public static Generator<T> Lazy<T>(Func<Generator<T>> provide)
         {
             var generator = new Lazy<Generator<T>>(provide);
-            return From(NameCache<T>.Lazy, state => generator.Value.Generate(state));
+            return From(Name<T>.Lazy, state => generator.Value.Generate(state));
         }
 
         public static Generator<T> Adapt<T>(this Generator<T> generator, Func<State, State> map) =>
-            From(NameCache<T>.Adapt.Format(generator), state => generator.Generate(map(state)));
+            From(Name<T>.Adapt.Format(generator), state => generator.Generate(map(state)));
         public static Generator<T> Size<T>(this Generator<T> generator, Func<double, double> map) =>
-            generator.Adapt(state => state.With(map(state.Size))).With(NameCache<T>.Size.Format(generator));
+            generator.Adapt(state => state.With(map(state.Size))).With(Name<T>.Size.Format(generator));
         public static Generator<T> Size<T>(this Generator<T> generator, double size) => generator.Size(_ => size);
         public static Generator<T> Depth<T>(this Generator<T> generator) =>
-            generator.Adapt(state => state.With(depth: state.Depth + 1)).With(NameCache<T>.Depth.Format(generator));
+            generator.Adapt(state => state.With(depth: state.Depth + 1)).With(Name<T>.Depth.Format(generator));
         public static Generator<T> Attenuate<T>(this Generator<T> generator, Generator<uint> depth) =>
             depth.Bind(depth => generator.Adapt(state => state.With(state.Size * Math.Max(1.0 - (double)state.Depth / depth, 0.0))))
-                .With(NameCache<T>.Attenuate.Format(generator, depth));
+                .With(Name<T>.Attenuate.Format(generator, depth));
 
         public static Generator<sbyte> Signed(this Generator<byte> generator) => generator.Map(value => (sbyte)value).With(nameof(Signed).Format(generator));
         public static Generator<short> Signed(this Generator<ushort> generator) => generator.Map(value => (short)value).With(nameof(Signed).Format(generator));
@@ -250,18 +201,18 @@ namespace Entia.Check
 
         public static Generator<char> Range(char maximum) => Range('\0', maximum);
         public static Generator<char> Range(char minimum, char maximum) =>
-            Number(minimum, maximum, minimum).Map(value => (char)Math.Round(value)).With(NameCache<char>.Range.Format(minimum, maximum));
+            Number(minimum, maximum, minimum).Map(value => (char)Math.Round(value)).With(Name<char>.Range.Format(minimum, maximum));
         public static Generator<float> Range(float maximum) => Range(0f, maximum);
         public static Generator<float> Range(float minimum, float maximum) =>
-            Number((decimal)minimum, (decimal)maximum, (decimal)minimum).Map(value => (float)value).With(NameCache<float>.Range.Format(minimum, maximum));
+            Number((decimal)minimum, (decimal)maximum, (decimal)minimum).Map(value => (float)value).With(Name<float>.Range.Format(minimum, maximum));
         public static Generator<int> Range(int maximum) => Range(0, maximum);
         public static Generator<int> Range(int minimum, int maximum) =>
-            Number(minimum, maximum, minimum).Map(value => (int)Math.Round(value)).With(NameCache<int>.Range.Format(minimum, maximum));
+            Number(minimum, maximum, minimum).Map(value => (int)Math.Round(value)).With(Name<int>.Range.Format(minimum, maximum));
         public static Generator<T> Range<T>(params T[] values) =>
-            Range(values.Length - 1).Map(index => values[index]).With(NameCache<T>.Range.Format(values));
+            Range(values.Length - 1).Map(index => values[index]).With(Name<T>.Range.Format(values));
 
         public static Generator<T[]> Repeat<T>(this Generator<T> generator, Generator<int> count) =>
-            From(NameCache<T>.Repeat.Format(generator, count), state =>
+            From(Name<T>.Repeat.Format(generator, count), state =>
             {
                 var length = count.Generate(state).value;
                 if (length == 0) return Empty<T>().Generate(state);
@@ -272,8 +223,10 @@ namespace Entia.Check
                 return (values, Shrinker.Repeat(values, shrinkers));
             });
 
-        public static Generator<T> Cache<T>(this Generator<T> generator, double ratio = 0.25, uint size = 64)
+        public static Generator<T> Cache<T>(this Generator<T> generator, double ratio = 0.5, uint size = 64)
         {
+            if (size == 0) return generator;
+
             var cache = new Tuple<T, Shrinker<T>>[size];
             var count = 0;
             return From("", state =>
@@ -293,7 +246,7 @@ namespace Entia.Check
         }
 
         public static Generator<TTarget> Map<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, State, TTarget> map) =>
-            From(NameCache<TSource, TTarget>.Map.Format(generator), state =>
+            From(Name<TSource, TTarget>.Map.Format(generator), state =>
             {
                 var (value, shrinker) = generator.Generate(state);
                 return (map(value, state), shrinker.Map(map));
@@ -302,12 +255,12 @@ namespace Entia.Check
             generator.Map((value, _) => map(value));
 
         public static Generator<TTarget> Bind<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, Generator<TTarget>> bind) =>
-            generator.Map(bind).Flatten().With(NameCache<TSource, TTarget>.Bind.Format(generator));
+            generator.Map(bind).Flatten().With(Name<TSource, TTarget>.Bind.Format(generator));
         public static Generator<TTarget> Bind<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, State, Generator<TTarget>> bind) =>
-            generator.Map(bind).Flatten().With(NameCache<TSource, TTarget>.Bind.Format(generator));
+            generator.Map(bind).Flatten().With(Name<TSource, TTarget>.Bind.Format(generator));
 
         public static Generator<TTarget> Choose<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, State, Option<TTarget>> choose) =>
-            From(NameCache<TSource, TTarget>.Choose.Format(generator), state =>
+            From(Name<TSource, TTarget>.Choose.Format(generator), state =>
             {
                 while (true)
                 {
@@ -319,7 +272,7 @@ namespace Entia.Check
             generator.Choose((value, _) => choose(value));
 
         public static Generator<T> Flatten<T>(this Generator<Generator<T>> generator) =>
-            From(NameCache<T>.Flatten.Format(generator), state =>
+            From(Name<T>.Flatten.Format(generator), state =>
             {
                 var pair1 = generator.Generate(state);
                 var pair2 = pair1.value.Generate(state);
@@ -327,7 +280,7 @@ namespace Entia.Check
             });
 
         public static Generator<T> Filter<T>(this Generator<T> generator, Func<T, bool> filter) =>
-            From(NameCache<T>.Filter.Format(generator), state =>
+            From(Name<T>.Filter.Format(generator), state =>
             {
                 while (true)
                 {
@@ -341,7 +294,7 @@ namespace Entia.Check
         public static Generator<T> Any<T>(params Generator<T>[] generators) =>
             generators.Length == 0 ? throw new ArgumentException(nameof(generators)) :
             generators.Length == 1 ? generators[0] :
-            From(NameCache<T>.Any.Format(generators), state =>
+            From(Name<T>.Any.Format(generators), state =>
             {
                 var index = state.Random.Next(generators.Length);
                 return generators[index].Generate(state);
@@ -353,7 +306,7 @@ namespace Entia.Check
             if (generators.Length == 1) return generators[0].generator;
 
             var sum = generators.Sum(pair => pair.weight);
-            return From(NameCache<T>.Any.Format(generators), state =>
+            return From(Name<T>.Any.Format(generators), state =>
             {
                 var random = state.Random.NextDouble() * sum;
                 var current = 0d;
@@ -362,25 +315,25 @@ namespace Entia.Check
         }
 
         public static Generator<object> Box<T>(this Generator<T> generator) =>
-            generator.Map(value => (object)value).With(NameCache<T>.Box.Format(generator));
+            generator.Map(value => (object)value).With(Name<T>.Box.Format(generator));
 
         public static Generator<(T1, T2)> And<T1, T2>(this Generator<T1> generator1, Generator<T2> generator2) =>
             All(generator1.Box(), generator2.Box()).Map(values => ((T1)values[0], (T2)values[1]))
-                .With(NameCache<T1, T2>.And.Format(generator1, generator2));
+                .With(Name<T1, T2>.And.Format(generator1, generator2));
         public static Generator<(T1, T2, T3)> And<T1, T2, T3>(this Generator<T1> generator1, Generator<T2> generator2, Generator<T3> generator3) =>
             All(generator1.Box(), generator2.Box(), generator3.Box()).Map(values => ((T1)values[0], (T2)values[1], (T3)values[2]))
-                .With(NameCache<T1, T2, T3>.And.Format(generator1, generator2, generator3));
+                .With(Name<T1, T2, T3>.And.Format(generator1, generator2, generator3));
         public static Generator<(T1, T2, T3, T4)> And<T1, T2, T3, T4>(this Generator<T1> generator1, Generator<T2> generator2, Generator<T3> generator3, Generator<T4> generator4) =>
             All(generator1.Box(), generator2.Box(), generator3.Box(), generator4.Box()).Map(values => ((T1)values[0], (T2)values[1], (T3)values[2], (T4)values[3]))
-                .With(NameCache<T1, T2, T3, T4>.And.Format(generator1, generator2, generator3, generator4));
+                .With(Name<T1, T2, T3, T4>.And.Format(generator1, generator2, generator3, generator4));
         public static Generator<(T1, T2, T3, T4, T5)> And<T1, T2, T3, T4, T5>(this Generator<T1> generator1, Generator<T2> generator2, Generator<T3> generator3, Generator<T4> generator4, Generator<T5> generator5) =>
             All(generator1.Box(), generator2.Box(), generator3.Box(), generator4.Box(), generator5.Box()).Map(values => ((T1)values[0], (T2)values[1], (T3)values[2], (T4)values[3], (T5)values[4]))
-                .With(NameCache<T1, T2, T3, T4, T5>.And.Format(generator1, generator2, generator3, generator4, generator5));
+                .With(Name<T1, T2, T3, T4, T5>.And.Format(generator1, generator2, generator3, generator4, generator5));
 
         public static Generator<T[]> All<T>(this IEnumerable<Generator<T>> generators) => All(generators.ToArray());
         public static Generator<T[]> All<T>(params Generator<T>[] generators) =>
             generators.Length == 0 ? Empty<T>() :
-            From(NameCache<T>.All.Format(generators), state =>
+            From(Name<T>.All.Format(generators), state =>
             {
                 var values = new T[generators.Length];
                 var shrinkers = new Shrinker<T>[generators.Length];
@@ -404,7 +357,7 @@ namespace Entia.Check
         static Generator<decimal> Number(decimal minimum, decimal maximum, decimal target)
         {
             if (minimum == maximum) return minimum;
-            return From(NameCache<decimal>.Number.Format(minimum, maximum, target), state =>
+            return From(Name<decimal>.Number.Format(minimum, maximum, target), state =>
             {
                 var random = Interpolate(minimum, maximum, (decimal)state.Random.NextDouble());
                 var value = Interpolate(target, random, (decimal)state.Size);
@@ -414,69 +367,5 @@ namespace Entia.Check
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             static decimal Interpolate(decimal source, decimal target, decimal ratio) => (target - source) * ratio + source;
         }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static string Format<T>(T value) =>
-#if DEBUG
-            $"{value}";
-#else
-            "";
-#endif
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static string Format<T>(T[] values) =>
-#if DEBUG
-            $"{string.Join(", ", values)}";
-#else
-            "";
-#endif
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static string Format<T>(this string name, T value) =>
-#if DEBUG
-            $"{name}({Format(value)})";
-#else
-            name;
-#endif
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static string Format<T1, T2>(this string name, T1 value1, T2 value2) =>
-#if DEBUG
-            $"{name}({Format(value1)}, {Format(value2)})";
-#else
-            name;
-#endif
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static string Format<T1, T2, T3>(this string name, T1 value1, T2 value2, T3 value3) =>
-#if DEBUG
-            $"{name}({Format(value1)}, {Format(value2)}, {Format(value3)})";
-#else
-            name;
-#endif
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static string Format<T1, T2, T3, T4>(this string name, T1 value1, T2 value2, T3 value3, T4 value4) =>
-#if DEBUG
-            $"{name}({Format(value1)}, {Format(value2)}, {Format(value3)}, {Format(value4)})";
-#else
-            name;
-#endif
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static string Format<T1, T2, T3, T4, T5>(this string name, T1 value1, T2 value2, T3 value3, T4 value4, T5 value5) =>
-#if DEBUG
-            $"{name}({Format(value1)}, {Format(value2)}, {Format(value3)}, {Format(value4)}, {Format(value5)})";
-#else
-            name;
-#endif
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static string Format<T>(this string name, T[] values) =>
-#if DEBUG
-            $"{name}({Format(values)})";
-#else
-            name;
-#endif
     }
 }

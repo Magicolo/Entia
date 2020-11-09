@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Entia.Core;
+using static Entia.Check.Formatting;
 
 namespace Entia.Check
 {
@@ -19,21 +20,24 @@ namespace Entia.Check
     {
         static class Cache<T>
         {
-            public static Shrinker<T> Empty = From($"{nameof(Empty)}<{typeof(T).Name}>", () => Array.Empty<Generator<T>>());
+            public static Shrinker<T> Empty = From(Name<T>.Empty, () => Array.Empty<Generator<T>>());
         }
 
         public static Shrinker<T> From<T>(string name, Shrink<T> shrink) => new Shrinker<T>(name, shrink);
-        public static Shrinker<T> From<T>(string name, IEnumerable<Generator<T>> shrinked) => new Shrinker<T>(name, () => shrinked);
+        public static Shrinker<T> From<T>(string name, IEnumerable<Generator<T>> shrinked) => From(name, () => shrinked);
         public static Shrinker<T> Empty<T>() => Cache<T>.Empty;
         public static Shrinker<TTarget> Map<TSource, TTarget>(this Shrinker<TSource> shrinker, Func<TSource, Generator.State, TTarget> map) =>
-            From(nameof(Map), () => shrinker.Shrink().Select(generator => generator.Map(map)));
+            From(Name<TSource, TTarget>.Map.Format(shrinker),
+                () => shrinker.Shrink().Select(generator => generator.Map(map)));
         public static Shrinker<TTarget> Choose<TSource, TTarget>(this Shrinker<TSource> shrinker, Func<TSource, Generator.State, Option<TTarget>> choose) =>
-            From(nameof(Choose), () => shrinker.Shrink().Select(generator => generator.Choose(choose)));
+            From(Name<TSource, TTarget>.Choose.Format(shrinker),
+                () => shrinker.Shrink().Select(generator => generator.Choose(choose)));
         public static Shrinker<T> Flatten<T>(this Shrinker<Generator<T>> shrinker) =>
-            From(nameof(Flatten), () => shrinker.Shrink().Select(generator => generator.Flatten()));
+            From(Name<T>.Flatten.Format(shrinker),
+                () => shrinker.Shrink().Select(generator => generator.Flatten()));
         public static Shrinker<T> And<T>(this Shrinker<T> shrinker1, Shrinker<T> shrinker2)
         {
-            return From(nameof(And), Shrink);
+            return From(Name<T>.And.Format(shrinker1, shrinker2), Shrink);
             IEnumerable<Generator<T>> Shrink()
             {
                 foreach (var generator in shrinker1.Shrink()) yield return generator;
@@ -43,7 +47,7 @@ namespace Entia.Check
 
         internal static Shrinker<decimal> Number(decimal source, decimal target)
         {
-            return From(nameof(Number), Shrink);
+            return From(Name<decimal>.Number.Format(source, target), Shrink);
             IEnumerable<Generator<decimal>> Shrink()
             {
                 var difference = target - source;
@@ -61,7 +65,7 @@ namespace Entia.Check
 
         internal static Shrinker<T[]> Repeat<T>(T[] values, Shrinker<T>[] shrinkers)
         {
-            return From(nameof(Repeat), Shrink);
+            return From(Name<T>.Repeat.Format(shrinkers), Shrink);
             IEnumerable<Generator<T[]>> Shrink()
             {
                 // Try to remove irrelevant generators.
@@ -77,7 +81,7 @@ namespace Entia.Check
 
         internal static Shrinker<T[]> All<T>(T[] values, Shrinker<T>[] shrinkers)
         {
-            return From(nameof(All), Shrink);
+            return From(Name<T>.All.Format(shrinkers), Shrink);
             IEnumerable<Generator<T[]>> Shrink()
             {
                 for (int i = 0; i < shrinkers.Length; i++)
