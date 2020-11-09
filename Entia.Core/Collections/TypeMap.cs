@@ -159,6 +159,8 @@ namespace Entia.Core
         /// </summary>
         sealed class Entry
         {
+            public static readonly Entry Invalid = new Entry(typeof(void), int.MaxValue, Array.Empty<Entry>(), Array.Empty<Entry>());
+
             public readonly Type Type;
             public readonly int Index;
             public Entry[] Super;
@@ -182,7 +184,7 @@ namespace Entia.Core
         static Entry GetEntry(Type type)
         {
             if (_typeToEntry.TryGetValue(type, out var entry)) return entry;
-            return CreateEntry(type);
+            return type.Is<TKey>() ? CreateEntry(type) : Entry.Invalid;
 
             static Entry CreateEntry(Type type)
             {
@@ -247,7 +249,8 @@ namespace Entia.Core
         [ThreadSafe]
         public bool TryIndex(Type type, out int index)
         {
-            if (GetEntry(type) is Entry entry)
+            var entry = GetEntry(type);
+            if (entry.Index < int.MaxValue)
             {
                 index = entry.Index;
                 return true;
@@ -261,11 +264,8 @@ namespace Entia.Core
             Indices(Cache<T>.Entry, super, sub);
 
         [ThreadSafe]
-        public IEnumerable<int> Indices(Type type, bool super = false, bool sub = false)
-        {
-            if (GetEntry(type) is Entry entry) return Indices(entry, super, sub);
-            return Array.Empty<int>();
-        }
+        public IEnumerable<int> Indices(Type type, bool super = false, bool sub = false) =>
+            Indices(GetEntry(type), super, sub);
 
         [ThreadSafe]
         public ref TValue Get(Type type, out bool success)
@@ -441,6 +441,7 @@ namespace Entia.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool Set(Entry entry, in TValue value)
         {
+            if (entry.Index == int.MaxValue) return false;
             ArrayUtility.Ensure(ref _values, entry.Index + 1);
             ref var pair = ref _values[entry.Index];
             pair.value = value;
@@ -483,6 +484,7 @@ namespace Entia.Core
 
         IEnumerable<int> Indices(Entry entry, bool super, bool sub)
         {
+            if (entry.Index == int.MaxValue) yield break;
             yield return entry.Index;
             if (super) for (int i = 0; i < entry.Super.Length; i++) yield return entry.Super[i].Index;
             if (sub) for (int i = 0; i < entry.Sub.Length; i++) yield return entry.Sub[i].Index;

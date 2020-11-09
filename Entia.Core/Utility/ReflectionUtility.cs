@@ -105,6 +105,14 @@ namespace Entia.Core
             type.Namespace is string ? $"{type.Namespace}.{type.Format()}" :
             type.Format();
 
+        public static string Format(this MethodInfo method)
+        {
+            var name = method.Name.Split(new[] { "__" }, StringSplitOptions.None).LastOrDefault().Split('|').FirstOrDefault();
+            return method.IsGenericMethod ?
+                $"{name}<{string.Join(", ", method.GetGenericArguments().Select(type => type.Format()))}>" :
+                name;
+        }
+
         public static bool IsNullable(this Type type) =>
             type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
 

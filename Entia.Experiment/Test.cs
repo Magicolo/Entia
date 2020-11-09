@@ -38,11 +38,7 @@ namespace Entia.Experiment
                 }
                 after?.Invoke();
 
-                var name = test.Method.Name.Split("__").LastOrDefault().Split('|').FirstOrDefault();
-                var generic = test.Method.IsGenericMethod ?
-                    $"{name}<{string.Join(", ", test.Method.GetGenericArguments().Select(type => type.Format()))}>" :
-                    name;
-                return (generic, test, total, minimum, maximum);
+                return (test.Method.Format(), test, total, minimum, maximum);
             }
 
             string Justify(object value, int length)

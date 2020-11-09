@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -104,23 +105,32 @@ namespace Entia.Check
                 .With($"{nameof(Types)}.{nameof(Tuple)}");
 
             public static Generator<Type> Make(Type definition) => definition.GetGenericArguments()
-                .Select(argument =>
-                {
-                    var attributes = argument.GenericParameterAttributes;
-                    if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0)
-                        return _defaultArgument;
-                    if ((attributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0)
-                        return _referenceArgument;
-                    if ((attributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0)
-                        return _valueArgument;
-                    return _argument;
-                })
+                .Select(Argument)
                 .All()
                 .Choose(arguments => Core.Option.Try(() => definition.MakeGenericType(arguments)))
                 .With(nameof(Make).Format(definition.Name));
+
+            public static Generator<MethodInfo> Make(MethodInfo definition) => definition.GetGenericArguments()
+                .Select(Argument)
+                .All()
+                .Choose(arguments => Core.Option.Try(() => definition.MakeGenericMethod(arguments)))
+                .With(nameof(Make).Format(definition.Name));
+
+            public static Generator<Type> Argument() => _argument;
+            public static Generator<Type> Argument(Type argument)
+            {
+                var attributes = argument.GenericParameterAttributes;
+                if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0)
+                    return _defaultArgument;
+                if ((attributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0)
+                    return _referenceArgument;
+                if ((attributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0)
+                    return _valueArgument;
+                return _argument;
+            }
         }
 
-        static class Cache<T>
+        static class GeneratorCache<T>
         {
             public static readonly Generator<T> Default = Constant(default(T)).With(NameCache<T>.Default);
             public static readonly Generator<T[]> Empty = Constant(Array.Empty<T>()).With(NameCache<T>.Empty);
@@ -130,6 +140,7 @@ namespace Entia.Check
         {
             public static readonly string Parameters = $"<{typeof(T).Name}>";
             public static readonly string Constant = $"{nameof(Constant)}{Parameters}";
+            public static readonly string Factory = $"{nameof(Factory)}{Parameters}";
             public static readonly string Lazy = $"{nameof(Lazy)}{Parameters}";
             public static readonly string Default = $"{nameof(Default)}{Parameters}";
             public static readonly string Empty = $"{nameof(Empty)}{Parameters}";
@@ -195,14 +206,14 @@ namespace Entia.Check
 
         static readonly Generator<Enum> _enumeration = Types.Enumeration.Bind(Enumeration).With(nameof(Enumeration));
 
-        public static Generator<T> Default<T>() => Cache<T>.Default;
-        public static Generator<T[]> Empty<T>() => Cache<T>.Empty;
+        public static Generator<T> Default<T>() => GeneratorCache<T>.Default;
+        public static Generator<T[]> Empty<T>() => GeneratorCache<T>.Empty;
         public static Generator<Array> Empty(Type type) => Constant(Array.CreateInstance(type, 0)).With(nameof(Empty).Format(type.Name));
-
         public static Generator<T> From<T>(string name, Generate<T> generate) => new Generator<T>(name, generate);
-        public static Generator<T> Constant<T>(T value, Shrinker<T> shrinker) => From(Format(value), _ => (value, shrinker));
         public static Generator<T> Constant<T>(T value) => Constant(value, Shrinker.Empty<T>());
-
+        public static Generator<T> Constant<T>(T value, Shrinker<T> shrinker) => From(Format(value), _ => (value, shrinker));
+        public static Generator<T> Factory<T>(Func<T> create) => Factory(create, Shrinker.Empty<T>());
+        public static Generator<T> Factory<T>(Func<T> create, Shrinker<T> shrinker) => From(NameCache<T>.Factory, _ => (create(), shrinker));
         public static Generator<T> Lazy<T>(Func<T> provide) => Lazy(() => Constant(provide()));
         public static Generator<T> Lazy<T>(Func<Generator<T>> provide)
         {
@@ -214,6 +225,7 @@ namespace Entia.Check
             From(NameCache<T>.Adapt.Format(generator), state => generator.Generate(map(state)));
         public static Generator<T> Size<T>(this Generator<T> generator, Func<double, double> map) =>
             generator.Adapt(state => state.With(map(state.Size))).With(NameCache<T>.Size.Format(generator));
+        public static Generator<T> Size<T>(this Generator<T> generator, double size) => generator.Size(_ => size);
         public static Generator<T> Depth<T>(this Generator<T> generator) =>
             generator.Adapt(state => state.With(depth: state.Depth + 1)).With(NameCache<T>.Depth.Format(generator));
         public static Generator<T> Attenuate<T>(this Generator<T> generator, Generator<uint> depth) =>
@@ -260,25 +272,51 @@ namespace Entia.Check
                 return (values, Shrinker.Repeat(values, shrinkers));
             });
 
-        public static Generator<TTarget> Map<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, TTarget> map) =>
+        public static Generator<T> Cache<T>(this Generator<T> generator, double ratio = 0.25, uint size = 64)
+        {
+            var cache = new Tuple<T, Shrinker<T>>[size];
+            var count = 0;
+            return From("", state =>
+            {
+                if (state.Random.NextDouble() < ratio &&
+                    state.Random.Next(count) is var index &&
+                    cache[index % size] is Tuple<T, Shrinker<T>> tuple)
+                    return (tuple.Item1, tuple.Item2);
+                else
+                {
+                    var pair = generator.Generate(state);
+                    index = Interlocked.Increment(ref count) - 1;
+                    Interlocked.Exchange(ref cache[index % size], Tuple.Create(pair.value, pair.shrinker));
+                    return pair;
+                }
+            });
+        }
+
+        public static Generator<TTarget> Map<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, State, TTarget> map) =>
             From(NameCache<TSource, TTarget>.Map.Format(generator), state =>
             {
                 var (value, shrinker) = generator.Generate(state);
-                return (map(value), shrinker.Map(map));
+                return (map(value, state), shrinker.Map(map));
             });
+        public static Generator<TTarget> Map<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, TTarget> map) =>
+            generator.Map((value, _) => map(value));
 
         public static Generator<TTarget> Bind<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, Generator<TTarget>> bind) =>
             generator.Map(bind).Flatten().With(NameCache<TSource, TTarget>.Bind.Format(generator));
+        public static Generator<TTarget> Bind<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, State, Generator<TTarget>> bind) =>
+            generator.Map(bind).Flatten().With(NameCache<TSource, TTarget>.Bind.Format(generator));
 
-        public static Generator<TTarget> Choose<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, Option<TTarget>> choose) =>
+        public static Generator<TTarget> Choose<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, State, Option<TTarget>> choose) =>
             From(NameCache<TSource, TTarget>.Choose.Format(generator), state =>
             {
                 while (true)
                 {
                     var (source, shrinker) = generator.Generate(state);
-                    if (choose(source).TryValue(out var target)) return (target, shrinker.Choose(choose));
+                    if (choose(source, state).TryValue(out var target)) return (target, shrinker.Choose(choose));
                 }
             });
+        public static Generator<TTarget> Choose<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, Option<TTarget>> choose) =>
+            generator.Choose((value, _) => choose(value));
 
         public static Generator<T> Flatten<T>(this Generator<Generator<T>> generator) =>
             From(NameCache<T>.Flatten.Format(generator), state =>

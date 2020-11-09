@@ -1,22 +1,19 @@
-using System;
-
 namespace Entia.Check
 {
-    public readonly struct Property<T>
+    public delegate Property[] Prove<T>(T value);
+    public readonly struct Prover<T>
     {
-        public readonly string Name;
-        public readonly Func<T, bool> Prove;
-
-        public Property(string name, Func<T, bool> prove)
-        {
-            Name = name;
-            Prove = prove;
-        }
+        public readonly Prove<T> Prove;
+        public Prover(Prove<T> prove) { Prove = prove; }
     }
 
-    public static class Property
+    public readonly struct Property
     {
-        public static Property<T> From<T>(string name, Func<T, bool> prove) => new Property<T>(name, prove);
-        public static Property<T> From<T>(Func<T, bool> prove) => From(prove.Method.Name, prove);
+        public static implicit operator Property((string name, bool proof) pair) => new Property(pair.name, pair.proof);
+        public readonly string Name;
+        public readonly bool Proof;
+        public Property(string name, bool proof) { Name = name; Proof = proof; }
+        public Property With(string name = null, bool? proof = null) => new Property(name ?? Name, proof ?? Proof);
+        public override string ToString() => Name;
     }
 }

@@ -4,12 +4,12 @@ namespace Entia.Check
     {
         public readonly T Original;
         public readonly T Shrinked;
-        public readonly Property<T> Property;
+        public readonly Property Property;
         public readonly int Iteration;
         public readonly int Seed;
         public readonly double Size;
 
-        public Failure(T original, T shrinked, Property<T> property, int iteration, int seed, double size)
+        public Failure(T original, T shrinked, Property property, int iteration, int seed, double size)
         {
             Original = original;
             Shrinked = shrinked;
