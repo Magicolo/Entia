@@ -71,7 +71,7 @@ namespace Entia.Json
             // Do not initialize a null instance.
             if (instance is null) return null;
             converter.Initialize(ref instance, context);
-            // Must be set again in the case where the boxed instance is unboxed and reboxed
+            // Must be set again in the case where the boxed instance is unboxed and re-boxed.
             if (type.IsValueType) UpdateReference(node, instance);
             return instance;
         }

@@ -144,6 +144,19 @@ namespace Entia.Core
 
         public static T[] Flatten<T>(this T[][] array) => ArrayUtility.Concatenate(array);
 
+        public static T[] Flatten<T>(this (T, T)[] array)
+        {
+            if (array.Length == 0) return Array.Empty<T>();
+            var target = new T[array.Length * 2];
+            for (int i = 0; i < array.Length; i++)
+            {
+                var pair = array[i];
+                target[i * 2] = pair.Item1;
+                target[i * 2 + 1] = pair.Item2;
+            }
+            return target;
+        }
+
         public static T[] Cast<T>(this Array array)
         {
             var target = new T[array.Length];

@@ -6,7 +6,7 @@ namespace Entia.Core
     {
         static class Cache<T>
         {
-            public static Func<T, T> Clone =
+            public static Func<T, T> Shallow =
                 typeof(T).IsValueType ? new Func<T, T>(value => value) :
                 new Func<T, T>(value => value == null ? default : (T)_clone(value));
         }
@@ -16,6 +16,6 @@ namespace Entia.Core
             .CreateDelegate<Func<object, object>>();
 
         public static object Shallow(object value) => value is null ? null : _clone(value);
-        public static T Shallow<T>(T value) => Cache<T>.Clone(value);
+        public static T Shallow<T>(T value) => Cache<T>.Shallow(value);
     }
 }

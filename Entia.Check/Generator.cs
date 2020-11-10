@@ -38,6 +38,8 @@ namespace Entia.Check
                 Random = random;
             }
 
+            public State Clone() => new State(Size, Depth, Random); // FIX: clone random properly
+
             public State With(double? size = null, uint? depth = null) =>
                 new State(size ?? Size, depth ?? Depth, Random);
         }
@@ -154,6 +156,7 @@ namespace Entia.Check
         public static readonly Generator<int> Integer = Number(int.MinValue, int.MaxValue, 0m).Map(value => (int)Math.Round(value)).Size(size => Math.Pow(size, 5)).With(nameof(Integer));
         public static readonly Generator<float> Rational = Number(-1e15m, 1e15m, 0m).Map(value => (float)value).Size(size => Math.Pow(size, 15)).With(nameof(Rational));
         public static readonly Generator<float> Infinity = Any(float.NegativeInfinity, float.PositiveInfinity).With(nameof(Infinity));
+        public static readonly Generator<Assembly> Assembly = ReflectionUtility.AllAssemblies.Select(Constant).Any().With(nameof(Assembly));
 
         static readonly Generator<Enum> _enumeration = Types.Enumeration.Bind(Enumeration).With(nameof(Enumeration));
 
@@ -174,6 +177,7 @@ namespace Entia.Check
 
         public static Generator<T> Adapt<T>(this Generator<T> generator, Func<State, State> map) =>
             From(Name<T>.Adapt.Format(generator), state => generator.Generate(map(state)));
+        public static Generator<T> Adapt<T>(this Generator<T> generator, State state) => generator.Adapt(_ => state);
         public static Generator<T> Size<T>(this Generator<T> generator, Func<double, double> map) =>
             generator.Adapt(state => state.With(map(state.Size))).With(Name<T>.Size.Format(generator));
         public static Generator<T> Size<T>(this Generator<T> generator, double size) => generator.Size(_ => size);
@@ -182,6 +186,14 @@ namespace Entia.Check
         public static Generator<T> Attenuate<T>(this Generator<T> generator, Generator<uint> depth) =>
             depth.Bind(depth => generator.Adapt(state => state.With(state.Size * Math.Max(1.0 - (double)state.Depth / depth, 0.0))))
                 .With(Name<T>.Attenuate.Format(generator, depth));
+        public static Generator<T> Shrink<T>(this Generator<T> generator, Shrinker<T> shrinker) =>
+            From(Name<T>.Shrink.Format(generator), state =>
+            {
+                var pair = generator.Generate(state);
+                return (pair.value, shrinker);
+            });
+        public static Generator<T> Shrink<T>(this Generator<T> generator, Shrink<T> shrink) =>
+            generator.Shrink(Shrinker.From(Name<T>.Shrink, shrink));
 
         public static Generator<sbyte> Signed(this Generator<byte> generator) => generator.Map(value => (sbyte)value).With(nameof(Signed).Format(generator));
         public static Generator<short> Signed(this Generator<ushort> generator) => generator.Map(value => (short)value).With(nameof(Signed).Format(generator));
@@ -210,40 +222,6 @@ namespace Entia.Check
             Number(minimum, maximum, minimum).Map(value => (int)Math.Round(value)).With(Name<int>.Range.Format(minimum, maximum));
         public static Generator<T> Range<T>(params T[] values) =>
             Range(values.Length - 1).Map(index => values[index]).With(Name<T>.Range.Format(values));
-
-        public static Generator<T[]> Repeat<T>(this Generator<T> generator, Generator<int> count) =>
-            From(Name<T>.Repeat.Format(generator, count), state =>
-            {
-                var length = count.Generate(state).value;
-                if (length == 0) return Empty<T>().Generate(state);
-
-                var values = new T[length];
-                var shrinkers = new Shrinker<T>[length];
-                for (int i = 0; i < length; i++) (values[i], shrinkers[i]) = generator.Generate(state);
-                return (values, Shrinker.Repeat(values, shrinkers));
-            });
-
-        public static Generator<T> Cache<T>(this Generator<T> generator, double ratio = 0.5, uint size = 64)
-        {
-            if (size == 0) return generator;
-
-            var cache = new Tuple<T, Shrinker<T>>[size];
-            var count = 0;
-            return From("", state =>
-            {
-                if (state.Random.NextDouble() < ratio &&
-                    state.Random.Next(count) is var index &&
-                    cache[index % size] is Tuple<T, Shrinker<T>> tuple)
-                    return (tuple.Item1, tuple.Item2);
-                else
-                {
-                    var pair = generator.Generate(state);
-                    index = Interlocked.Increment(ref count) - 1;
-                    Interlocked.Exchange(ref cache[index % size], Tuple.Create(pair.value, pair.shrinker));
-                    return pair;
-                }
-            });
-        }
 
         public static Generator<TTarget> Map<TSource, TTarget>(this Generator<TSource> generator, Func<TSource, State, TTarget> map) =>
             From(Name<TSource, TTarget>.Map.Format(generator), state =>
@@ -335,11 +313,49 @@ namespace Entia.Check
             generators.Length == 0 ? Empty<T>() :
             From(Name<T>.All.Format(generators), state =>
             {
+                var initial = state.Clone();
                 var values = new T[generators.Length];
                 var shrinkers = new Shrinker<T>[generators.Length];
                 for (int i = 0; i < generators.Length; i++) (values[i], shrinkers[i]) = generators[i].Generate(state);
-                return (values, Shrinker.All(values, shrinkers));
+                return (values, Shrinker.All2(generators, shrinkers, initial));
+                // return (values, Shrinker.All(values, shrinkers));
             });
+
+        public static Generator<T[]> Repeat<T>(this Generator<T> generator, Generator<int> count) =>
+            From(Name<T>.Repeat.Format(generator, count), state =>
+            {
+                var length = count.Generate(state).value;
+                if (length == 0) return Empty<T>().Generate(state);
+
+                var initial = state.Clone();
+                var values = new T[length];
+                var shrinkers = new Shrinker<T>[length];
+                for (int i = 0; i < length; i++) (values[i], shrinkers[i]) = generator.Generate(state);
+                return (values, Shrinker.Repeat2(generator, shrinkers, initial));
+                // return (values, Shrinker.Repeat(values, shrinkers));
+            });
+
+        public static Generator<T> Cache<T>(this Generator<T> generator, double ratio = 0.5, uint size = 64)
+        {
+            if (size == 0) return generator;
+
+            var cache = new Tuple<T, Shrinker<T>>[size];
+            var count = 0;
+            return From("", state =>
+            {
+                if (state.Random.NextDouble() < ratio &&
+                    state.Random.Next(count) is var index &&
+                    cache[index % size] is Tuple<T, Shrinker<T>> tuple)
+                    return (tuple.Item1, tuple.Item2);
+                else
+                {
+                    var pair = generator.Generate(state);
+                    index = Interlocked.Increment(ref count) - 1;
+                    Interlocked.Exchange(ref cache[index % size], Tuple.Create(pair.value, pair.shrinker));
+                    return pair;
+                }
+            });
+        }
 
         public static IEnumerable<T> Sample<T>(this Generator<T> generator, int count)
         {

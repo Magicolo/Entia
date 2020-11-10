@@ -26,7 +26,7 @@ namespace Entia.Core
         public static ICollection<Type> AllTypes => _types.Values;
 
         static readonly ConcurrentDictionary<string, Assembly> _assemblies = new ConcurrentDictionary<string, Assembly>();
-        static readonly ConcurrentDictionary<string, Type> _types = new ConcurrentDictionary<string, Type>();
+        static readonly ConcurrentDictionary<(Assembly, string), Type> _types = new ConcurrentDictionary<(Assembly, string), Type>();
         static readonly ConcurrentDictionary<MemberInfo, IMemberData> _memberToData = new ConcurrentDictionary<MemberInfo, IMemberData>();
         static readonly ConcurrentDictionary<Guid, Type> _guidToType = new ConcurrentDictionary<Guid, Type>();
 
@@ -42,9 +42,12 @@ namespace Entia.Core
 
                     foreach (var type in assembly.GetTypes())
                     {
-                        _types.TryAdd(type.Name, type);
-                        _types.TryAdd(type.FullName, type);
-                        _types.TryAdd(type.AssemblyQualifiedName, type);
+                        _types.TryAdd((null, type.Name), type);
+                        _types.TryAdd((null, type.FullName), type);
+                        _types.TryAdd((null, type.AssemblyQualifiedName), type);
+                        _types.TryAdd((assembly, type.Name), type);
+                        _types.TryAdd((assembly, type.FullName), type);
+                        _types.TryAdd((assembly, type.AssemblyQualifiedName), type);
                         // If multiple guids collide, the guid is not a unique identifier, so it is discarded.
                         if (type.HasGuid()) _guidToType.AddOrUpdate(type.GUID, type, (_, __) => null);
                     }
@@ -74,15 +77,20 @@ namespace Entia.Core
 
 
         public static bool TryGetAssembly(string name, out Assembly assembly) => _assemblies.TryGetValue(name, out assembly);
-        public static bool TryGetType(string name, out Type type) => _types.TryGetValue(name, out type);
-        public static bool TryGetType(Guid guid, out Type type) => _guidToType.TryGetValue(guid, out type) && type != null;
+        public static bool TryGetType(string name, out Type type) => TryGetType("", name, out type);
+        public static bool TryGetType(string assembly, string name, out Type type) =>
+            TryGetAssembly(assembly, out var current) & TryGetType(current, name, out type);
+        public static bool TryGetType(Assembly assembly, string name, out Type type) => _types.TryGetValue((assembly, name), out type);
+        public static bool TryGetType(Guid guid, out Type type) =>
+            _guidToType.TryGetValue(guid, out type) && type != null;
         public static bool TryGetGuid(Type type, out Guid guid)
         {
             guid = type.GUID;
             return TryGetType(guid, out var other) && type == other;
         }
 
-        public static bool HasGuid(this Type type) => type.IsDefined(typeof(GuidAttribute));
+        public static bool HasGuid<T>(this T provider) where T : ICustomAttributeProvider =>
+            provider.IsDefined(typeof(GuidAttribute), true);
 
         public static string Trimmed(this Type type) => type.Name.Split('`').First();
 

@@ -79,6 +79,39 @@ namespace Entia.Check
             }
         }
 
+        internal static Shrinker<T[]> Repeat2<T>(Generator<T> generator, Shrinker<T>[] shrinkers, Generator.State state)
+        {
+            return From(Name<T>.Repeat.Format(shrinkers), Shrink);
+            IEnumerable<Generator<T[]>> Shrink()
+            {
+                // Try to remove irrelevant generators.
+                for (int i = 0; i < shrinkers.Length; i++)
+                    yield return generator.Repeat(shrinkers.Length).Adapt(state.Clone()).Map(values => values.RemoveAt(i));
+
+                // Try to shrink relevant generators.
+                var generators = Enumerable.Repeat(generator, shrinkers.Length).ToArray();
+                foreach (var generator in All2(generators, shrinkers, state).Shrink())
+                    yield return generator;
+            }
+        }
+
+        internal static Shrinker<T[]> All2<T>(Generator<T>[] generators, Shrinker<T>[] shrinkers, Generator.State state)
+        {
+            return From(Name<T>.Repeat.Format(shrinkers), Shrink);
+            IEnumerable<Generator<T[]>> Shrink()
+            {
+                for (int i = 0; i < shrinkers.Length; i++)
+                {
+                    foreach (var generator in shrinkers[i].Shrink())
+                    {
+                        var clones = CloneUtility.Shallow(generators);
+                        clones[i] = generator;
+                        yield return Generator.All(clones).Adapt(state);
+                    }
+                }
+            }
+        }
+
         internal static Shrinker<T[]> All<T>(T[] values, Shrinker<T>[] shrinkers)
         {
             return From(Name<T>.All.Format(shrinkers), Shrink);

@@ -264,10 +264,10 @@ namespace Entia.Json
             {
                 if (node.TryAbstract(out var type, out var value))
                     return Node.Object(
-                        Node.DollarTString, ConvertType(type, context),
-                        Node.DollarVString, ConvertTypes(value, context));
+                        Node.DollarT, ConvertType(type, context),
+                        Node.DollarV, ConvertTypes(value, context));
                 else if (node.TryType(out type))
-                    return Node.Object(Node.DollarTString, ConvertType(type, context));
+                    return Node.Object(Node.DollarT, ConvertType(type, context));
 
                 var children = default(Node[]);
                 for (int i = 0; i < node.Children.Length; i++)
@@ -286,7 +286,7 @@ namespace Entia.Json
                 if (node.TryReference(out var identifier))
                 {
                     // NOTE: no need to visit children
-                    return Node.Object(Node.DollarRString,
+                    return Node.Object(Node.DollarR,
                         identifiers.TryGetValue(identifier, out var index) ?
                         index : identifiers[identifier] = identifiers.Count);
                 }
@@ -322,7 +322,7 @@ namespace Entia.Json
                 if (identifiers.TryGetValue(node.Identifier, out var index))
                 {
                     count++;
-                    return Node.Object(Node.DollarIString, index, Node.DollarVString, node);
+                    return Node.Object(Node.DollarI, index, Node.DollarV, node);
                 }
 
                 return node;

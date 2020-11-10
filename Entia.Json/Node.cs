@@ -40,8 +40,9 @@ namespace Entia.Json
             Integer = 1 << 1,
             Rational = 1 << 2,
             Empty = 1 << 3,
-            Dollar = 1 << 4,
-            Zero = 1 << 5
+            Dollar = 1 << 4 | Special,
+            Zero = 1 << 5,
+            Special = 1 << 6,
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -103,11 +104,12 @@ namespace Entia.Json
         public static readonly Node EmptyArray = new Node(Kinds.Array, Tags.Empty, null, _empty);
         public static readonly Node EmptyString = new Node(Kinds.String, Tags.Plain | Tags.Empty, "", _empty);
 
-        internal static readonly Node DollarTString = Dollar('t');
-        internal static readonly Node DollarIString = Dollar('i');
-        internal static readonly Node DollarVString = Dollar('v');
-        internal static readonly Node DollarRString = Dollar('r');
-        internal static readonly Node DollarKString = Dollar('k');
+        internal static readonly Node DollarT = Dollar('t');
+        internal static readonly Node DollarI = Dollar('i');
+        internal static readonly Node DollarV = Dollar('v');
+        internal static readonly Node DollarR = Dollar('r');
+        internal static readonly Node DollarK = Dollar('k');
+        internal static readonly Node DollarA = Dollar('a');
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node Boolean(bool value) => value ? True : False;
@@ -167,9 +169,11 @@ namespace Entia.Json
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Array(params Node[] items) => items.Length == 0 ? EmptyArray : new Node(Kinds.Array, Tags.None, null, items);
+        public static Node Array(params Node[] items) => Array(items, Tags.None);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Object(params Node[] members) => members.Length == 0 ? EmptyObject : new Node(Kinds.Object, Tags.None, null, members);
+        public static Node Object(params (Node key, Node value)[] members) => Object(members.Flatten());
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Node Object(params Node[] members) => Object(members, Tags.None);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node Type(Type type) => type == null ? Null : new Node(Kinds.Type, Tags.None, type, _empty);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -177,6 +181,10 @@ namespace Entia.Json
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node Reference(uint identifier) => new Node(Kinds.Reference, Tags.None, identifier, _empty);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static Node Array(Node[] items, Tags tags) => items.Length == 0 ? EmptyArray : new Node(Kinds.Array, tags, null, items);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static Node Object(Node[] members, Tags tags) => members.Length == 0 ? EmptyObject : new Node(Kinds.Object, tags, null, members);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static uint Reserve() => (uint)Interlocked.Increment(ref _counter);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

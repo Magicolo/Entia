@@ -254,6 +254,8 @@ namespace Entia.Json
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool HasDollar(this Node node) => node.Has(Node.Tags.Dollar);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool HasSpecial(this Node node) => node.Has(Node.Tags.Special);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNull(this Node node) => node.Is(Node.Kinds.Null);
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsString(this Node node) => node.Is(Node.Kinds.String);

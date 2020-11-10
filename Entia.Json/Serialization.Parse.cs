@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Entia.Core;
@@ -98,8 +97,9 @@ namespace Entia.Json
             if (string.IsNullOrWhiteSpace(text)) return Result.Failure("Expected valid json.");
 
             var index = 0;
+            var depth = 0;
             var nodes = new Node[64];
-            var brackets = new Stack<int>(8);
+            var brackets = new (int index, Node.Tags tags)[8];
             var builder = default(StringBuilder);
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -111,6 +111,7 @@ namespace Entia.Json
                     Array.Copy(nodes, 0, resized, 0, nodes.Length);
                     nodes = resized;
                 }
+                brackets[depth].tags |= node.Tag & Node.Tags.Special;
                 nodes[index++] = node;
             }
 
@@ -166,19 +167,19 @@ namespace Entia.Json
                         case _9: Push(ParseNumber(ref head, tail, 9, 1)); break;
                         case _quote: Push(ParseString(ref builder, ref head, tail)); break;
                         case _openCurly:
-                        case _openSquare: brackets.Push(index); break;
+                        case _openSquare: Serialization.Push(ref brackets, ref depth, (index, Node.Tags.None)); break;
                         case _closeCurly:
-                            if (brackets.TryPop(out var memberCount))
+                            if (TryPop(brackets, ref depth, out var members))
                             {
-                                Push(Node.Object(Pop(index - memberCount)));
+                                Push(Node.Object(Pop(index - members.index), members.tags));
                                 break;
                             }
                             else
                                 return Result.Failure($"Expected balanced curly bracket at index '{Index(pointer, head) - 1}'.");
                         case _closeSquare:
-                            if (brackets.TryPop(out var itemCount))
+                            if (TryPop(brackets, ref depth, out var items))
                             {
-                                Push(Node.Array(Pop(index - itemCount)));
+                                Push(Node.Array(Pop(index - items.index), items.tags));
                                 break;
                             }
                             else
@@ -189,7 +190,7 @@ namespace Entia.Json
                 }
             }
 
-            if (brackets.Count > 0) return Result.Failure("Expected brackets to be balanced.");
+            if (depth > 0) return Result.Failure("Expected brackets to be balanced.");
             else if (index > 1) return Result.Failure("Expected all child nodes to be consumed.");
             else if (nodes[0] is Node root)
             {
@@ -197,6 +198,26 @@ namespace Entia.Json
                 return root;
             }
             else return Result.Failure("Expected valid json.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static void Push<T>(ref T[] array, ref int count, T item)
+        {
+            var index = ++count;
+            if (index >= array.Length) Array.Resize(ref array, array.Length * 2);
+            array[index] = item;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static bool TryPop<T>(T[] array, ref int count, out T item)
+        {
+            if (count < 0)
+            {
+                item = default;
+                return false;
+            }
+            item = array[count--];
+            return true;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -349,17 +370,20 @@ namespace Entia.Json
 
         static void Unwrap(ref Node node, in FromContext context)
         {
-            if (context.Settings.Features.HasAll(Features.Reference))
+            if (node.HasSpecial())
             {
-                var identifiers = new uint?[8];
-                UnwrapIdentified(ref node, ref identifiers);
-                UnwrapReferences(ref node, identifiers);
+                if (context.Settings.Features.HasAll(Features.Reference))
+                {
+                    var identifiers = new uint?[8];
+                    UnwrapIdentified(ref node, ref identifiers);
+                    UnwrapReferences(ref node, identifiers);
+                }
+                if (context.Settings.Features.HasAll(Features.Abstract)) ConvertTypes(ref node, context);
             }
-            if (context.Settings.Features.HasAll(Features.Abstract)) ConvertTypes(ref node, context);
 
             static void UnwrapIdentified(ref Node node, ref uint?[] identifiers)
             {
-                if (node.Children.Length == 4 && node.Children[0] == Node.DollarIString && node.Children[2] == Node.DollarVString)
+                if (node.Children.Length == 4 && node.Children[0] == Node.DollarI && node.Children[2] == Node.DollarV)
                 {
                     var index = node.Children[1].AsInt();
                     var value = node.Children[3];
@@ -368,13 +392,13 @@ namespace Entia.Json
                     identifiers[index] = node.Identifier;
                     node = value.With(node.Identifier);
                 }
-                else
+                else if (node.HasSpecial())
                     for (int i = 0; i < node.Children.Length; i++) UnwrapIdentified(ref node.Children[i], ref identifiers);
             }
 
             static void UnwrapReferences(ref Node node, uint?[] identifiers)
             {
-                if (node.Children.Length == 2 && node.Children[0] == Node.DollarRString)
+                if (node.Children.Length == 2 && node.Children[0] == Node.DollarR)
                 {
                     var index = node.Children[1].AsInt();
                     var reference =
@@ -382,7 +406,7 @@ namespace Entia.Json
                         Node.Reference(identifier) : Node.Null;
                     node = reference.With(node.Identifier);
                 }
-                else
+                else if (node.HasSpecial())
                     for (int i = 0; i < node.Children.Length; i++) UnwrapReferences(ref node.Children[i], identifiers);
             }
 
@@ -391,20 +415,17 @@ namespace Entia.Json
 
             static void ConvertTypes(ref Node node, in FromContext context)
             {
-                if (node.Children.Length == 2 && node.Children[0] == Node.DollarTString)
+                if (node.Children.Length == 2 && node.Children[0] == Node.DollarT)
                     node = ConvertType(node.Children[1], context).With(node.Identifier);
-                else if (node.Children.Length == 4 && node.Children[0] == Node.DollarTString && node.Children[2] == Node.DollarVString)
+                else if (node.Children.Length == 4 && node.Children[0] == Node.DollarT && node.Children[2] == Node.DollarV)
                 {
                     var type = node.Children[1];
                     var value = node.Children[3];
                     ConvertTypes(ref value, context);
                     node = Node.Abstract(ConvertType(type, context).With(type.Identifier), value).With(node.Identifier);
                 }
-                else
-                {
-                    for (int i = 0; i < node.Children.Length; i++)
-                        ConvertTypes(ref node.Children[i], context);
-                }
+                else if (node.HasSpecial())
+                    for (int i = 0; i < node.Children.Length; i++) ConvertTypes(ref node.Children[i], context);
             }
         }
     }

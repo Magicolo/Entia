@@ -191,7 +191,7 @@ namespace Entia.Json.Converters
             {
                 var pair =
                     node.IsObject() && node.Children.Length == 4 &&
-                    node.Children[0] == Node.DollarKString && node.Children[2] == Node.DollarVString ?
+                    node.Children[0] == Node.DollarK && node.Children[2] == Node.DollarV ?
                     (version: node.Children[1].AsInt(), value: node.Children[3]) :
                     (version: @default, value: node);
                 value = pair.value;
@@ -200,7 +200,7 @@ namespace Entia.Json.Converters
 
             return Create(
                 (in T instance, in ToContext context) =>
-                    Node.Object(Node.DollarKString, latest, Node.DollarVString, latestConverter.Convert(instance, context)),
+                    Node.Object(Node.DollarK, latest, Node.DollarV, latestConverter.Convert(instance, context)),
                 (in FromContext context) =>
                     Converter(context.Node, out var value).Instantiate(context.With(value)),
                 (ref T instance, in FromContext context) =>
@@ -370,6 +370,7 @@ namespace Entia.Json.Converters
             if (type == typeof(Guid)) return new ConcreteGuid();
             if (type == typeof(Node)) return new ConcreteNode();
             if (type.Is<Type>()) return new ConcreteType();
+            if (type.Is<Assembly>()) return new ConcreteAssembly();
             if (type.GenericDefinition().TryValue(out var definition))
             {
                 var arguments = type.GetGenericArguments();

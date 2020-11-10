@@ -26,7 +26,7 @@ namespace Entia.Json.Converters
             public Members(object field, object property) { Field = field; Property = property; Method(); }
         }
 
-        enum Types { Array = 1, Pointer = 2, Generic = 3 }
+        enum Types { Array = 1, Pointer = 2, Generic = 3, Full = 4 }
 
         public static readonly JsonType Instance = new JsonType();
 
@@ -81,6 +81,7 @@ namespace Entia.Json.Converters
         static readonly Node _array = Types.Array;
         static readonly Node _pointer = Types.Pointer;
         static readonly Node _generic = Types.Generic;
+        static readonly Node _full = Types.Full;
 
         public override Node Convert(in Type instance, in ToContext context)
         {
@@ -104,7 +105,7 @@ namespace Entia.Json.Converters
             else if (ReflectionUtility.TryGetGuid(instance, out var guid))
                 return Node.String(guid.ToString(), Node.Tags.Plain);
             else
-                return Node.String(instance.AssemblyQualifiedName);
+                return Node.Array(_full, context.Convert(instance.Assembly), instance.FullName);
         }
 
         public override Type Instantiate(in FromContext context)
@@ -147,6 +148,11 @@ namespace Entia.Json.Converters
                                 }
                                 return definition.MakeGenericType(arguments);
                             }
+                            break;
+                        case Types.Full:
+                            if (context.Convert<Assembly>(node.Children[1]) is Assembly assembly &&
+                                ReflectionUtility.TryGetType(assembly, node.Children[2].AsString(), out type))
+                                return type;
                             break;
                     }
                     break;

@@ -6,6 +6,8 @@ namespace Entia
     {
         static void Main()
         {
+            // Json.Benches.Run();
+
             Check.Checks.Run();
             Corez.Checks.Run();
             Json.Checks.Run();
