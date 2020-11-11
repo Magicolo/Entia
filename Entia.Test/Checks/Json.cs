@@ -8,7 +8,7 @@ namespace Entia.Json
 {
     public static class Checks
     {
-        static readonly Settings _settings = Settings.Default.With(Features.All);
+        static readonly Generator<Settings> _settings = Flags<Features>().Map(features => Settings.Default.With(features));
         static readonly Generator<Node> _boolean = Any(Node.True, Node.False, Generator.Boolean.Map(Node.Boolean));
         static readonly Generator<Node> _number = Any(
             Any(Node.Zero, Node.Number(float.NaN), Infinity.Map(Node.Number)),
@@ -33,10 +33,11 @@ namespace Entia.Json
             _type.Check("Generate/parse symmetry for Type nodes.");
             _node.Check("Generate/parse symmetry for Root nodes.");
 
-            _number.Map(node =>
+            _number.And(_settings).Map(pair =>
             {
-                var generated = Serialization.Generate(node, _settings);
-                var parsed = Serialization.Parse(generated, _settings);
+                var (node, settings) = pair;
+                var generated = Serialization.Generate(node, settings);
+                var parsed = Serialization.Parse(generated, settings);
                 var system = node.IsNull() ? node : Node.Number(double.Parse(generated, CultureInfo.InvariantCulture));
                 return (node, generated, parsed, system);
             }).Check("Generate/parse/double.Parse symmetry for Number nodes.", tuple =>
@@ -44,13 +45,16 @@ namespace Entia.Json
                 tuple.node == tuple.system &&
                 tuple.parsed == tuple.system);
 
-            _node.Map(node =>
+            _number.And(_settings).Map(pair =>
             {
-                string Generate(Node node) => Serialization.Generate(node.Map(child => Generate(child)), _settings);
-                Node Parse(string json) => Serialization.Parse(json, _settings).Or(Node.Null).Map(child => Parse(child.AsString()));
+                var (node, settings) = pair;
                 var generated = Generate(node);
                 var parsed = Parse(generated);
                 return (node, generated, parsed);
+
+                string Generate(Node node) => Serialization.Generate(node.Map(child => Generate(child)), settings);
+                Node Parse(string json) => Serialization.Parse(json, settings).Or(Node.Null).Map(child => Parse(child.AsString()));
+
             }).Check("Generate/parse symmetry for nested json.", tuple => tuple.node == tuple.parsed);
 
             // TODO: Add test for parsing foreign jsons
@@ -61,13 +65,15 @@ namespace Entia.Json
         static Failure<T>[] Check<T>(this Generator<T> generator, string name, Func<T, bool> prove) =>
             generator.Prove(name, prove).Log(name).Check();
 
-        static Failure<(Node, string, Result<Node>)>[] Check(this Generator<Node> generator, string name) => generator
-            .Map(node =>
-            {
-                var json = Serialization.Generate(node, _settings);
-                var result = Serialization.Parse(json, _settings);
-                return (node, json, result);
-            })
-            .Check(name, values => values.node == values.result);
+        static Failure<(Node, string, Result<Node>)>[] Check(this Generator<Node> generator, string name) =>
+            generator.And(_settings)
+                .Map(pair =>
+                {
+                    var (node, settings) = pair;
+                    var json = Serialization.Generate(node, settings);
+                    var result = Serialization.Parse(json, settings);
+                    return (node, json, result);
+                })
+                .Check(name, values => values.node == values.result);
     }
 }

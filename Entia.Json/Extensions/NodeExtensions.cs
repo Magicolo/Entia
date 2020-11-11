@@ -53,6 +53,10 @@ namespace Entia.Json
             node.Children.Length == 0 ? node : node.With(node.Children.Select(map));
         public static Node Map<TState>(this Node node, in TState state, Func<Node, TState, Node> map) =>
             node.Children.Length == 0 ? node : node.With(node.Children.Select(state, map));
+        public static Node Filter(this Node node, Func<Node, bool> filter) =>
+            node.Children.Length == 0 ? node : node.With(node.Children.Where(filter).ToArray());
+        public static Node Filter<TState>(this Node node, in TState state, Func<Node, TState, bool> filter) =>
+            node.Children.Length == 0 ? node : node.With(node.Children.Where(state, filter).ToArray());
 
         public static Node Add(this Node node, Node child) => node.With(node.Children.Append(child));
         public static Node Add(this Node node, params Node[] children) => node.With(node.Children.Append(children));
@@ -129,17 +133,16 @@ namespace Entia.Json
         public static Node MapItem(this Node node, int index, Func<Node, Node> map) =>
             node.TryItem(index, out var item) ? node.ReplaceAt(index, map(item)) : node;
         public static Node MapItems(this Node node, Func<Node, Node> map) =>
-            node.MapItems((_, item) => map(item));
-        public static Node MapItems(this Node node, Func<int, Node, Node> map)
-        {
-            if (node.TryItems(out var items) && items.Length > 0)
-            {
-                var children = new Node[items.Length];
-                for (int i = 0; i < items.Length; i++) children[i] = map(i, items[i]);
-                return node.With(children);
-            }
-            else return node;
-        }
+            node.With(node.Items().Select(map));
+        public static Node MapItems(this Node node, Func<Node, int, Node> map) =>
+            node.With(node.Items().Select(map));
+
+        public static Node FilterItem(this Node node, int index, Func<Node, bool> filter) =>
+            node.TryItem(index, out var item) && !filter(item) ? node.RemoveAt(index) : node;
+        public static Node FilterItems(this Node node, Func<Node, bool> filter) =>
+            node.With(node.Items().Where(filter).ToArray());
+        public static Node FilterItems(this Node node, Func<Node, int, bool> filter) =>
+            node.With(node.Items().Where(filter).ToArray());
 
         public static Node MapMember(this Node node, string key, Func<Node, Node> map) =>
             node.MapMember(key, value => (key, map(value)));
@@ -166,6 +169,16 @@ namespace Entia.Json
             }
             else return node;
         }
+
+        public static Node FilterMember(this Node node, string key, Func<Node, bool> filter) =>
+            node.TryMember(key, out var value, out var index) && !filter(value) ? node.RemoveAt(index, 2) : node;
+        public static Node FilterMembers(this Node node, Func<Node, bool> filter) =>
+            node.FilterMembers((_, value) => filter(value));
+        public static Node FilterMembers(this Node node, Func<string, Node, bool> filter) =>
+            node.With(node.Members()
+                .Where(pair => filter(pair.key, pair.value))
+                .SelectMany(pair => new[] { Node.String(pair.key), pair.value })
+                .ToArray());
 
         public static Node AddMember(this Node node, string key, Node value) =>
             node.TryMember(key, out _, out var index) ? node.ReplaceAt(index, key, value) : node.Add(key, value);

@@ -148,12 +148,7 @@ namespace Entia.Core
         {
             if (array.Length == 0) return Array.Empty<T>();
             var target = new T[array.Length * 2];
-            for (int i = 0; i < array.Length; i++)
-            {
-                var pair = array[i];
-                target[i * 2] = pair.Item1;
-                target[i * 2 + 1] = pair.Item2;
-            }
+            for (int i = 0; i < array.Length; i++) (target[i * 2], target[i * 2 + 1]) = array[i];
             return target;
         }
 
@@ -183,6 +178,7 @@ namespace Entia.Core
 
         public static TResult[] Select<TSource, TResult>(this TSource[] source, Func<TSource, TResult> selector)
         {
+            if (source.Length == 0) return Array.Empty<TResult>();
             var target = new TResult[source.Length];
             for (int i = 0; i < source.Length; i++) target[i] = selector(source[i]);
             return target;
@@ -190,6 +186,7 @@ namespace Entia.Core
 
         public static TResult[] Select<TSource, TResult>(this TSource[] source, Func<TSource, int, TResult> selector)
         {
+            if (source.Length == 0) return Array.Empty<TResult>();
             var target = new TResult[source.Length];
             for (int i = 0; i < source.Length; i++) target[i] = selector(source[i], i);
             return target;
@@ -197,6 +194,7 @@ namespace Entia.Core
 
         public static TResult[] Select<TSource, TResult, TState>(this TSource[] source, in TState state, Func<TSource, TState, TResult> selector)
         {
+            if (source.Length == 0) return Array.Empty<TResult>();
             var target = new TResult[source.Length];
             for (int i = 0; i < source.Length; i++) target[i] = selector(source[i], state);
             return target;
@@ -204,6 +202,7 @@ namespace Entia.Core
 
         public static TResult[] Select<TSource, TResult, TState>(this TSource[] source, in TState state, Func<TSource, TState, int, TResult> selector)
         {
+            if (source.Length == 0) return Array.Empty<TResult>();
             var target = new TResult[source.Length];
             for (int i = 0; i < source.Length; i++) target[i] = selector(source[i], state, i);
             return target;

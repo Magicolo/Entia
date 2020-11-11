@@ -45,6 +45,7 @@ namespace Entia.Check
             Types.Array.Check("Types.Array is array.", type => type.IsArray);
             Types.Primitive.Check("Types.Primitive is primitive.", type => type.IsPrimitive);
             Types.Enumeration.Check("Types.Enumeration is enum.", type => type.IsEnum);
+            Types.Flags.Check("Types.Flags is flags.", type => type.IsEnum && type.IsDefined(typeof(FlagsAttribute), true));
             Types.Definition.Check("Types.Definition is generic type definition.", type => type.IsGenericTypeDefinition);
             Types.Default.Check("Types.Generic has default constructor.", type => type.DefaultConstructor().IsSome());
             Types.Tuple.Check("Types.Tuple is 'ITuple'.", type => type.Is<ITuple>());

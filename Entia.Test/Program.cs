@@ -9,7 +9,7 @@ namespace Entia
             // Json.Benches.Run();
 
             Check.Checks.Run();
-            Corez.Checks.Run();
+            // Corez.Checks.Run();
             Json.Checks.Run();
             Console.ReadLine();
             Tests.Run();

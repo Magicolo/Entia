@@ -40,7 +40,7 @@ namespace Entia.Json
             Integer = 1 << 1,
             Rational = 1 << 2,
             Empty = 1 << 3,
-            Dollar = 1 << 4 | Special,
+            Dollar = 1 << 4,
             Zero = 1 << 5,
             Special = 1 << 6,
         }
@@ -194,8 +194,8 @@ namespace Entia.Json
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static Node Dollar(char value)
         {
-            if (value >= Characters) return String("$" + value, Tags.Dollar | DefaultTags(value));
-            return _dollars[value] ?? (_dollars[value] = String("$" + value, GetTags(value) | Tags.Dollar));
+            if (value >= Characters) return String("$" + value, Tags.Dollar | Tags.Special | DefaultTags(value));
+            return _dollars[value] ?? (_dollars[value] = String("$" + value, GetTags(value) | Tags.Dollar | Tags.Special));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

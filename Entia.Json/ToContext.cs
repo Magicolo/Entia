@@ -61,12 +61,8 @@ namespace Entia.Json
                 var identifier = Reserve(instance);
                 return converter.Convert(With(instance, concrete)).With(identifier);
             }
-            else if (instance is Type)
-            {
-                var converter = Settings.Converter<Type>(null, @override);
-                var identifier = Reserve(instance);
-                return converter.Convert(With(instance, concrete)).With(identifier);
-            }
+            else if (TryConvert<Type>(instance, concrete, out var node, @override)) return node;
+            else if (TryConvert<Assembly>(instance, concrete, out node, @override)) return node;
             else if (type.GenericDefinition() == typeof(Nullable<>))
                 return Convert(instance, instance.GetType(), @default);
             else if (Settings.Features.HasAll(Features.Abstract))
@@ -77,6 +73,20 @@ namespace Entia.Json
 
         public ToContext With(object instance, Type type) =>
             new ToContext(instance, type, Settings, References);
+
+        bool TryConvert<T>(object instance, Type type, out Node node, IConverter @override = null)
+        {
+            if (instance is T)
+            {
+                var converter = Settings.Converter<T>(null, @override);
+                var identifier = Reserve(instance);
+                node = converter.Convert(With(instance, type)).With(identifier);
+                return true;
+            }
+
+            node = default;
+            return false;
+        }
 
         bool TryReference(object instance, out uint identifier)
         {

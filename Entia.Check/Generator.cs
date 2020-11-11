@@ -58,6 +58,7 @@ namespace Entia.Check
             static readonly Type[] _references = _concretes.Where(type => type.IsClass).ToArray();
             static readonly Type[] _values = _concretes.Where(type => type.IsValueType).ToArray();
             static readonly Type[] _enumerations = _values.Where(type => type.IsEnum).ToArray();
+            static readonly Type[] _flags = _flags.Where(type => type.IsDefined(typeof(FlagsAttribute))).ToArray();
             static readonly Type[] _primitives = _values.Where(type => type.IsPrimitive).ToArray();
             static readonly Type[] _enumerables = _concretes.Where(type => type.Is<IEnumerable>()).ToArray();
             static readonly Type[] _serializables = _concretes.Where(type => type.Is<ISerializable>()).ToArray();
@@ -76,6 +77,7 @@ namespace Entia.Check
             public static readonly Generator<Type> Interface = Any(_interfaces).With($"{nameof(Types)}.{nameof(Interface)}");
             public static readonly Generator<Type> Primitive = Any(_primitives).With($"{nameof(Types)}.{nameof(Primitive)}");
             public static readonly Generator<Type> Enumeration = Any(_enumerations).With($"{nameof(Types)}.{nameof(Enumeration)}");
+            public static readonly Generator<Type> Flags = Any(_flags).With($"{nameof(Types)}.{nameof(Flags)}");
             public static readonly Generator<Type> Definition = Range(_constructables).Map(pair => pair.definition).With($"{nameof(Types)}.{nameof(Definition)}");
             public static readonly Generator<Type> Enumerable = Any(_enumerables).With($"{nameof(Types)}.{nameof(Enumerable)}");
             public static readonly Generator<Type> Serializable = Any(_serializables).With($"{nameof(Types)}.{nameof(Serializable)}");
@@ -138,10 +140,10 @@ namespace Entia.Check
             public static readonly Generator<T[]> Empty = Constant(Array.Empty<T>()).With(Name<T>.Empty);
         }
 
-        static class EnumCache<T> where T : struct, Enum
+        static class EnumCache<T> where T : struct, Enum, IConvertible
         {
-            public static readonly Generator<T> Any = Enum.GetValues(typeof(T)).OfType<T>().Select(Constant).Any()
-                .With($"{nameof(Enumeration)}{Name<T>.Parameters}");
+            public static readonly Generator<T> Enumeration = Generator.Enumeration(typeof(T)).Map(value => (T)value).With(Name<T>.Enumeration);
+            public static readonly Generator<T> Flags = Generator.Flags(typeof(T)).Map(value => (T)value).With(Name<T>.Flag);
         }
 
         public static readonly Generator<char> Letter = Any(Range('A', 'Z'), Range('a', 'z')).With(nameof(Letter));
@@ -159,6 +161,7 @@ namespace Entia.Check
         public static readonly Generator<Assembly> Assembly = ReflectionUtility.AllAssemblies.Select(Constant).Any().With(nameof(Assembly));
 
         static readonly Generator<Enum> _enumeration = Types.Enumeration.Bind(Enumeration).With(nameof(Enumeration));
+        static readonly Generator<Enum> _flags = Types.Flags.Bind(Flags).With(nameof(Flags));
 
         public static Generator<T> Default<T>() => GeneratorCache<T>.Default;
         public static Generator<T[]> Empty<T>() => GeneratorCache<T>.Empty;
@@ -204,9 +207,20 @@ namespace Entia.Check
         public static Generator<uint> Unsigned(this Generator<int> generator) => generator.Map(value => (uint)value).With(nameof(Unsigned).Format(generator));
         public static Generator<ulong> Unsigned(this Generator<long> generator) => generator.Map(value => (ulong)value).With(nameof(Unsigned).Format(generator));
 
-        public static Generator<T> Enumeration<T>() where T : struct, Enum => EnumCache<T>.Any;
-        public static Generator<Enum> Enumeration(Type type) => Enum.GetValues(type).OfType<Enum>().Select(Constant).Any().With(nameof(Enumeration).Format(type.Name));
+        public static Generator<T> Enumeration<T>() where T : struct, Enum => EnumCache<T>.Enumeration;
+        public static Generator<Enum> Enumeration(Type type) => Any(Enum.GetValues(type).OfType<Enum>().ToArray()).With(nameof(Enumeration).Format(type.Name));
         public static Generator<Enum> Enumeration() => _enumeration;
+        public static Generator<T> Flags<T>() where T : struct, Enum => EnumCache<T>.Flags;
+        public static Generator<Enum> Flags(Type type)
+        {
+            var values = Enum.GetValues(type).OfType<Enum>().ToArray();
+            return Any(values)
+                .Repeat(values.Length)
+                .Map(values => (Enum)Enum.ToObject(type, values.Aggregate(0L, (flags, value) => flags | Convert.ToInt64(value))))
+                .With(nameof(Flags).Format(type.Name));
+        }
+        public static Generator<Enum> Flags() => _flags;
+
         public static Generator<string> String(Generator<int> count) => Character.String(count);
         public static Generator<string> String(this Generator<char> generator, Generator<int> count) =>
             generator.Repeat(count).Map(characters => new string(characters)).With(nameof(String).Format(generator, count));
