@@ -58,7 +58,7 @@ namespace Entia.Check
             static readonly Type[] _references = _concretes.Where(type => type.IsClass).ToArray();
             static readonly Type[] _values = _concretes.Where(type => type.IsValueType).ToArray();
             static readonly Type[] _enumerations = _values.Where(type => type.IsEnum).ToArray();
-            static readonly Type[] _flags = _flags.Where(type => type.IsDefined(typeof(FlagsAttribute))).ToArray();
+            static readonly Type[] _flags = _enumerations.Where(type => type.IsDefined(typeof(FlagsAttribute))).ToArray();
             static readonly Type[] _primitives = _values.Where(type => type.IsPrimitive).ToArray();
             static readonly Type[] _enumerables = _concretes.Where(type => type.Is<IEnumerable>()).ToArray();
             static readonly Type[] _serializables = _concretes.Where(type => type.Is<ISerializable>()).ToArray();
