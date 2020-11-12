@@ -171,7 +171,9 @@ namespace Entia.Json
                         case _closeCurly:
                             if (TryPop(brackets, ref depth, out var members))
                             {
-                                Push(Node.Object(Pop(index - members.index), members.tags));
+                                var count = index - members.index;
+                                if (count % 2 == 0) Push(Node.Object(Pop(count), members.tags));
+                                else return Result.Failure($"Expected all keys to be paired with a value around index '{Index(pointer, head) - 1}'.");
                                 break;
                             }
                             else
