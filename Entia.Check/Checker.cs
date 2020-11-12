@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,11 +15,11 @@ namespace Entia.Check
         public readonly int Parallel = Environment.ProcessorCount;
         public readonly Action OnPre = () => { };
         public readonly Action<Failure<T>[]> OnPost = _ => { };
-        public readonly Action<double> OnProgress = _ => { };
+        public readonly Action<TimeSpan, double> OnProgress = (_, __) => { };
 
         public Checker(Generator<T> generator, Prover<T> prover) { Generator = generator; Prover = prover; }
 
-        Checker(Generator<T> generator, Prover<T> prover, int iterations, int parallel, Action onPre, Action<Failure<T>[]> onPost, Action<double> onProgress)
+        Checker(Generator<T> generator, Prover<T> prover, int iterations, int parallel, Action onPre, Action<Failure<T>[]> onPost, Action<TimeSpan, double> onProgress)
         {
             Generator = generator;
             Prover = prover;
@@ -29,7 +30,7 @@ namespace Entia.Check
             OnProgress = onProgress;
         }
 
-        public Checker<T> With(Generator<T>? generator = null, Prover<T>? prover = null, int? iterations = null, int? parallel = null, Action onPre = null, Action<Failure<T>[]> onPost = null, Action<double> onProgress = null) =>
+        public Checker<T> With(Generator<T>? generator = null, Prover<T>? prover = null, int? iterations = null, int? parallel = null, Action onPre = null, Action<Failure<T>[]> onPost = null, Action<TimeSpan, double> onProgress = null) =>
             new Checker<T>(generator ?? Generator, prover ?? Prover, iterations ?? Iterations, parallel ?? Parallel, OnPre + onPre, OnPost + onPost, OnProgress + onProgress);
     }
 
@@ -44,39 +45,36 @@ namespace Entia.Check
         public static Checker<T> Prove<T>(this Generator<T> generator, Prover<T> prover) =>
             new Checker<T>(generator, prover);
 
-        public static Checker<T> Log<T>(this Checker<T> checker, string name = null)
-        {
-            name ??= checker.Generator.Name;
-            return checker.With(
-                onPre: () =>
-                {
-                    Console.CursorVisible = false;
-                    Console.WriteLine();
-                },
-                onProgress: progress =>
-                {
-                    Console.CursorLeft = 0;
-                    Console.Write($"Checking '{name}' {checker.Iterations / checker.Parallel}x{checker.Parallel}... {progress * 100:0.00}%");
-                },
-                onPost: failures =>
-                {
-                    Console.CursorVisible = true;
-                    if (failures.Length > 0)
-                        Console.WriteLine($"{string.Join("", failures.Select(failure => $"{Environment.NewLine}-> Property '{failure.Property}' was disproved with value '{failure.Shrinked}'"))}");
-                });
-        }
+        public static Checker<T> Log<T>(this Checker<T> checker, string name) => checker.With(
+            onPre: () =>
+            {
+                Console.CursorVisible = false;
+                Console.WriteLine();
+            },
+            onProgress: (elapsed, progress) =>
+            {
+                Console.CursorLeft = 0;
+                Console.Write($"Checking '{name}' with {checker.Iterations / checker.Parallel}x{checker.Parallel} tests... {progress * 100:0.00}% in {elapsed.TotalSeconds:0.000}s.");
+            },
+            onPost: failures =>
+            {
+                Console.CursorVisible = true;
+                if (failures.Length > 0)
+                    Console.WriteLine($"{string.Join("", failures.Select(failure => $"{Environment.NewLine}-> Property '{failure.Property}' was disproved with value '{failure.Shrinked}'"))}");
+            });
 
         public static Failure<T>[] Check<T>(this Checker<T> checker)
         {
             var progress = new double[checker.Parallel];
+            var watch = Stopwatch.StartNew();
             var task = Task.WhenAll(Enumerable.Range(0, checker.Parallel)
                 .Select(index => Task.Run(() => Run(checker, index, progress))));
 
             checker.OnPre();
             var last = 0.0;
-            checker.OnProgress(progress.Average());
-            while (!task.IsCompleted) if (last.Change(progress.Average())) checker.OnProgress(last);
-            checker.OnProgress(progress.Average());
+            checker.OnProgress(watch.Elapsed, progress.Average());
+            while (!task.IsCompleted) if (last.Change(progress.Average())) checker.OnProgress(watch.Elapsed, last);
+            checker.OnProgress(watch.Elapsed, progress.Average());
             var results = task.Result.Choose().ToArray();
             checker.OnPost(results);
             return results;

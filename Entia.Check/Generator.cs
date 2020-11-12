@@ -27,6 +27,17 @@ namespace Entia.Check
     {
         public sealed class State
         {
+            static FieldInfo[] _fields = typeof(Random).Fields(true, false)
+                .Where(field => !field.FieldType.IsPrimitive)
+                .ToArray();
+            static Random Clone(Random random)
+            {
+                var clone = CloneUtility.Shallow(random);
+                foreach (var field in _fields)
+                    field.SetValue(clone, CloneUtility.Shallow(field.GetValue(random)));
+                return clone;
+            }
+
             public readonly double Size;
             public readonly uint Depth;
             public readonly Random Random;
@@ -38,7 +49,7 @@ namespace Entia.Check
                 Random = random;
             }
 
-            public State Clone() => new State(Size, Depth, Random); // FIX: clone random properly
+            public State Clone() => new State(Size, Depth, Clone(Random));
 
             public State With(double? size = null, uint? depth = null) =>
                 new State(size ?? Size, depth ?? Depth, Random);
@@ -146,6 +157,12 @@ namespace Entia.Check
             public static readonly Generator<T> Flags = Generator.Flags(typeof(T)).Map(value => (T)value).With(Name<T>.Flag);
         }
 
+        static readonly Generator<Enum> _enumeration = Types.Enumeration.Bind(Enumeration).With(nameof(Enumeration));
+        static readonly Generator<Enum> _flags = Types.Flags.Bind(Flags).With(nameof(Flags));
+        static readonly Generator<decimal> _number = Number(int.MinValue, int.MaxValue, 0m)
+            .Size(size => Math.Pow(size, 15) + (1.0 - size) * 9e-9)
+            .With(nameof(Number));
+
         public static readonly Generator<char> Letter = Any(Range('A', 'Z'), Range('a', 'z')).With(nameof(Letter));
         public static readonly Generator<char> Digit = Range('0', '9').With(nameof(Digit));
         public static readonly Generator<char> ASCII = Any(Letter, Digit, Range((char)127)).With(nameof(ASCII));
@@ -155,13 +172,10 @@ namespace Entia.Check
         public static readonly Generator<bool> Boolean = Any(True, False).With(nameof(Boolean));
         public static readonly Generator<int> Zero = Constant(0).With(nameof(Zero));
         public static readonly Generator<int> One = Constant(1).With(nameof(One));
-        public static readonly Generator<int> Integer = Number(int.MinValue, int.MaxValue, 0m).Map(value => (int)Math.Round(value)).Size(size => Math.Pow(size, 5)).With(nameof(Integer));
-        public static readonly Generator<float> Rational = Number(-1e15m, 1e15m, 0m).Map(value => (float)value).Size(size => Math.Pow(size, 15)).With(nameof(Rational));
+        public static readonly Generator<int> Integer = _number.Map(value => (int)Math.Round(value)).With(nameof(Integer));
+        public static readonly Generator<float> Rational = _number.Map(value => (float)value).With(nameof(Rational));
         public static readonly Generator<float> Infinity = Any(float.NegativeInfinity, float.PositiveInfinity).With(nameof(Infinity));
         public static readonly Generator<Assembly> Assembly = ReflectionUtility.AllAssemblies.Select(Constant).Any().With(nameof(Assembly));
-
-        static readonly Generator<Enum> _enumeration = Types.Enumeration.Bind(Enumeration).With(nameof(Enumeration));
-        static readonly Generator<Enum> _flags = Types.Flags.Bind(Flags).With(nameof(Flags));
 
         public static Generator<T> Default<T>() => GeneratorCache<T>.Default;
         public static Generator<T[]> Empty<T>() => GeneratorCache<T>.Empty;
@@ -198,6 +212,8 @@ namespace Entia.Check
         public static Generator<T> Shrink<T>(this Generator<T> generator, Shrink<T> shrink) =>
             generator.Shrink(Shrinker.From(Name<T>.Shrink, shrink));
 
+        public static Generator<float> Inverse(this Generator<float> generator) => generator.Map(value => 1f / value).With(nameof(Inverse).Format(generator));
+        public static Generator<double> Inverse(this Generator<double> generator) => generator.Map(value => 1.0 / value).With(nameof(Inverse).Format(generator));
         public static Generator<sbyte> Signed(this Generator<byte> generator) => generator.Map(value => (sbyte)value).With(nameof(Signed).Format(generator));
         public static Generator<short> Signed(this Generator<ushort> generator) => generator.Map(value => (short)value).With(nameof(Signed).Format(generator));
         public static Generator<int> Signed(this Generator<uint> generator) => generator.Map(value => (int)value).With(nameof(Signed).Format(generator));
@@ -331,8 +347,8 @@ namespace Entia.Check
                 var values = new T[generators.Length];
                 var shrinkers = new Shrinker<T>[generators.Length];
                 for (int i = 0; i < generators.Length; i++) (values[i], shrinkers[i]) = generators[i].Generate(state);
-                return (values, Shrinker.All2(generators, shrinkers, initial));
-                // return (values, Shrinker.All(values, shrinkers));
+                // return (values, Shrinker.All2(generators, shrinkers, initial));
+                return (values, Shrinker.All(values, shrinkers));
             });
 
         public static Generator<T[]> Repeat<T>(this Generator<T> generator, Generator<int> count) =>
@@ -345,8 +361,8 @@ namespace Entia.Check
                 var values = new T[length];
                 var shrinkers = new Shrinker<T>[length];
                 for (int i = 0; i < length; i++) (values[i], shrinkers[i]) = generator.Generate(state);
-                return (values, Shrinker.Repeat2(generator, shrinkers, initial));
-                // return (values, Shrinker.Repeat(values, shrinkers));
+                // return (values, Shrinker.Repeat2(generator, shrinkers, initial));
+                return (values, Shrinker.Repeat(values, shrinkers));
             });
 
         public static Generator<T> Cache<T>(this Generator<T> generator, double ratio = 0.5, uint size = 64)

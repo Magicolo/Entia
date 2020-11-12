@@ -18,7 +18,7 @@ namespace Entia.Check
             Letter.String(Range(100)).Check("String(Letter) is letter.", value => value.Length <= 100 && value.All(char.IsLetter));
             Digit.String(Range(100)).Check("String(Digit) is digit.", value => value.Length <= 100 && value.All(char.IsDigit));
             ASCII.String(Range(100)).Check("String(ASCII) is ascii.", value => value.Length <= 100 && value.All(value => value < 128));
-            Infinity.Check("Infinity 'float' generator.", float.IsInfinity);
+            Infinity.Check("Infinity is infinity.", float.IsInfinity);
             String(Range(100)).Bind(value => Constant(value).Map(constant => (value, constant))).Check("Constant is constant.", pair => pair.value == pair.constant);
             Enumeration().Check("Enumeration is enum.", value => value is Enum);
 
