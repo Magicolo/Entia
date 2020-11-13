@@ -22,11 +22,7 @@ namespace Entia.Modules.Group
         public struct Enumerator : IEnumerator<T>
         {
             /// <inheritdoc cref="IEnumerator{T}.Current"/>
-            public ref readonly T Current
-            {
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => ref _items[_index];
-            }
+            public ref readonly T Current => ref _items[_index];
             T IEnumerator<T>.Current => Current;
             object IEnumerator.Current => Current;
 
@@ -54,7 +50,6 @@ namespace Entia.Modules.Group
             }
 
             /// <inheritdoc cref="IEnumerator.MoveNext"/>
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool MoveNext()
             {
                 // NOTE: check '_total' after the '_index' such that it is not decremented if the current segment is exhausted

@@ -15,17 +15,14 @@ namespace Entia.Core
 
     public readonly struct Left<T> : IOr
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Left<T>(in T value) => new Left<T>(value);
 
         public readonly T Value;
         Or.Tags IOr.Tag => Or.Tags.Left;
         object IOr.Value => Value;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         Left(in T value) { Value = value; }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Or<T, TRight> AsOr<TRight>() => this;
         public override string ToString() => $"{GetType().Format()}({Value})";
         public override int GetHashCode() => EqualityComparer<T>.Default.GetHashCode(Value);
@@ -33,17 +30,14 @@ namespace Entia.Core
 
     public readonly struct Right<T> : IOr
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Right<T>(in T value) => new Right<T>(value);
 
         public readonly T Value;
         Or.Tags IOr.Tag => Or.Tags.Right;
         object IOr.Value => Value;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         Right(in T value) { Value = value; }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Or<TLeft, T> AsOr<TLeft>() => this;
         public override string ToString() => $"{GetType().Format()}({Value})";
         public override int GetHashCode() => EqualityComparer<T>.Default.GetHashCode(Value);
@@ -51,45 +45,27 @@ namespace Entia.Core
 
     public readonly struct Or<TLeft, TRight> : IOr, IEquatable<Or<TLeft, TRight>>, IEquatable<Left<TLeft>>, IEquatable<Right<TRight>>
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(in Or<TLeft, TRight> or, in TLeft left) =>
             or.TryLeft(out var value) && EqualityComparer<TLeft>.Default.Equals(value, left);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(in Or<TLeft, TRight> or, in TRight right) =>
             or.TryRight(out var value) && EqualityComparer<TRight>.Default.Equals(value, right);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(in Or<TLeft, TRight> left, in Or<TLeft, TRight> right) =>
             (left.TryLeft(out var leftValue) && right == leftValue) ||
             (left.TryRight(out var rightValue) && right == rightValue);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(in TLeft left, in Or<TLeft, TRight> or) => or == left;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(in TRight right, in Or<TLeft, TRight> or) => or == right;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(in Or<TLeft, TRight> or, in TLeft left) => !(or == left);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(in Or<TLeft, TRight> or, in TRight right) => !(or == right);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(in Or<TLeft, TRight> left, in Or<TLeft, TRight> right) => !(left == right);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(in TLeft left, in Or<TLeft, TRight> or) => !(left == or);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(in TRight right, in Or<TLeft, TRight> or) => !(right == or);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Or<TLeft, TRight>(in Left<TLeft> left) => left.Value;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Or<TLeft, TRight>(in Right<TRight> right) => right.Value;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Or<TLeft, TRight>(in TLeft value) => new Or<TLeft, TRight>(Or.Tags.Left, value, default);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Or<TLeft, TRight>(in TRight value) => new Or<TLeft, TRight>(Or.Tags.Right, default, value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static explicit operator TLeft(in Or<TLeft, TRight> or) => or.IsLeft() ? or._left : throw new InvalidCastException();
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static explicit operator TRight(in Or<TLeft, TRight> or) => or.IsRight() ? or._right : throw new InvalidCastException();
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static explicit operator Left<TLeft>(in Or<TLeft, TRight> or) => (TLeft)or;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static explicit operator Right<TRight>(in Or<TLeft, TRight> or) => (TRight)or;
 
         public Or.Tags Tag { get; }
@@ -100,7 +76,6 @@ namespace Entia.Core
         readonly TLeft _left;
         readonly TRight _right;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         Or(Or.Tags tag, in TLeft left, in TRight right)
         {
             Tag = tag;
@@ -108,14 +83,12 @@ namespace Entia.Core
             _right = right;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryLeft(out TLeft value)
         {
             value = _left;
             return Tag == Or.Tags.Left;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryRight(out TRight value)
         {
             value = _right;
@@ -153,25 +126,16 @@ namespace Entia.Core
     {
         public enum Tags { None, Left, Right }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Left<T> Left<T>(in T value) => value;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Right<T> Right<T>(in T value) => value;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Is<T>(this T or, Tags tag) where T : IOr => or.Tag == tag;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Is<TLeft, TRight>(in this Or<TLeft, TRight> or, Tags tag) => or.Tag == tag;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsLeft<T>(this T or) where T : IOr => or.Is(Tags.Left);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsLeft<TLeft, TRight>(in this Or<TLeft, TRight> or) => or.Is(Tags.Left);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsRight<T>(this T or) where T : IOr => or.Is(Tags.Right);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsRight<TLeft, TRight>(in this Or<TLeft, TRight> or) => or.Is(Tags.Right);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Or<TRight, TLeft> Flip<TLeft, TRight>(in this Or<TLeft, TRight> or) =>
             or.Match(left => Right(left).AsOr<TRight>(), right => Left(right));
 
@@ -215,7 +179,6 @@ namespace Entia.Core
         public static Or<TLeft, TTarget> MapRight<TLeft, TSource, TTarget>(in this Or<TLeft, TSource> or, Func<TSource, TTarget> map) =>
             or.Map(value => value, map);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static TLeft LeftOr<TLeft, TRight>(in this Or<TLeft, TRight> or, in TLeft value) =>
             or.TryLeft(out var left) ? left : value;
 
@@ -227,7 +190,6 @@ namespace Entia.Core
         public static TLeft LeftOr<TLeft, TRight>(in this Or<TLeft, TRight> or, Func<TRight, TLeft> provide) =>
             or.Match(left => left, provide);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static TRight RightOr<TLeft, TRight>(in this Or<TLeft, TRight> or, in TRight value) =>
             or.TryRight(out var right) ? right : value;
 
@@ -270,13 +232,10 @@ namespace Entia.Core
         public static Or<TLeft, TRight> DoRight<TLeft, TRight>(in this Or<TLeft, TRight> or, Action<TRight> @do) =>
             or.Do(_ => { }, @do);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Or<Unit, Unit> Ignore<TLeft, TRight>(in this Or<TLeft, TRight> or) =>
             or.Map(_ => default(Unit), _ => default(Unit));
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Or<Unit, TRight> IgnoreLeft<TLeft, TRight>(in this Or<TLeft, TRight> or) =>
             or.MapLeft(_ => default(Unit));
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Or<TLeft, Unit> IgnoreRight<TLeft, TRight>(in this Or<TLeft, TRight> or) =>
             or.MapRight(_ => default(Unit));
 

@@ -34,7 +34,6 @@ namespace Entia.Experimental
                 }, dependencies.Prepend(new Read(typeof(Entity))));
             }));
 
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             static Result<Runner> CreateRunner(InAction<TMessage> run, params IDependency[] dependencies) =>
                 Runner.From(run, dependencies.Prepend(new React(typeof(TMessage))));
         }

@@ -110,28 +110,21 @@ namespace Entia
         /// <summary>
         /// Implements the operator ==.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(Entity left, Entity right) => left.Equals(right);
         /// <summary>
         /// Implements the operator !=.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(Entity left, Entity right) => !left.Equals(right);
         /// <summary>
         /// Implements and implicit <c>bool</c> operator.
         /// </summary>
         /// <returns>Returns <c>true</c> if the entity is valid; otherwise, <c>false</c>.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator bool(Entity entity) => !entity.Equals(Zero);
 
         /// <summary>
         /// The world-unique identifier.
         /// </summary>
-        public long Identifier
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => (long)Index | ((long)Generation << 32);
-        }
+        public long Identifier => (long)Index | ((long)Generation << 32);
 
         /// <summary>
         /// The index where the entity is stored within its world.
@@ -142,18 +135,15 @@ namespace Entia
         /// </summary>
         public readonly uint Generation;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Entity(int index, uint generation)
         {
             Index = index;
             Generation = generation;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Entity(long identifier) : this((int)identifier, (uint)(identifier >> 32)) { }
 
         /// <inheritdoc cref="IComparable{T}.CompareTo(T)"/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int CompareTo(Entity other)
         {
             if (Index < other.Index) return -1;
@@ -163,16 +153,12 @@ namespace Entia
             else return 0;
         }
         /// <inheritdoc cref="IEquatable{T}.Equals(T)"/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Equals(Entity other) => Index == other.Index && Generation == other.Generation;
         /// <inheritdoc cref="ValueType.Equals(object)"/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Equals(object obj) => obj is Entity entity && Equals(entity);
         /// <inheritdoc cref="ValueType.GetHashCode"/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int GetHashCode() => Index ^ (int)Generation;
         /// <inheritdoc cref="ValueType.ToString()"/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override string ToString() => $"{{ Index: {Index}, Generation: {Generation} }}";
     }
 }

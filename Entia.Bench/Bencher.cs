@@ -7,7 +7,7 @@ namespace Entia.Bench
 {
     public static class Bencher
     {
-        public static void Measure(Action @base, Action[] tests, int iterations, int warmup = 10, Action before = null, Action after = null)
+        public static void Measure(Action @base, Action[] tests, uint iterations, uint warmup = 10)
         {
             static void Collect()
             {
@@ -21,13 +21,12 @@ namespace Entia.Bench
 
             (string name, Action test, long total, long minimum, long maximum) Run(Action test)
             {
-                for (int j = 0; j < warmup; j++) test();
+                for (var i = 0u; i < warmup; i++) test();
 
-                before?.Invoke();
                 var total = 0L;
                 var minimum = long.MaxValue;
                 var maximum = long.MinValue;
-                for (var i = 0; i < iterations; i++)
+                for (var i = 0u; i < iterations; i++)
                 {
                     watch.Restart();
                     test();
@@ -36,13 +35,8 @@ namespace Entia.Bench
                     minimum = Math.Min(minimum, watch.ElapsedTicks);
                     maximum = Math.Max(maximum, watch.ElapsedTicks);
                 }
-                after?.Invoke();
 
-                var name = test.Method.Name.Split(new[] { "__" }, StringSplitOptions.None).Last().Split('|').FirstOrDefault();
-                var generic = test.Method.IsGenericMethod ?
-                    $"{name}<{string.Join(", ", test.Method.GetGenericArguments().Select(type => type.Format()))}>" :
-                    name;
-                return (generic, test, total, minimum, maximum);
+                return (test.Method.Format(), test, total, minimum, maximum);
             }
 
             string Justify(object value, int length)

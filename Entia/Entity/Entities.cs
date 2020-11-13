@@ -21,11 +21,7 @@ namespace Entia.Modules
         public struct Enumerator : IEnumerator<Entity>
         {
             /// <inheritdoc cref="IEnumerator{T}.Current"/>
-            public Entity Current
-            {
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => new Entity(_index, _entities._data.items[_index].Generation);
-            }
+            public Entity Current => new Entity(_index, _entities._data.items[_index].Generation);
             object IEnumerator.Current => Current;
 
             readonly Entities _entities;
@@ -42,7 +38,6 @@ namespace Entia.Modules
             }
 
             /// <inheritdoc cref="IEnumerator.MoveNext"/>
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool MoveNext()
             {
                 while (++_index < _entities._data.count)

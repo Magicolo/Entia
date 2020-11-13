@@ -71,10 +71,8 @@ namespace Entia.Modules.Message
         event InFunc<T, bool> _receive = _empty;
         readonly ConcurrentDictionary<Receiver<T>, Unit> _receivers = new ConcurrentDictionary<Receiver<T>, Unit>();
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Emit() => Emit(DefaultUtility.Default<T>());
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Emit(in T message)
         {
             _receive(message);

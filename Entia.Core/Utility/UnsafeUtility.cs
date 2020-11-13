@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Entia.Core
@@ -90,29 +89,17 @@ namespace Entia.Core
         static readonly PointerOffset _offset = (pointer, offset) => pointer + offset;
         static readonly FieldInfo[] _fields = typeof(Delegate).Fields(true, false).ToArray();
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Set<T>(in T reference, in T value) => AsReference(reference) = value;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Size<T>() => Cache<T>.Size;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref TTarget As<TSource, TTarget>(ref TSource reference) => ref Cache<TSource, TTarget>.As(reference);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T As<T>(IntPtr pointer) => ref Cache<T>.As(pointer);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static IntPtr AsPointer<T>(ref T reference) => Cache<T>.AsPointer(reference);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T AsReference<T>(in T reference) => ref Cache<T, T>.As(reference);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T Offset<T>(ref T reference, int offset) => ref Cache<T>.Offset(reference, offset);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static (FieldInfo field, int offset)[] Layout<T>() => Cache<T>.Layout;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] ToArray<T>(ref T reference) => ToArray<T, byte>(ref reference);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] ToArray(IntPtr pointer, int size) => ToArray<byte>(pointer, size);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static TTarget[] ToArray<TSource, TTarget>(ref TSource reference) => ToArray<TTarget>(AsPointer(ref reference), Size<TSource>());
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T[] ToArray<T>(IntPtr pointer, int size)
         {
             var (source, target) = (size, Size<T>());
@@ -121,12 +108,10 @@ namespace Entia.Core
             Copy(pointer, AsPointer(ref targets[0]), size);
             return targets;
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Copy(IntPtr source, IntPtr target, int count)
         {
             for (int i = 0; i < count; i++) ((byte*)target)[i] = ((byte*)source)[i];
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Copy(Delegate source, Delegate target)
         {
             foreach (var field in _fields) field.SetValue(target, field.GetValue(source));

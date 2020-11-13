@@ -45,11 +45,7 @@ namespace Entia.Modules.Message
         [ThreadSafe]
         public struct Enumerator : IEnumerator<T>
         {
-            public T Current
-            {
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => _current;
-            }
+            public T Current => _current;
             object IEnumerator.Current => Current;
 
             readonly int _count;
@@ -65,7 +61,6 @@ namespace Entia.Modules.Message
                 _current = default;
             }
 
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool MoveNext() => ++_index < _count && _receiver._messages.TryDequeue(out _current);
             public void Reset() => _index = -1;
             public void Dispose() => this = default;
@@ -98,9 +93,7 @@ namespace Entia.Modules.Message
         public bool TryPop(out T message) => TryMessage(out message);
         [Obsolete("Use " + nameof(Messages) + " instead.")]
         public Enumerable Pop(int count = int.MaxValue) => Messages(count);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryMessage(out T message) => _messages.TryDequeue(out message);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Enumerable Messages(int? count = null) => new Enumerable(this, count ?? int.MaxValue);
 
         public bool Receive(in T message)

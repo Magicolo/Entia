@@ -180,7 +180,6 @@ namespace Entia.Core
         static Dictionary<Type, Entry> _typeToEntry = new();
 
         [ThreadSafe]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static Entry GetEntry(Type type)
         {
             if (_typeToEntry.TryGetValue(type, out var entry)) return entry;
@@ -215,7 +214,6 @@ namespace Entia.Core
         [ThreadSafe]
         public ref TValue this[int index]
         {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
                 if (Has(index)) return ref _values[index].value;
@@ -225,9 +223,7 @@ namespace Entia.Core
         public TValue this[Type type]
         {
             [ThreadSafe]
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => TryGet(type, out var value) ? value : throw new IndexOutOfRangeException();
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             set => Set(type, value);
         }
         [ThreadSafe]
@@ -370,7 +366,6 @@ namespace Entia.Core
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool TryGet(Entry[] entries, out TValue value)
         {
             for (int i = 0; i < entries.Length; i++) if (TryGet(entries[i], out value)) return true;
@@ -411,7 +406,6 @@ namespace Entia.Core
             return ref Dummy<TValue>.Value;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         ref TValue Get(Entry[] entries, out bool success)
         {
             for (int i = 0; i < entries.Length; i++)
@@ -431,7 +425,6 @@ namespace Entia.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool Has(Entry entry) => entry.Index < _values.Length && _values[entry.Index].allocated;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool Has(Entry[] entries)
         {
             for (int i = 0; i < entries.Length; i++) if (Has(entries[i])) return true;
@@ -474,7 +467,6 @@ namespace Entia.Core
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool Remove(Entry[] entries)
         {
             var removed = false;

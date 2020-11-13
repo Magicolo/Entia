@@ -22,11 +22,7 @@ namespace Entia.Modules.Group
         /// <value>
         /// The count.
         /// </value>
-        public int Count
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _segment.Entities.count;
-        }
+        public int Count => _segment.Entities.count;
 
         /// <summary>
         /// Gets the selection of component types that are stored in this segment.
@@ -34,17 +30,9 @@ namespace Entia.Modules.Group
         /// <value>
         /// The types.
         /// </value>
-        public Metadata[] Types
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _segment.Types;
-        }
+        public Metadata[] Types => _segment.Types;
         /// <inheritdoc cref="Component.Segment.Entities"/>
-        public Entity[] Entities
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _segment.Entities.items;
-        }
+        public Entity[] Entities => _segment.Entities.items;
         /// <summary>
         /// The items.
         /// </summary>
@@ -64,13 +52,11 @@ namespace Entia.Modules.Group
         }
 
         /// <inheritdoc cref="Segment.Store(in Metadata)"/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public TComponent[] Store<TComponent>() where TComponent : struct, IComponent =>
             ComponentUtility.Abstract<TComponent>.TryConcrete(out var metadata) ?
             _segment.Store(metadata) as TComponent[] : default;
 
         /// <inheritdoc cref="Segment.TryStore(in Metadata, out Array)"/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryStore<TComponent>(out TComponent[] store) where TComponent : struct, IComponent
         {
             if (ComponentUtility.Abstract<TComponent>.TryConcrete(out var metadata) && _segment.TryStore(metadata, out var array))
@@ -84,7 +70,6 @@ namespace Entia.Modules.Group
         }
 
         /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Slice<T>.Read.Enumerator GetEnumerator() => Items.Slice(Count).GetEnumerator();
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

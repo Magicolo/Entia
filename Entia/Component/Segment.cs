@@ -137,10 +137,8 @@ namespace Entia.Modules.Component
         /// <param name="type">The component type.</param>
         /// <returns>The component store.</returns>
         [ThreadSafe]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Array Store(in Metadata type) => _stores[GetStoreIndex(type)];
         [ThreadSafe]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T[] Store<T>() where T : struct, IComponent => (T[])_stores[GetStoreIndex(ComponentUtility.Concrete<T>.Data)];
 
         /// <summary>
@@ -181,7 +179,6 @@ namespace Entia.Modules.Component
         }
 
         [ThreadSafe]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int GetStoreIndex(in Metadata metadata) => metadata.Index - _minimum;
     }
 }

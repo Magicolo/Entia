@@ -32,17 +32,12 @@ namespace Entia.Queryables
         [Implementation]
         static IDepender _depender => Depender.From<T>(new Read(typeof(T)));
 
-        public ref readonly T Value
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ref _array[_index];
-        }
+        public ref readonly T Value => ref _array[_index];
         public readonly States State;
 
         readonly int _index;
         readonly T[] _array;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Read(int index, T[] array, States state)
         {
             _index = index;

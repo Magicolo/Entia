@@ -74,7 +74,7 @@ namespace Entia.Json
         public ToContext With(object instance, Type type) =>
             new ToContext(instance, type, Settings, References);
 
-        bool TryConvert<T>(object instance, Type type, out Node node, IConverter @override = null)
+        bool TryConvert<T>(object instance, Type type, out Node node, IConverter @override)
         {
             if (instance is T)
             {

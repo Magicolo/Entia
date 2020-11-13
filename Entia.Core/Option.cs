@@ -34,21 +34,13 @@ namespace Entia.Core
     /// </summary>
     public readonly struct Option<T> : IOption, IEquatable<Option<T>>, IEquatable<T>
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Option<T>(in T value) => new Option<T>(value == null ? Option.Tags.None : Option.Tags.Some, value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static implicit operator Option<T>(None _) => new Option<T>(Option.Tags.None, default);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static implicit operator Option<T>(None _) => default;
         public static bool operator ==(in Option<T> left, in T right) => left.TryValue(out var value) && EqualityComparer<T>.Default.Equals(value, right);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(in Option<T> left, in T right) => !(left == right);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(in T left, in Option<T> right) => right == left;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(in T left, in Option<T> right) => !(left == right);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(in Option<T> left, in Option<T> right) => left.TryValue(out var value) ? right == value : right.IsNone();
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(in Option<T> left, in Option<T> right) => !(left == right);
 
         public Option.Tags Tag { get; }
@@ -56,14 +48,12 @@ namespace Entia.Core
 
         readonly T _value;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         Option(Option.Tags tag, in T value)
         {
             Tag = tag;
             _value = value;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryValue(out T value)
         {
             value = _value;
@@ -89,40 +79,23 @@ namespace Entia.Core
     {
         public enum Tags : byte { None, Some }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Option<T> Some<T>(in T value) where T : struct => value;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Option<Unit> Some() => Some(default(Unit));
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static None None() => new None();
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Option<T> From<T>(in T value) => value;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Option<T> From<T>(in T? value) where T : struct => value.HasValue ? From(value.Value) : None();
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Is<T>(this T option, Tags tag) where T : IOption => option.Tag == tag;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Is<T>(in this Option<T> option, Tags tag) => option.Tag == tag;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsSome<T>(this T option) where T : IOption => option.Is(Tags.Some);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsSome<T>(in this Option<T> option) => option.Is(Tags.Some);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNone<T>(this T option) where T : IOption => option.Is(Tags.None);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNone<T>(in this Option<T> option) => option.Is(Tags.None);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Option<T> AsOption<T>(in this T? value) where T : struct => From(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Option<T> AsOption<T>(this None none) => none;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T? AsNullable<T>(in this Option<T> option) where T : struct => option.TryValue(out var value) ? (T?)value : null;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Or<T, None> AsOr<T>(in this Option<T> option) => option.Match(value => Core.Or.Left(value).AsOr<None>(), () => None());
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Option<T> AsOption<T>(in this Or<T, Unit> or) => or.MapRight(_ => None()).AsOption();
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Option<T> AsOption<T>(in this Or<T, None> or) => or.Match(value => From(value), none => none);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -183,7 +156,6 @@ namespace Entia.Core
         public static Option<T> Or<T>(in this Option<T> option1, in Option<T> option2, in Option<T> option3) => option1.Or(option2).Or(option3);
         public static Option<T> Or<T>(in this Option<T> option1, in Option<T> option2, in Option<T> option3, in Option<T> option4) => option1.Or(option2).Or(option3).Or(option4);
         public static Option<T> Or<T>(in this Option<T> option1, in Option<T> option2, in Option<T> option3, in Option<T> option4, in Option<T> option5) => option1.Or(option2).Or(option3).Or(option4).Or(option5);
-
         public static T OrThrow<T>(in this Option<T> option, string message) => option.Or(message, state => throw new InvalidOperationException(state));
         public static T OrThrow<T>(in this Option<T> option) => option.Or(() => throw new InvalidOperationException());
         public static T OrDefault<T>(in this Option<T> option) => option.Or(default(T));

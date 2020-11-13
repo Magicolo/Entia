@@ -15,11 +15,7 @@ namespace Entia.Core
             public struct Enumerator : IEnumerator<T>
             {
                 /// <inheritdoc cref="IEnumerator{T}.Current"/>
-                public ref readonly T Current
-                {
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    get => ref _slice[_index];
-                }
+                public ref readonly T Current => ref _slice[_index];
                 T IEnumerator<T>.Current => Current;
                 object IEnumerator.Current => Current;
 
@@ -33,7 +29,6 @@ namespace Entia.Core
                 }
 
                 /// <inheritdoc cref="IEnumerator.MoveNext"/>
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 public bool MoveNext() => ++_index < _slice.Count;
                 /// <inheritdoc cref="IDisposable.Dispose"/>
                 public void Dispose() => this = default;
@@ -43,11 +38,7 @@ namespace Entia.Core
 
             public static implicit operator Read(T[] array) => new Read(array, 0, array.Length);
 
-            public ref readonly T this[int index]
-            {
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => ref _array[_offset + index];
-            }
+            public ref readonly T this[int index] => ref _array[_offset + index];
 
             public readonly int Count;
             readonly T[] _array;
@@ -78,11 +69,7 @@ namespace Entia.Core
             public static implicit operator Read.Enumerator(in Enumerator enumerator) => new Read.Enumerator(enumerator._slice, enumerator._index);
 
             /// <inheritdoc cref="IEnumerator{T}.Current"/>
-            public ref T Current
-            {
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => ref _slice[_index];
-            }
+            public ref T Current => ref _slice[_index];
             T IEnumerator<T>.Current => Current;
             object IEnumerator.Current => Current;
 
@@ -96,7 +83,6 @@ namespace Entia.Core
             }
 
             /// <inheritdoc cref="IEnumerator.MoveNext"/>
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool MoveNext() => ++_index < _slice.Count;
             /// <inheritdoc cref="IDisposable.Dispose"/>
             public void Dispose() => this = default;
@@ -107,11 +93,7 @@ namespace Entia.Core
         public static implicit operator Slice<T>(T[] array) => new Slice<T>(array, 0, array.Length);
         public static implicit operator Read(in Slice<T> slice) => new Read(slice._array, slice._offset, slice.Count);
 
-        public ref T this[int index]
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ref _array[_offset + index];
-        }
+        public ref T this[int index] => ref _array[_offset + index];
 
         public readonly int Count;
         readonly T[] _array;

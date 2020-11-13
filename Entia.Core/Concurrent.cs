@@ -9,7 +9,6 @@ namespace Entia.Core
         public interface IRead : IDisposable { object Value { get; } }
         public interface IWrite : IDisposable { object Value { get; set; } }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Mutate<T>(ref T location, in T value) where T : class
         {
             T initial, comparand, mutated;
@@ -23,7 +22,6 @@ namespace Entia.Core
             return mutated;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Mutate<T>(ref T location, Func<T, T> mutate) where T : class
         {
             T initial, comparand, mutated;
@@ -37,7 +35,6 @@ namespace Entia.Core
             return mutated;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Mutate<T, TState>(ref T location, in TState state, Func<T, TState, T> mutate) where T : class
         {
             T initial, comparand, mutated;
@@ -62,17 +59,12 @@ namespace Entia.Core
     {
         public readonly struct ReadDisposable : Concurrent.IRead
         {
-            public ref readonly T Value
-            {
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => ref _concurrent._value;
-            }
+            public ref readonly T Value => ref _concurrent._value;
             object Concurrent.IRead.Value => Value;
 
             readonly Concurrent<T> _concurrent;
             readonly Action<Concurrent<T>> _dispose;
 
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public ReadDisposable(Concurrent<T> concurrent, Action<Concurrent<T>> dispose)
             {
                 _concurrent = concurrent;
@@ -80,23 +72,17 @@ namespace Entia.Core
             }
 
             /// <inheritdoc cref="IDisposable.Dispose"/>
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Dispose() => _dispose(_concurrent);
         }
 
         public readonly struct WriteDisposable : Concurrent.IWrite
         {
-            public ref T Value
-            {
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => ref _concurrent._value;
-            }
+            public ref T Value => ref _concurrent._value;
             object Concurrent.IWrite.Value { get => Value; set => Value = (T)value; }
 
             readonly Concurrent<T> _concurrent;
             readonly Action<Concurrent<T>> _dispose;
 
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public WriteDisposable(Concurrent<T> concurrent, Action<Concurrent<T>> dispose)
             {
                 _concurrent = concurrent;
@@ -104,24 +90,20 @@ namespace Entia.Core
             }
 
             /// <inheritdoc cref="IDisposable.Dispose"/>
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Dispose() => _dispose(_concurrent);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Concurrent<T>(T value) => new Concurrent<T>(value);
 
         T _value;
         readonly ReaderWriterLockSlim _lock;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Concurrent(T value, bool recursive = true)
         {
             _value = value;
             _lock = new ReaderWriterLockSlim(recursive ? LockRecursionPolicy.SupportsRecursion : LockRecursionPolicy.NoRecursion);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ReadDisposable Read(bool upgradeable = false)
         {
             if (upgradeable)
@@ -136,7 +118,6 @@ namespace Entia.Core
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public WriteDisposable Write()
         {
             _lock.EnterWriteLock();

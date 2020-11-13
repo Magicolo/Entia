@@ -30,12 +30,7 @@ namespace Entia.Modules.Message
             Serializer.Member.Field((in Reaction<T> reaction) => ref reaction._reaction)
         );
 
-        public InAction<T> React
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _reaction;
-        }
-
+        public InAction<T> React => _reaction;
         Delegate IReaction.React => _reaction;
         Type IReaction.Type => typeof(T);
 

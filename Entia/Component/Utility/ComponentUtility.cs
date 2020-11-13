@@ -31,7 +31,6 @@ namespace Entia.Modules.Component
             public static readonly Kinds Kind = GetKind(typeof(T));
             public static readonly Metadata Data = GetMetadata(typeof(T));
 
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static bool TryConcrete(out Metadata data)
             {
                 data = Data;

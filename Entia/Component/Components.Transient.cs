@@ -10,7 +10,6 @@ namespace Entia.Modules
     {
         const int ChunkSize = 8;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static bool SetResolution(ref Resolutions resolution, Resolutions value)
         {
             if (value > resolution)

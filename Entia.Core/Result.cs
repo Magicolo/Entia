@@ -20,7 +20,6 @@ namespace Entia.Core
     public readonly struct Failure : IResult
     {
         public readonly string[] Messages;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Failure(params string[] messages) { Messages = messages; }
 
         Result.Tags IResult.Tag => Result.Tags.Failure;
@@ -36,17 +35,11 @@ namespace Entia.Core
     /// </summary>
     public readonly struct Result<T> : IResult, IEquatable<T>
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Result<T>(in T value) => new Result<T>(Result.Tags.Success, value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Result<T>(Failure failure) => new Result<T>(Result.Tags.Failure, default, failure.Messages);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(in Result<T> left, in T right) => left.TryValue(out var value) && EqualityComparer<T>.Default.Equals(value, right);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(in Result<T> left, in T right) => !(left == right);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(in T left, in Result<T> right) => right == left;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(in T left, in Result<T> right) => !(left == right);
 
         public Result.Tags Tag { get; }
@@ -54,7 +47,6 @@ namespace Entia.Core
         readonly T _value;
         readonly string[] _messages;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         Result(Result.Tags tag, in T value, params string[] messages)
         {
             Tag = tag;
@@ -62,14 +54,12 @@ namespace Entia.Core
             _messages = messages;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryValue(out T value)
         {
             value = _value;
             return Tag == Result.Tags.Success;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryMessages(out string[] messages)
         {
             messages = _messages;
@@ -99,15 +89,10 @@ namespace Entia.Core
     {
         public enum Tags : byte { Failure, Success }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Result<T> Success<T>(in T value) => value;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Result<Unit> Success() => Success(default(Unit));
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Failure Failure(params string[] messages) => new Failure(messages);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Failure Failure(IEnumerable<string> messages) => Failure(messages.ToArray());
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Failure Failure(Exception exception) => Failure(exception.ToString());
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -156,39 +141,24 @@ namespace Entia.Core
             return result.Ignore();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Is<T>(in this Result<T> result, Tags tag) => result.Tag == tag;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsSuccess<T>(in this Result<T> result) => result.Is(Tags.Success);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsFailure<T>(in this Result<T> result) => result.Is(Tags.Failure);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Result<T> AsResult<T>(in this T? value) where T : struct =>
             value is T casted ? Success(casted) :
             Failure($"Expected value of type '{typeof(T).FullFormat()}?' to not be 'null'.");
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Result<T> AsResult<T>(this Failure failure) => failure;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Result<Unit> AsResult(this Failure failure) => failure;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Result<T> AsResult<T>(in this Option<T> option, params string[] messages) =>
             option.TryValue(out var value) ? Success(value) : Failure(messages);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Option<T> AsOption<T>(in this Result<T> result) => result.Match(value => Option.From(value), _ => Option.None());
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T? AsNullable<T>(in this Result<T> result) where T : struct => result.TryValue(out var value) ? (T?)value : null;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Result<T> AsResult<T>(in this Or<T, string[]> or) => or.MapRight(messages => Failure(messages)).AsResult();
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Result<T> AsResult<T>(in this Or<T, string> or) => or.MapRight(message => Failure(message)).AsResult();
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Result<T> AsResult<T>(in this Or<T, Failure> or) => or.Match(value => Success(value), failure => failure);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Or<T, Failure> AsOr<T>(in this Result<T> result) => result.Match(value => Core.Or.Left(value).AsOr<Failure>(), messages => Failure(messages));
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string[] Messages<T>(in this Result<T> result) => result.TryMessages(out var messages) ? messages : Array.Empty<string>();
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Failure Fail<T>(in this Result<T> result, params string[] messages) => Failure(result.Messages().Append(messages));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -65,12 +65,7 @@ namespace Entia.Modules.Group
         public struct Enumerator : IEnumerator<T>
         {
             /// <inheritdoc cref="IEnumerator{T}.Current"/>
-            public ref readonly T Current
-            {
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => ref _items[_index];
-            }
-
+            public ref readonly T Current => ref _items[_index];
             T IEnumerator<T>.Current => Current;
             object IEnumerator.Current => Current;
 
@@ -94,7 +89,6 @@ namespace Entia.Modules.Group
             }
 
             /// <inheritdoc cref="IEnumerator.MoveNext"/>
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool MoveNext()
             {
                 if (++_index < _count) return true;
@@ -152,12 +146,7 @@ namespace Entia.Modules.Group
         public struct EntityEnumerator : IEnumerator<Entity>
         {
             /// <inheritdoc cref="IEnumerator{T}.Current"/>
-            public Entity Current
-            {
-                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                get => _entities[_index];
-            }
-
+            public Entity Current => _entities[_index];
             object IEnumerator.Current => Current;
 
             Segment<T>[] _segments;
@@ -180,7 +169,6 @@ namespace Entia.Modules.Group
             }
 
             /// <inheritdoc cref="IEnumerator.MoveNext"/>
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public bool MoveNext()
             {
                 if (++_index < _count) return true;
@@ -352,7 +340,6 @@ namespace Entia.Modules.Group
 
         /// <inheritdoc cref="IGroup.Has(Entity)"/>
         [ThreadSafe]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Has(Entity entity) => _components.TrySegment(entity, out var pair) && Has(pair.segment);
 
         /// <summary>
@@ -362,7 +349,6 @@ namespace Entia.Modules.Group
         /// <param name="item">The item.</param>
         /// <returns>Returns <c>true</c> if an <paramref name="item"/> was found; otherwise, <c>false</c>.</returns>
         [ThreadSafe]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGet(Entity entity, out T item)
         {
             item = Get(entity, out var success);
@@ -370,7 +356,6 @@ namespace Entia.Modules.Group
         }
 
         [ThreadSafe]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref readonly T Get(Entity entity, out bool success)
         {
             if (_components.TrySegment(entity, out var pair) && Has(pair.segment))
@@ -404,7 +389,6 @@ namespace Entia.Modules.Group
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         [ThreadSafe]
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool Has(Component.Segment segment) => segment.Index < _indexToComponentSegment.Length && _indexToComponentSegment[segment.Index] == segment;
 
         bool TryAdd(Component.Segment segment)
