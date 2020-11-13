@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-
 namespace Entia.Check
 {
     static class Formatting
@@ -58,7 +56,6 @@ namespace Entia.Check
         }
 
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string Format<T>(T value) =>
 #if DEBUG
             $"{value}";
@@ -66,7 +63,6 @@ namespace Entia.Check
             "";
 #endif
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string Format<T>(T[] values) =>
 #if DEBUG
             $"{string.Join(", ", values)}";
@@ -74,7 +70,6 @@ namespace Entia.Check
             "";
 #endif
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string Format<T>(this string name, T value) =>
 #if DEBUG
             $"{name}({Format(value)})";
@@ -82,7 +77,6 @@ namespace Entia.Check
             name;
 #endif
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string Format<T1, T2>(this string name, T1 value1, T2 value2) =>
 #if DEBUG
             $"{name}({Format(value1)}, {Format(value2)})";
@@ -90,7 +84,6 @@ namespace Entia.Check
             name;
 #endif
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string Format<T1, T2, T3>(this string name, T1 value1, T2 value2, T3 value3) =>
 #if DEBUG
             $"{name}({Format(value1)}, {Format(value2)}, {Format(value3)})";
@@ -98,7 +91,6 @@ namespace Entia.Check
             name;
 #endif
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string Format<T1, T2, T3, T4>(this string name, T1 value1, T2 value2, T3 value3, T4 value4) =>
 #if DEBUG
             $"{name}({Format(value1)}, {Format(value2)}, {Format(value3)}, {Format(value4)})";
@@ -106,7 +98,6 @@ namespace Entia.Check
             name;
 #endif
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string Format<T1, T2, T3, T4, T5>(this string name, T1 value1, T2 value2, T3 value3, T4 value4, T5 value5) =>
 #if DEBUG
             $"{name}({Format(value1)}, {Format(value2)}, {Format(value3)}, {Format(value4)}, {Format(value5)})";
@@ -114,7 +105,6 @@ namespace Entia.Check
             name;
 #endif
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string Format<T>(this string name, T[] values) =>
 #if DEBUG
             $"{name}({Format(values)})";

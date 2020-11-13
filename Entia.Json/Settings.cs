@@ -53,11 +53,8 @@ namespace Entia.Json
 
     public static class FeaturesExtensions
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool HasAll(this Features features, Features others) => (features & others) == others;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool HasAny(this Features features, Features others) => (features & others) != 0;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool HasNone(this Features features, Features others) => !features.HasAny(others);
     }
 
