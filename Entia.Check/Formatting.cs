@@ -21,7 +21,6 @@ namespace Entia.Check
             public static readonly string Any = $"{nameof(Any)}{Parameters}";
             public static readonly string All = $"{nameof(All)}{Parameters}";
             public static readonly string Box = $"{nameof(Box)}{Parameters}";
-            public static readonly string Number = $"{nameof(Number)}{Parameters}";
             public static readonly string And = $"{nameof(And)}{Parameters}";
             public static readonly string Shrink = $"{nameof(Shrink)}{Parameters}";
             public static readonly string Enumeration = $"{nameof(Enumeration)}{Parameters}";

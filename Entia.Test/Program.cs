@@ -8,7 +8,7 @@ namespace Entia
         {
             // Json.Benches.Run();
 
-            Check.Checks.Run();
+            // Check.Checks.Run();
             // Corez.Checks.Run();
             Json.Checks.Run();
             Console.ReadLine();

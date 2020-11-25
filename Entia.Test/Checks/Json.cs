@@ -16,7 +16,11 @@ namespace Entia.Json
             Any(Enumeration().Map(Node.Number), Flags().Map(Node.Number), Character.Map(Node.Number)),
             Integer.Map(Node.Number),
             Rational.Map(Node.Number),
-            Rational.Inverse().Map(Node.Number),
+            Rational.Inverse().Map(Node.Number), // Small numbers.
+            Range((float)decimal.MinValue).Size(size => Math.Pow(size, 20)).Map(Node.Number), // Very large negative numbers.
+            Range((float)decimal.MaxValue).Size(size => Math.Pow(size, 20)).Map(Node.Number), // Very large positive numbers.
+            Range((float)decimal.MinValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number), // Very small negative numbers.
+            Range((float)decimal.MaxValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number), // Very small positive numbers.
             All(Rational, Rational).Map(values => Node.Number(values[0] / values[1])));
         static readonly Generator<Node> _string = Any(
             Any(Node.EmptyString, Enumeration().Map(Node.String), Flags().Map(Node.String)),
@@ -30,11 +34,15 @@ namespace Entia.Json
 
         public static void Run()
         {
-            _string.Check("Generate/parse symmetry for String nodes.");
-            _number.Check("Generate/parse symmetry for Number nodes.");
-            _type.Check("Generate/parse symmetry for Type nodes.");
-            _node.Check("Generate/parse symmetry for Root nodes.");
+            _string.CheckSymmetry("Generate/parse symmetry for String nodes.");
+            _number.CheckSymmetry("Generate/parse symmetry for Number nodes.");
+            _type.CheckSymmetry("Generate/parse symmetry for Type nodes.");
+            _node.CheckSymmetry("Generate/parse symmetry for Root nodes.");
 
+            Integer.Map(value => (value, result: Serialization.Parse(value.ToString(CultureInfo.InvariantCulture)).Map(node => node.AsInt())))
+                .Check("Parsing of integers.", pair => pair.value == pair.result);
+            Rational.Map(value => (value, result: Serialization.Parse(value.ToString(CultureInfo.InvariantCulture)).Map(node => node.AsFloat())))
+                .Check("Parsing of rationals.", pair => pair.value == pair.result);
             _number.And(_settings).Map(pair =>
             {
                 var (node, settings) = pair;
@@ -47,7 +55,7 @@ namespace Entia.Json
                 tuple.node == tuple.system &&
                 tuple.parsed == tuple.system);
 
-            _number.And(_settings).Map(pair =>
+            _node.And(_settings).Map(pair =>
             {
                 var (node, settings) = pair;
                 var generated = Generate(node);
@@ -61,13 +69,12 @@ namespace Entia.Json
 
             // TODO: Add test for parsing foreign jsons
             // TODO: Add test for comparing output with Json.Net and .Net Json parser.
-            // BUG: Generate/Parse are not symmetric for very large or very small rational numbers.
         }
 
         static Failure<T>[] Check<T>(this Generator<T> generator, string name, Func<T, bool> prove) =>
             generator.Prove(name, prove).Log(name).Check();
 
-        static Failure<(Node, string, Result<Node>, Result<string>)>[] Check(this Generator<Node> generator, string name) =>
+        static Failure<(Node, string, Result<Node>, Result<string>)>[] CheckSymmetry(this Generator<Node> generator, string name) =>
             generator.And(_settings)
                 .Map(pair =>
                 {

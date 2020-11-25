@@ -25,6 +25,10 @@ namespace Entia.Json
         {
             switch (node.Kind)
             {
+                // These three cases should've been handled by the wrapping of nodes. If they haven't, put 'null'.
+                case Node.Kinds.Type:
+                case Node.Kinds.Reference:
+                case Node.Kinds.Abstract:
                 case Node.Kinds.Null: builder.Append("null"); break;
                 case Node.Kinds.Boolean: builder.Append((bool)node.Value ? "true" : "false"); break;
                 case Node.Kinds.Number: builder.Append(NumberToString(node)); break;
@@ -78,6 +82,10 @@ namespace Entia.Json
         {
             switch (node.Kind)
             {
+                // These three cases should've been handled by the wrapping of nodes. If they haven't, put 'null'.
+                case Node.Kinds.Type:
+                case Node.Kinds.Reference:
+                case Node.Kinds.Abstract:
                 case Node.Kinds.Null: builder.Append("null"); break;
                 case Node.Kinds.Boolean: builder.Append((bool)node.Value ? "true" : "false"); break;
                 case Node.Kinds.Number: builder.Append(NumberToString(node)); break;
@@ -144,10 +152,7 @@ namespace Entia.Json
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static string NumberToString(Node node) =>
-            node.HasInteger() ? ((long)node.Value).ToString(CultureInfo.InvariantCulture) :
-            node.HasRational() ? ((double)node.Value).ToString(CultureInfo.InvariantCulture) :
-            System.Convert.ToString(node.Value, CultureInfo.InvariantCulture);
+        static string NumberToString(Node node) => ((decimal)node.Value).ToString(CultureInfo.InvariantCulture);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static void Indent(int indent, StringBuilder builder) => builder.Append(new string(' ', indent * 2));

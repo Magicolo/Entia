@@ -1,9 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using Entia.Core;
 
 namespace Entia.Json
@@ -232,62 +230,34 @@ namespace Entia.Json
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryMembers(this Node node, out MemberEnumerable members)
         {
             members = new MemberEnumerable(node);
             return node.IsObject();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryItems(this Node node, out Node[] items)
         {
             items = node.Children;
             return node.IsArray();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static MemberEnumerable Members(this Node node) => node.TryMembers(out var members) ? members : new MemberEnumerable(Node.Null);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node[] Items(this Node node) => node.TryItems(out var items) ? items : Array.Empty<Node>();
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Is(this Node node, Node.Kinds kind) => node.Kind == kind;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Has(this Node node, Node.Tags tags) => (node.Tag & tags) == tags;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool HasPlain(this Node node) => node.Has(Node.Tags.Plain);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool HasInteger(this Node node) => node.Has(Node.Tags.Integer);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool HasRational(this Node node) => node.Has(Node.Tags.Rational);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool HasEmpty(this Node node) => node.Has(Node.Tags.Empty);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool HasZero(this Node node) => node.Has(Node.Tags.Zero);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool HasDollar(this Node node) => node.Has(Node.Tags.Dollar);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool HasSpecial(this Node node) => node.Has(Node.Tags.Special);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNull(this Node node) => node.Is(Node.Kinds.Null);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsString(this Node node) => node.Is(Node.Kinds.String);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsBoolean(this Node node) => node.Is(Node.Kinds.Boolean);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsNumber(this Node node) => node.Is(Node.Kinds.Number);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsArray(this Node node) => node.Is(Node.Kinds.Array);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsObject(this Node node) => node.Is(Node.Kinds.Object) && node.Children.Length % 2 == 0;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsType(this Node node) => node.Is(Node.Kinds.Type);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsReference(this Node node) => node.Is(Node.Kinds.Reference);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsAbstract(this Node node) => node.Is(Node.Kinds.Abstract) && node.Children.Length == 2;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryString(this Node node, out string value)
         {
             if (node.IsString())
@@ -299,7 +269,6 @@ namespace Entia.Json
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryBool(this Node node, out bool value)
         {
             if (node.IsBoolean())
@@ -311,15 +280,11 @@ namespace Entia.Json
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryChar(this Node node, out char value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (char)(long)node.Value :
-                    node.HasRational() ? (char)(double)node.Value :
-                    Convert.ToChar(node.Value, CultureInfo.InvariantCulture);
+                value = (char)Math.Max(((decimal)node.Value % char.MaxValue), 0m);
                 return true;
             }
             else if (node.TryString(out var @string))
@@ -328,179 +293,132 @@ namespace Entia.Json
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TrySByte(this Node node, out sbyte value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (sbyte)(long)node.Value :
-                    node.HasRational() ? (sbyte)(double)node.Value :
-                    Convert.ToSByte(node.Value, CultureInfo.InvariantCulture);
+                value = (sbyte)((decimal)node.Value % sbyte.MaxValue);
                 return true;
             }
             value = default;
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryByte(this Node node, out byte value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (byte)(long)node.Value :
-                    node.HasRational() ? (byte)(double)node.Value :
-                    Convert.ToByte(node.Value, CultureInfo.InvariantCulture);
+                value = (byte)Math.Max(((decimal)node.Value % byte.MaxValue), 0);
                 return true;
             }
             value = default;
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryShort(this Node node, out short value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (short)(long)node.Value :
-                    node.HasRational() ? (short)(double)node.Value :
-                    Convert.ToInt16(node.Value, CultureInfo.InvariantCulture);
+                value = (short)((decimal)node.Value % short.MaxValue);
                 return true;
             }
             value = default;
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryUShort(this Node node, out ushort value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (ushort)(long)node.Value :
-                    node.HasRational() ? (ushort)(double)node.Value :
-                    Convert.ToUInt16(node.Value, CultureInfo.InvariantCulture);
+                value = (ushort)Math.Max(((decimal)node.Value % ushort.MaxValue), 0);
                 return true;
             }
             value = default;
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryInt(this Node node, out int value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (int)(long)node.Value :
-                    node.HasRational() ? (int)(double)node.Value :
-                    Convert.ToInt32(node.Value, CultureInfo.InvariantCulture);
+                value = (int)((decimal)node.Value % int.MaxValue);
                 return true;
             }
             value = default;
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryUInt(this Node node, out uint value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (uint)(long)node.Value :
-                    node.HasRational() ? (uint)(double)node.Value :
-                    Convert.ToUInt32(node.Value, CultureInfo.InvariantCulture);
+                value = (uint)Math.Max(((decimal)node.Value % uint.MaxValue), 0m);
                 return true;
             }
             value = default;
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryLong(this Node node, out long value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (long)node.Value :
-                    node.HasRational() ? (long)(double)node.Value :
-                    Convert.ToInt64(node.Value, CultureInfo.InvariantCulture);
+                value = (long)((decimal)node.Value % long.MaxValue);
                 return true;
             }
             value = default;
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryULong(this Node node, out ulong value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (ulong)(long)node.Value :
-                    node.HasRational() ? (ulong)(double)node.Value :
-                    Convert.ToUInt64(node.Value, CultureInfo.InvariantCulture);
+                value = (ulong)Math.Max(((decimal)node.Value % ulong.MaxValue), 0m);
                 return true;
             }
             value = default;
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryFloat(this Node node, out float value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (float)(long)node.Value :
-                    node.HasRational() ? (float)(double)node.Value :
-                    Convert.ToSingle(node.Value, CultureInfo.InvariantCulture);
+                value = (float)(decimal)node.Value;
                 return true;
             }
             value = default;
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryDouble(this Node node, out double value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (double)(long)node.Value :
-                    node.HasRational() ? (double)node.Value :
-                    Convert.ToDouble(node.Value, CultureInfo.InvariantCulture);
+                value = (double)(decimal)node.Value;
                 return true;
             }
             value = default;
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryDecimal(this Node node, out decimal value)
         {
             if (node.IsNumber())
             {
-                value =
-                    node.HasInteger() ? (decimal)(long)node.Value :
-                    node.HasRational() ? (decimal)(double)node.Value :
-                    Convert.ToDecimal(node.Value, CultureInfo.InvariantCulture);
+                value = (decimal)node.Value;
                 return true;
             }
             value = default;
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryEnum<T>(this Node node, out T value) where T : struct, Enum
         {
-            if (node.IsNumber())
+            if (node.TryLong(out var @long))
             {
-                value =
-                    node.HasInteger() ? (T)Enum.ToObject(typeof(T), (long)node.Value) :
-                    (T)Enum.ToObject(typeof(T), node.Value);
+                value = (T)Enum.ToObject(typeof(T), @long);
                 return true;
             }
             else if (node.TryString(out var @string))
@@ -509,14 +427,11 @@ namespace Entia.Json
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryEnum(this Node node, Type type, out Enum value)
         {
-            if (node.IsNumber())
+            if (node.TryLong(out var @long))
             {
-                value =
-                    node.HasInteger() ? (Enum)Enum.ToObject(type, (long)node.Value) :
-                    (Enum)Enum.ToObject(type, node.Value);
+                value = (Enum)Enum.ToObject(type, @long);
                 return true;
             }
             else if (node.TryString(out var @string))
@@ -532,7 +447,6 @@ namespace Entia.Json
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryType(this Node node, out Type value)
         {
             if (node.IsType())
@@ -544,7 +458,6 @@ namespace Entia.Json
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryReference(this Node node, out uint value)
         {
             if (node.IsReference())
@@ -556,7 +469,6 @@ namespace Entia.Json
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryAbstract(this Node node, out Type type, out Node value)
         {
             if (node.IsAbstract() && node.Children[0].TryType(out type))
@@ -569,41 +481,23 @@ namespace Entia.Json
             return false;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static string AsString(this Node node, string @default = default) => node.TryString(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool AsBool(this Node node, bool @default = default) => node.TryBool(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static char AsChar(this Node node, char @default = default) => node.TryChar(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static sbyte AsSByte(this Node node, sbyte @default = default) => node.TrySByte(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte AsByte(this Node node, byte @default = default) => node.TryByte(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static short AsShort(this Node node, short @default = default) => node.TryShort(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ushort AsUShort(this Node node, ushort @default = default) => node.TryUShort(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int AsInt(this Node node, int @default = default) => node.TryInt(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint AsUInt(this Node node, uint @default = default) => node.TryUInt(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static long AsLong(this Node node, long @default = default) => node.TryLong(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ulong AsULong(this Node node, ulong @default = default) => node.TryULong(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float AsFloat(this Node node, float @default = default) => node.TryFloat(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static double AsDouble(this Node node, double @default = default) => node.TryDouble(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static decimal AsDecimal(this Node node, decimal @default = default) => node.TryDecimal(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T AsEnum<T>(this Node node, T @default = default) where T : struct, Enum => node.TryEnum<T>(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Enum AsEnum(this Node node, Type type, Enum @default = default) => node.TryEnum(type, out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Type AsType(this Node node, Type @default = default) => node.TryType(out var value) ? value : @default;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint AsReference(this Node node, uint @default = default) => node.TryReference(out var value) ? value : @default;
     }
 }

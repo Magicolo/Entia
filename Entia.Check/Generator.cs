@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Threading;
 using Entia.Core;
@@ -159,9 +158,7 @@ namespace Entia.Check
 
         static readonly Generator<Enum> _enumeration = Types.Enumeration.Bind(Enumeration).With(nameof(Enumeration));
         static readonly Generator<Enum> _flags = Types.Flags.Bind(Flags).With(nameof(Flags));
-        static readonly Generator<decimal> _number = Number(int.MinValue, int.MaxValue, 0m)
-            .Size(size => Math.Pow(size, 15) + (1.0 - size) * 9e-9)
-            .With(nameof(Number));
+        static readonly Generator<double> _number = Number(int.MinValue, int.MaxValue, 0).Size(size => Math.Pow(size, 15) + (1.0 - size) * 9e-9);
 
         public static readonly Generator<char> Letter = Any(Range('A', 'Z'), Range('a', 'z')).With(nameof(Letter));
         public static readonly Generator<char> Digit = Range('0', '9').With(nameof(Digit));
@@ -246,7 +243,7 @@ namespace Entia.Check
             Number(minimum, maximum, minimum).Map(value => (char)Math.Round(value)).With(Name<char>.Range.Format(minimum, maximum));
         public static Generator<float> Range(float maximum) => Range(0f, maximum);
         public static Generator<float> Range(float minimum, float maximum) =>
-            Number((decimal)minimum, (decimal)maximum, (decimal)minimum).Map(value => (float)value).With(Name<float>.Range.Format(minimum, maximum));
+            Number(minimum, maximum, minimum).Map(value => (float)value).With(Name<float>.Range.Format(minimum, maximum));
         public static Generator<int> Range(int maximum) => Range(0, maximum);
         public static Generator<int> Range(int minimum, int maximum) =>
             Number(minimum, maximum, minimum).Map(value => (int)Math.Round(value)).With(Name<int>.Range.Format(minimum, maximum));
@@ -400,17 +397,17 @@ namespace Entia.Check
             }
         }
 
-        static Generator<decimal> Number(decimal minimum, decimal maximum, decimal target)
+        static Generator<double> Number(double minimum, double maximum, double target)
         {
             if (minimum == maximum) return minimum;
-            return From(Name<decimal>.Number.Format(minimum, maximum, target), state =>
+            return From(nameof(Number).Format(minimum, maximum, target), state =>
             {
-                var random = Interpolate(minimum, maximum, (decimal)state.Random.NextDouble());
-                var value = Interpolate(target, random, (decimal)state.Size);
+                var random = Interpolate(minimum, maximum, state.Random.NextDouble());
+                var value = Interpolate(target, random, state.Size);
                 return (value, Shrinker.Number(value, target));
             });
 
-            static decimal Interpolate(decimal source, decimal target, decimal ratio) => (target - source) * ratio + source;
+            static double Interpolate(double source, double target, double ratio) => (target - source) * ratio + source;
         }
     }
 }

@@ -45,18 +45,18 @@ namespace Entia.Check
             }
         }
 
-        internal static Shrinker<decimal> Number(decimal source, decimal target)
+        internal static Shrinker<double> Number(double source, double target)
         {
-            return From(Name<decimal>.Number.Format(source, target), Shrink);
-            IEnumerable<Generator<decimal>> Shrink()
+            return From(nameof(Number).Format(source, target), Shrink);
+            IEnumerable<Generator<double>> Shrink()
             {
                 var difference = target - source;
                 var sign = Math.Sign(difference);
                 var magnitude = Math.Abs(difference);
-                var direction = magnitude / 100m;
+                var direction = magnitude / 100.0;
                 for (int i = 0; i < 100 && magnitude > 0; i++, magnitude -= direction)
                 {
-                    var middle = Math.Round(magnitude * 0.5m * sign + source, 9);
+                    var middle = Math.Round(magnitude * 0.5 * sign + source, 9);
                     if (middle == source) yield break;
                     yield return Generator.Constant(middle, Number(middle, target));
                 }

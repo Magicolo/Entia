@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using Entia.Core;
 
@@ -37,54 +36,31 @@ namespace Entia.Json
         {
             None,
             Plain = 1 << 0,
-            Integer = 1 << 1,
-            Rational = 1 << 2,
-            Empty = 1 << 3,
-            Dollar = 1 << 4,
-            Zero = 1 << 5,
-            Special = 1 << 6,
+            Special = 1 << 1,
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(bool value) => Boolean(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(byte value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(sbyte value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(short value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(ushort value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(int value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(uint value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(long value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(ulong value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(float value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(double value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(decimal value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(Enum value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(char value) => Number(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(string value) => String(value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator Node(Type value) => Type(value);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(Node left, Node right) => EqualityComparer<Node>.Default.Equals(left, right);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(Node left, Node right) => !(left == right);
 
-        const long Numbers = 128;
-        const long Characters = 128;
+        const int Numbers = 128;
+        const int Characters = 128;
 
         // Must be placed before calling the 'Node' constructors.
         static readonly Node[] _empty = { };
@@ -96,13 +72,13 @@ namespace Entia.Json
         // identifier collisions within the same node tree.
         static int _counter;
 
-        public static readonly Node Null = new Node(Kinds.Null, Tags.Empty, null, _empty);
+        public static readonly Node Null = new Node(Kinds.Null, Tags.None, null, _empty);
         public static readonly Node True = new Node(Kinds.Boolean, Tags.None, true, _empty);
-        public static readonly Node False = new Node(Kinds.Boolean, Tags.Zero, false, _empty);
-        public static readonly Node Zero = new Node(Kinds.Number, Tags.Integer | Tags.Zero, 0L, _empty);
-        public static readonly Node EmptyObject = new Node(Kinds.Object, Tags.Empty, null, _empty);
-        public static readonly Node EmptyArray = new Node(Kinds.Array, Tags.Empty, null, _empty);
-        public static readonly Node EmptyString = new Node(Kinds.String, Tags.Plain | Tags.Empty, "", _empty);
+        public static readonly Node False = new Node(Kinds.Boolean, Tags.None, false, _empty);
+        public static readonly Node Zero = new Node(Kinds.Number, Tags.None, 0m, _empty);
+        public static readonly Node EmptyObject = new Node(Kinds.Object, Tags.None, null, _empty);
+        public static readonly Node EmptyArray = new Node(Kinds.Array, Tags.None, null, _empty);
+        public static readonly Node EmptyString = new Node(Kinds.String, Tags.Plain, "", _empty);
 
         internal static readonly Node DollarT = Dollar('t');
         internal static readonly Node DollarI = Dollar('i');
@@ -111,54 +87,45 @@ namespace Entia.Json
         internal static readonly Node DollarK = Dollar('k');
         internal static readonly Node DollarA = Dollar('a');
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node Boolean(bool value) => value ? True : False;
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(char value) => Number((long)value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(byte value) => Number((long)value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(sbyte value) => Number((long)value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(short value) => Number((long)value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(ushort value) => Number((long)value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(int value) => Number((long)value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(uint value) => Number((long)value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(long value)
+        public static Node Number(char value) => Number((decimal)value);
+        public static Node Number(byte value) => Number((decimal)value);
+        public static Node Number(sbyte value) => Number((decimal)value);
+        public static Node Number(short value) => Number((decimal)value);
+        public static Node Number(ushort value) => Number((decimal)value);
+        public static Node Number(int value) => Number((decimal)value);
+        public static Node Number(uint value) => Number((decimal)value);
+        public static Node Number(long value) => Number((decimal)value);
+        public static Node Number(ulong value) => Number((decimal)value);
+        public static Node Number(float value) =>
+            float.IsNaN(value) || float.IsInfinity(value) ? Null :
+            value <= (float)decimal.MinValue || value >= (float)decimal.MaxValue ? Zero :
+            Number((decimal)value);
+        public static Node Number(double value) =>
+            double.IsNaN(value) || double.IsInfinity(value) ? Null :
+            value <= (double)decimal.MinValue || value >= (double)decimal.MaxValue ? Zero :
+            Number((decimal)value);
+        public static Node Number(decimal value)
         {
             if (value == 0) return Zero;
-            if (value >= Numbers || value <= Numbers) return new Node(Kinds.Number, Tags.Integer, value, _empty);
-            var numbers = value > 0 ? _positives : _negatives;
-            return numbers[value] ?? (numbers[value] = new Node(Kinds.Number, Tags.Integer, value, _empty));
+            if (value <= -Numbers || value >= Numbers) return new Node(Kinds.Number, Tags.None, value, _empty);
+
+            var integer = (int)value;
+            if (value == integer)
+            {
+                ref var number = ref integer > 0 ? ref _positives[integer] : ref _negatives[-integer];
+                return number ?? (number = new Node(Kinds.Number, Tags.None, value, _empty));
+            }
+            return new Node(Kinds.Number, Tags.None, value, _empty);
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(ulong value) => Number((long)value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(float value) => Number((double)value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(double value)
-        {
-            var integer = (long)value;
-            return value == integer ? Number(integer) : Rational(value);
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Node Number(decimal value) => Number((double)value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node Number(Enum value) => value == null ? Null : Number(Convert.ToInt64(value, CultureInfo.InvariantCulture));
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node String(char value)
         {
             if (value >= Characters) return String(value.ToString(), DefaultTags(value));
             return _characters[value] ?? (_characters[value] = String(value.ToString(), GetTags(value)));
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node String(Enum value) => value == null ? Null : String(value.ToString(), Tags.Plain);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node String(string value)
         {
             if (value == null) return Null;
@@ -168,37 +135,23 @@ namespace Entia.Json
             return String(value, Tags.None);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node Array(params Node[] items) => Array(items, Tags.None);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node Object(params (Node key, Node value)[] members) => Object(members.Flatten());
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node Object(params Node[] members) => Object(members, Tags.None);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node Type(Type type) => type == null ? Null : new Node(Kinds.Type, Tags.None, type, _empty);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node Abstract(Node type, Node value) => new Node(Kinds.Abstract, Tags.None, null, type, value);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Node Reference(uint identifier) => new Node(Kinds.Reference, Tags.None, identifier, _empty);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static Node Array(Node[] items, Tags tags) => items.Length == 0 ? EmptyArray : new Node(Kinds.Array, tags, null, items);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static Node Object(Node[] members, Tags tags) => members.Length == 0 ? EmptyObject : new Node(Kinds.Object, tags, null, members);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static uint Reserve() => (uint)Interlocked.Increment(ref _counter);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static Node String(string value, Tags tags) => new Node(Kinds.String, tags, value, _empty);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static Node Rational(double value) => double.IsNaN(value) || double.IsInfinity(value) ? Null : new Node(Kinds.Number, Tags.Rational, value, _empty);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static Node Dollar(char value)
         {
-            if (value >= Characters) return String("$" + value, Tags.Dollar | Tags.Special | DefaultTags(value));
-            return _dollars[value] ?? (_dollars[value] = String("$" + value, GetTags(value) | Tags.Dollar | Tags.Special));
+            if (value >= Characters) return String("$" + value, Tags.Special | DefaultTags(value));
+            return _dollars[value] ?? (_dollars[value] = String("$" + value, GetTags(value) | Tags.Special));
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static Tags GetTags(char value)
         {
             switch (value)
@@ -210,13 +163,11 @@ namespace Entia.Json
                 case '\t':
                 case '"':
                 case '\\': return Tags.None;
-                case '$': return Tags.Dollar | Tags.Plain;
-                case '\0': return Tags.Zero;
+                case '$': return Tags.Plain;
                 default: return DefaultTags(value);
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static Tags DefaultTags(char value) => value <= byte.MaxValue ? Tags.Plain : Tags.None;
 
         public Node this[string key] => this.TryMember(key, out var value) ? value : throw new ArgumentException(nameof(key));
@@ -228,12 +179,10 @@ namespace Entia.Json
         public readonly object Value;
         public readonly Node[] Children;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         Node(Kinds kind, Tags tag, object value, params Node[] children) :
             this(Reserve(), kind, tag, value, children)
         { }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         Node(uint identifier, Kinds kind, Tags tag, object value, params Node[] children)
         {
             Identifier = identifier;
@@ -243,9 +192,7 @@ namespace Entia.Json
             Children = children;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Node With(params Node[] children) => new Node(Identifier, Kind, Tag, Value, children);
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Node With(uint identifier) => new Node(identifier, Kind, Tag, Value, Children);
 
         public bool Equals(Node other)
@@ -253,11 +200,11 @@ namespace Entia.Json
             if (other == null) return false;
             if (ReferenceEquals(this, other)) return true;
             if (Kind != other.Kind) return false;
-            // Do not check tags since the 'Plain' tag differentiates nodes that are otherwise equals.
+            // Do not check tags since some tags may differentiate nodes that are otherwise equals.
             switch (Kind)
             {
                 case Kinds.Null: return ReferenceEquals(Value, other.Value);
-                case Kinds.Number: return Math.Abs(this.AsDouble() - other.AsDouble()) < 1e-12;
+                case Kinds.Number: return this.AsDecimal() == other.AsDecimal();
                 case Kinds.Boolean: return this.AsBool() == other.AsBool();
                 case Kinds.String: return this.AsString() == other.AsString();
                 case Kinds.Type: return this.AsType() == other.AsType();
