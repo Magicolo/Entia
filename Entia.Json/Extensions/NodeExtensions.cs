@@ -6,47 +6,8 @@ using Entia.Core;
 
 namespace Entia.Json
 {
-    public static class NodeExtensions
+    public static partial class NodeExtensions
     {
-        public readonly struct MemberEnumerable : IEnumerable<MemberEnumerator, (string key, Node value)>
-        {
-            readonly Node _node;
-            public MemberEnumerable(Node node) { _node = node; }
-            public MemberEnumerator GetEnumerator() => new MemberEnumerator(_node);
-            IEnumerator<(string key, Node value)> IEnumerable<(string key, Node value)>.GetEnumerator() => GetEnumerator();
-            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-        }
-
-        public struct MemberEnumerator : IEnumerator<(string key, Node value)>
-        {
-            public (string key, Node value) Current { get; private set; }
-            object IEnumerator.Current => Current;
-
-            readonly Node[] _nodes;
-            int _index;
-
-            public MemberEnumerator(Node node)
-            {
-                Current = default;
-                _nodes = node.Children;
-                _index = 0;
-            }
-
-            public bool MoveNext()
-            {
-                if (_index < _nodes.Length && _nodes[_index].TryString(out var key))
-                {
-                    Current = (key, _nodes[_index + 1]);
-                    _index += 2;
-                    return true;
-                }
-                return false;
-            }
-
-            public void Reset() => _index = 0;
-            public void Dispose() => this = default;
-        }
-
         public static Node Map(this Node node, Func<Node, Node> map) =>
             node.Children.Length == 0 ? node : node.With(node.Children.Select(map));
         public static Node Map<TState>(this Node node, in TState state, Func<Node, TState, Node> map) =>
@@ -56,30 +17,34 @@ namespace Entia.Json
         public static Node Filter<TState>(this Node node, in TState state, Func<Node, TState, bool> filter) =>
             node.Children.Length == 0 ? node : node.With(node.Children.Where(state, filter).ToArray());
 
+        public static bool Has(this Node node, Node child) => node.TryIndex(child, out _);
+        public static bool TryIndex(this Node node, Node child, out int index)
+        {
+            for (int i = 0; i < node.Children.Length; i++)
+            {
+                if (ReferenceEquals(node.Children[i], child))
+                {
+                    index = i;
+                    return true;
+                }
+            }
+            index = default;
+            return false;
+        }
+
         public static Node Add(this Node node, Node child) => node.With(node.Children.Append(child));
         public static Node Add(this Node node, params Node[] children) => node.With(node.Children.Append(children));
         public static Node AddAt(this Node node, int index, Node child) => node.With(node.Children.Insert(index, child));
         public static Node AddAt(this Node node, int index, params Node[] children) => node.With(node.Children.Insert(index, children));
 
         public static Node Remove(this Node node, Node child) => node.With(node.Children.Remove(child));
-        public static Node Remove(this Node node, params Node[] children) => node.With(node.Children.Except(children).ToArray());
+        public static Node Remove(this Node node, params Node[] children) => children.Aggregate(node, (current, child) => current.Remove(child));
         public static Node RemoveAt(this Node node, int index) => node.With(node.Children.RemoveAt(index));
         public static Node RemoveAt(this Node node, int index, int count) => node.With(node.Children.RemoveAt(index, count));
-
-        public static Node Remove(this Node node, Func<Node, bool> match)
-        {
-            if (node.Children.Length == 0) return node;
-            var children = new List<Node>(node.Children.Length);
-            foreach (var child in node.Children)
-            {
-                if (match(child)) continue;
-                children.Add(child);
-            }
-            return node.With(children.ToArray());
-        }
+        public static Node Clear(this Node node) => node.With(Array.Empty<Node>());
 
         public static Node Replace(this Node node, Node child, Node replacement) =>
-            node.ReplaceAt(Array.IndexOf(node.Children, child), replacement);
+            node.TryIndex(child, out var index) ? node.ReplaceAt(index, replacement) : node;
 
         public static Node ReplaceAt(this Node node, int index, Node replacement)
         {
@@ -104,7 +69,7 @@ namespace Entia.Json
                 return true;
             }
 
-            if (index < 0 || index + replacements.Length >= node.Children.Length ||
+            if (index < 0 || index + replacements.Length > node.Children.Length ||
                 AreEqual(node.Children, replacements, index))
                 return node;
 
@@ -128,122 +93,6 @@ namespace Entia.Json
             }
         }
 
-        public static Node MapItem(this Node node, int index, Func<Node, Node> map) =>
-            node.TryItem(index, out var item) ? node.ReplaceAt(index, map(item)) : node;
-        public static Node MapItems(this Node node, Func<Node, Node> map) =>
-            node.With(node.Items().Select(map));
-        public static Node MapItems(this Node node, Func<Node, int, Node> map) =>
-            node.With(node.Items().Select(map));
-
-        public static Node FilterItem(this Node node, int index, Func<Node, bool> filter) =>
-            node.TryItem(index, out var item) && !filter(item) ? node.RemoveAt(index) : node;
-        public static Node FilterItems(this Node node, Func<Node, bool> filter) =>
-            node.With(node.Items().Where(filter).ToArray());
-        public static Node FilterItems(this Node node, Func<Node, int, bool> filter) =>
-            node.With(node.Items().Where(filter).ToArray());
-
-        public static Node MapMember(this Node node, string key, Func<Node, Node> map) =>
-            node.MapMember(key, value => (key, map(value)));
-        public static Node MapMember(this Node node, string key, Func<Node, (string key, Node value)> map)
-        {
-            if (node.TryMember(key, out var value, out var index))
-            {
-                (key, value) = map(value);
-                return node.ReplaceAt(index, key, value);
-            }
-            else return node;
-        }
-
-        public static Node MapMembers(this Node node, Func<string, Node, Node> map) =>
-            node.MapMembers((key, value) => (key, map(key, value)));
-        public static Node MapMembers(this Node node, Func<string, Node, (string key, Node value)> map)
-        {
-            if (node.IsObject() && node.Children.Length > 0)
-            {
-                var children = new Node[node.Children.Length];
-                for (int i = 0; i < children.Length; i += 2)
-                    (children[i], children[i + 1]) = map(node.Children[i].AsString(), node.Children[i + 1]);
-                return node.With(children);
-            }
-            else return node;
-        }
-
-        public static Node FilterMember(this Node node, string key, Func<Node, bool> filter) =>
-            node.TryMember(key, out var value, out var index) && !filter(value) ? node.RemoveAt(index, 2) : node;
-        public static Node FilterMembers(this Node node, Func<Node, bool> filter) =>
-            node.FilterMembers((_, value) => filter(value));
-        public static Node FilterMembers(this Node node, Func<string, Node, bool> filter) =>
-            node.With(node.Members()
-                .Where(pair => filter(pair.key, pair.value))
-                .SelectMany(pair => new[] { Node.String(pair.key), pair.value })
-                .ToArray());
-
-        public static Node AddMember(this Node node, string key, Node value) =>
-            node.TryMember(key, out _, out var index) ? node.ReplaceAt(index, key, value) : node.Add(key, value);
-        public static Node RemoveMember(this Node node, string key) =>
-            node.TryMember(key, out _, out var index) ? node.RemoveAt(index, 2) : node;
-
-        public static Node RemoveMembers(this Node node, Func<string, Node, bool> match)
-        {
-            if (node.IsObject() && node.Children.Length > 0)
-            {
-                var children = new List<Node>(node.Children.Length);
-                foreach (var (key, value) in node.Members())
-                {
-                    if (match(key, value)) continue;
-                    children.Add(key);
-                    children.Add(value);
-                }
-                return node.With(children.ToArray());
-            }
-            else return node;
-        }
-        public static bool HasMember(this Node node, string key) => node.TryMember(key, out _, out _);
-        public static bool TryMember(this Node node, string key, out Node value) => node.TryMember(key, out value, out _);
-        public static bool TryMember(this Node node, string key, out Node value, out int index)
-        {
-            if (node.IsObject() && node.Children.Length > 0)
-            {
-                for (index = 0; index < node.Children.Length; index += 2)
-                {
-                    if (node.Children[index].AsString() == key)
-                    {
-                        value = node.Children[index + 1];
-                        return true;
-                    }
-                }
-            }
-
-            value = default;
-            index = default;
-            return false;
-        }
-
-        public static bool TryItem(this Node node, int index, out Node item)
-        {
-            if (node.TryItems(out var items) && index >= 0 && index < items.Length)
-            {
-                item = node.Children[index];
-                return true;
-            }
-            item = default;
-            return false;
-        }
-
-        public static bool TryMembers(this Node node, out MemberEnumerable members)
-        {
-            members = new MemberEnumerable(node);
-            return node.IsObject();
-        }
-
-        public static bool TryItems(this Node node, out Node[] items)
-        {
-            items = node.Children;
-            return node.IsArray();
-        }
-
-        public static MemberEnumerable Members(this Node node) => node.TryMembers(out var members) ? members : new MemberEnumerable(Node.Null);
-        public static Node[] Items(this Node node) => node.TryItems(out var items) ? items : Array.Empty<Node>();
         public static bool Is(this Node node, Node.Kinds kind) => node.Kind == kind;
         public static bool Has(this Node node, Node.Tags tags) => (node.Tag & tags) == tags;
         public static bool HasPlain(this Node node) => node.Has(Node.Tags.Plain);

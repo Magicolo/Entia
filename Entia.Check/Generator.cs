@@ -195,8 +195,8 @@ namespace Entia.Check
         public static Generator<T> Size<T>(this Generator<T> generator, Func<double, double> map) =>
             generator.Adapt(state => state.With(map(state.Size))).With(Name<T>.Size.Format(generator));
         public static Generator<T> Size<T>(this Generator<T> generator, double size) => generator.Size(_ => size);
-        public static Generator<T> Depth<T>(this Generator<T> generator) =>
-            generator.Adapt(state => state.With(depth: state.Depth + 1)).With(Name<T>.Depth.Format(generator));
+        public static Generator<T> Depth<T>(this Generator<T> generator, uint depth = 1) =>
+            generator.Adapt(state => state.With(depth: state.Depth + depth)).With(Name<T>.Depth.Format(generator));
         public static Generator<T> Attenuate<T>(this Generator<T> generator, Generator<uint> depth) =>
             depth.Bind(depth => generator.Adapt(state => state.With(state.Size * Math.Max(1.0 - (double)state.Depth / depth, 0.0))))
                 .With(Name<T>.Attenuate.Format(generator, depth));
@@ -211,7 +211,7 @@ namespace Entia.Check
 
         public static Generator<float> Inverse(this Generator<float> generator) => generator.Map(value => 1 / value).With(nameof(Inverse).Format(generator));
         public static Generator<double> Inverse(this Generator<double> generator) => generator.Map(value => 1 / value).With(nameof(Inverse).Format(generator));
-        public static Generator<decimal> Inverse(this Generator<decimal> generator) => generator.Map(value => 1 / value).With(nameof(Inverse).Format(generator));
+        public static Generator<decimal> Inverse(this Generator<decimal> generator) => generator.Map(value => value == 0 ? 0 : 1 / value).With(nameof(Inverse).Format(generator));
         public static Generator<sbyte> Signed(this Generator<byte> generator) => generator.Map(value => (sbyte)value).With(nameof(Signed).Format(generator));
         public static Generator<short> Signed(this Generator<ushort> generator) => generator.Map(value => (short)value).With(nameof(Signed).Format(generator));
         public static Generator<int> Signed(this Generator<uint> generator) => generator.Map(value => (int)value).With(nameof(Signed).Format(generator));

@@ -58,17 +58,17 @@ namespace Entia.Core
             return true;
         }
 
-        public static bool Set<T>(ref T[] source, in T item, int index)
+        public static bool Set<T>(ref T[] source, T item, int index)
         {
             var resized = Ensure(ref source, index + 1);
             source[index] = item;
             return resized;
         }
 
-        public static bool Prepend<T>(ref T[] source, in T item) => Insert(ref source, 0, item);
+        public static bool Prepend<T>(ref T[] source, T item) => Insert(ref source, 0, item);
         public static bool Prepend<T>(ref T[] source, params T[] items) => Insert(ref source, 0, items);
         public static bool Append<T>(ref T[] source, params T[] items) => Insert(ref source, source.Length, items);
-        public static bool Append<T>(ref T[] source, in T item) => Insert(ref source, source.Length, item);
+        public static bool Append<T>(ref T[] source, T item) => Insert(ref source, source.Length, item);
 
         public static bool Overwrite<T>(ref T[] source, int index, params T[] items)
         {
@@ -100,7 +100,7 @@ namespace Entia.Core
             return true;
         }
 
-        public static bool Insert<T>(ref T[] source, int index, in T item)
+        public static bool Insert<T>(ref T[] source, int index, T item)
         {
             if (index < 0 || index > source.Length) return false;
             if (source.Length == 0) { source = new T[] { item }; return true; }
@@ -113,7 +113,7 @@ namespace Entia.Core
             return true;
         }
 
-        public static bool Remove<T>(ref T[] source, in T item) => RemoveAt(ref source, Array.IndexOf(source, item));
+        public static bool Remove<T>(ref T[] source, T item) => RemoveAt(ref source, Array.IndexOf(source, item));
 
         public static bool RemoveAt<T>(ref T[] source, int index) => RemoveAt(ref source, index, 1);
 

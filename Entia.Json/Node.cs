@@ -56,7 +56,7 @@ namespace Entia.Json
         public static implicit operator Node(string value) => String(value);
         public static implicit operator Node(Type value) => Type(value);
 
-        public static bool operator ==(Node left, Node right) => EqualityComparer<Node>.Default.Equals(left, right);
+        public static bool operator ==(Node left, Node right) => left is null ? right is null : left.Equals(right);
         public static bool operator !=(Node left, Node right) => !(left == right);
 
         const int Numbers = 128;
@@ -192,8 +192,8 @@ namespace Entia.Json
             Children = children;
         }
 
-        public Node With(params Node[] children) => new Node(Identifier, Kind, Tag, Value, children);
-        public Node With(uint identifier) => new Node(identifier, Kind, Tag, Value, Children);
+        public Node With(params Node[] children) => Children == children ? this : new Node(Identifier, Kind, Tag, Value, children);
+        public Node With(uint identifier) => Identifier == identifier ? this : new Node(identifier, Kind, Tag, Value, Children);
 
         public bool Equals(Node other)
         {

@@ -113,7 +113,7 @@ namespace Entia.Core
 
         public static void Clear<T>(this T[] array) => Array.Clear(array, 0, array.Length);
 
-        public static bool TryGet<T>(in this (T[] items, int count) array, int index, out T item)
+        public static bool TryGet<T>(this (T[] items, int count) array, int index, out T item)
         {
             if (index < array.count)
             {
@@ -174,7 +174,7 @@ namespace Entia.Core
             for (int i = 0; i < array.Length; i++) action(ref array[i]);
         }
 
-        public static bool Contains<T>(this T[] array, in T item) => Array.IndexOf(array, item, 0, array.Length) >= 0;
+        public static bool Contains<T>(this T[] array, T item) => Array.IndexOf(array, item, 0, array.Length) >= 0;
 
         public static TResult[] Select<TSource, TResult>(this TSource[] source, Func<TSource, TResult> selector)
         {
@@ -192,7 +192,7 @@ namespace Entia.Core
             return target;
         }
 
-        public static TResult[] Select<TSource, TResult, TState>(this TSource[] source, in TState state, Func<TSource, TState, TResult> selector)
+        public static TResult[] Select<TSource, TResult, TState>(this TSource[] source, TState state, Func<TSource, TState, TResult> selector)
         {
             if (source.Length == 0) return Array.Empty<TResult>();
             var target = new TResult[source.Length];
@@ -200,7 +200,7 @@ namespace Entia.Core
             return target;
         }
 
-        public static TResult[] Select<TSource, TResult, TState>(this TSource[] source, in TState state, Func<TSource, TState, int, TResult> selector)
+        public static TResult[] Select<TSource, TResult, TState>(this TSource[] source, TState state, Func<TSource, TState, int, TResult> selector)
         {
             if (source.Length == 0) return Array.Empty<TResult>();
             var target = new TResult[source.Length];
@@ -214,7 +214,7 @@ namespace Entia.Core
             return source;
         }
 
-        public static T[] Prepend<T>(this T[] source, in T item)
+        public static T[] Prepend<T>(this T[] source, T item)
         {
             ArrayUtility.Prepend(ref source, item);
             return source;
@@ -226,7 +226,7 @@ namespace Entia.Core
             return source;
         }
 
-        public static T[] Append<T>(this T[] source, in T item)
+        public static T[] Append<T>(this T[] source, T item)
         {
             ArrayUtility.Append(ref source, item);
             return source;
@@ -238,7 +238,7 @@ namespace Entia.Core
             return source;
         }
 
-        public static T[] Insert<T>(this T[] source, int index, in T item)
+        public static T[] Insert<T>(this T[] source, int index, T item)
         {
             ArrayUtility.Insert(ref source, index, item);
             return source;
@@ -288,7 +288,7 @@ namespace Entia.Core
             return Array.IndexOf(source, item, index, count ?? (source.Length - index)) >= 0;
         }
 
-        public static T[] Remove<T>(this T[] source, in T item)
+        public static T[] Remove<T>(this T[] source, T item)
         {
             ArrayUtility.Remove(ref source, item);
             return source;
