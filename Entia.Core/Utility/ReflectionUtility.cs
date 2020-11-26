@@ -269,7 +269,17 @@ namespace Entia.Core
         }
 
         public static Option<ConstructorInfo> DefaultConstructor(this Type type) =>
-            type.Constructors(true, false).FirstOrNone(constructor => constructor.GetParameters().None());
+            type.DefaultConstructors().FirstOrNone(pair => pair.parameters.Length == 0).Map(pair => pair.constructor);
+
+        public static IEnumerable<(ConstructorInfo constructor, object[] parameters)> DefaultConstructors(this Type type)
+        {
+            foreach (var constructor in type.Constructors(true, false))
+            {
+                var parameters = constructor.GetParameters();
+                if (parameters.All(parameter => parameter.HasDefaultValue))
+                    yield return (constructor, parameters.Select(parameter => parameter.DefaultValue));
+            }
+        }
 
         public static Option<PropertyInfo> AutoProperty(this FieldInfo field)
         {

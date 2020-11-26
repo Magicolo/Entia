@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Globalization;
 using Entia.Check;
 using Entia.Core;
@@ -17,14 +18,16 @@ namespace Entia.Json
             Integer.Map(Node.Number),
             Rational.Map(Node.Number),
             Rational.Inverse().Map(Node.Number), // Small numbers.
-            Range((float)decimal.MinValue).Size(size => Math.Pow(size, 20)).Map(Node.Number), // Very large negative numbers.
-            Range((float)decimal.MaxValue).Size(size => Math.Pow(size, 20)).Map(Node.Number), // Very large positive numbers.
-            Range((float)decimal.MinValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number), // Very small negative numbers.
-            Range((float)decimal.MaxValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number), // Very small positive numbers.
+            Range(decimal.MinValue).Size(size => Math.Pow(size, 20)).Map(Node.Number), // Very large negative numbers.
+            Range(decimal.MaxValue).Size(size => Math.Pow(size, 20)).Map(Node.Number), // Very large positive numbers.
+            Range(decimal.MinValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number), // Very small negative numbers.
+            Range(decimal.MaxValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number), // Very small positive numbers.
             All(Rational, Rational).Map(values => Node.Number(values[0] / values[1])));
         static readonly Generator<Node> _string = Any(
             Any(Node.EmptyString, Enumeration().Map(Node.String), Flags().Map(Node.String)),
-            Any(ASCII, Letter, Digit, Character, '\\', '\"', '/', '\t', '\f', '\b', '\n', '\r').String(Range(100)).Map(Node.String));
+            Any(ASCII, Letter, Digit).String(Range(100)).Map(Node.String),
+            Any(Character).String(Range(100)).Map(Node.String),
+            Any(Character, ASCII, Letter, Digit, '\\', '\"', '/', '\t', '\f', '\b', '\n', '\r').String(Range(100)).Map(Node.String));
         static readonly Generator<Node> _type = Types.Type.Map(Node.Type);
         static readonly Generator<Node> _array = Lazy(() => _node).Repeat(Range(10).Attenuate(10)).Map(Node.Array);
         static readonly Generator<Node> _object = All(_string, Lazy(() => _node)).Repeat(Range(10).Attenuate(10)).Map(nodes => Node.Object(nodes.Flatten()));
@@ -37,7 +40,7 @@ namespace Entia.Json
             _string.CheckSymmetry("Generate/parse symmetry for String nodes.");
             _number.CheckSymmetry("Generate/parse symmetry for Number nodes.");
             _type.CheckSymmetry("Generate/parse symmetry for Type nodes.");
-            _node.CheckSymmetry("Generate/parse symmetry for Root nodes.");
+            _node.CheckSymmetry("Generate/parse symmetry for nodes.");
 
             Integer.Map(value => (value, result: Serialization.Parse(value.ToString(CultureInfo.InvariantCulture)).Map(node => node.AsInt())))
                 .Check("Parsing of integers.", pair => pair.value == pair.result);

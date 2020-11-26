@@ -158,7 +158,7 @@ namespace Entia.Check
 
         static readonly Generator<Enum> _enumeration = Types.Enumeration.Bind(Enumeration).With(nameof(Enumeration));
         static readonly Generator<Enum> _flags = Types.Flags.Bind(Flags).With(nameof(Flags));
-        static readonly Generator<double> _number = Number(int.MinValue, int.MaxValue, 0).Size(size => Math.Pow(size, 15) + (1.0 - size) * 9e-9);
+        static readonly Generator<decimal> _number = Number(int.MinValue, int.MaxValue, 0).Size(size => Math.Pow(size, 15) + (1.0 - size) * 9e-9);
 
         public static readonly Generator<char> Letter = Any(Range('A', 'Z'), Range('a', 'z')).With(nameof(Letter));
         public static readonly Generator<char> Digit = Range('0', '9').With(nameof(Digit));
@@ -209,8 +209,9 @@ namespace Entia.Check
         public static Generator<T> Shrink<T>(this Generator<T> generator, Shrink<T> shrink) =>
             generator.Shrink(Shrinker.From(Name<T>.Shrink, shrink));
 
-        public static Generator<float> Inverse(this Generator<float> generator) => generator.Map(value => 1f / value).With(nameof(Inverse).Format(generator));
-        public static Generator<double> Inverse(this Generator<double> generator) => generator.Map(value => 1.0 / value).With(nameof(Inverse).Format(generator));
+        public static Generator<float> Inverse(this Generator<float> generator) => generator.Map(value => 1 / value).With(nameof(Inverse).Format(generator));
+        public static Generator<double> Inverse(this Generator<double> generator) => generator.Map(value => 1 / value).With(nameof(Inverse).Format(generator));
+        public static Generator<decimal> Inverse(this Generator<decimal> generator) => generator.Map(value => 1 / value).With(nameof(Inverse).Format(generator));
         public static Generator<sbyte> Signed(this Generator<byte> generator) => generator.Map(value => (sbyte)value).With(nameof(Signed).Format(generator));
         public static Generator<short> Signed(this Generator<ushort> generator) => generator.Map(value => (short)value).With(nameof(Signed).Format(generator));
         public static Generator<int> Signed(this Generator<uint> generator) => generator.Map(value => (int)value).With(nameof(Signed).Format(generator));
@@ -241,12 +242,21 @@ namespace Entia.Check
         public static Generator<char> Range(char maximum) => Range('\0', maximum);
         public static Generator<char> Range(char minimum, char maximum) =>
             Number(minimum, maximum, minimum).Map(value => (char)Math.Round(value)).With(Name<char>.Range.Format(minimum, maximum));
-        public static Generator<float> Range(float maximum) => Range(0f, maximum);
+        public static Generator<float> Range(float maximum) => Range(0, maximum);
         public static Generator<float> Range(float minimum, float maximum) =>
-            Number(minimum, maximum, minimum).Map(value => (float)value).With(Name<float>.Range.Format(minimum, maximum));
+            Number((decimal)minimum, (decimal)maximum, (decimal)minimum).Map(value => (float)value).With(Name<float>.Range.Format(minimum, maximum));
+        public static Generator<double> Range(double maximum) => Range(0, maximum);
+        public static Generator<double> Range(double minimum, double maximum) =>
+            Number((decimal)minimum, (decimal)maximum, (decimal)minimum).Map(value => (double)value).With(Name<double>.Range.Format(minimum, maximum));
+        public static Generator<decimal> Range(decimal maximum) => Range(0, maximum);
+        public static Generator<decimal> Range(decimal minimum, decimal maximum) =>
+            Number(minimum, maximum, minimum).With(Name<decimal>.Range.Format(minimum, maximum));
         public static Generator<int> Range(int maximum) => Range(0, maximum);
         public static Generator<int> Range(int minimum, int maximum) =>
             Number(minimum, maximum, minimum).Map(value => (int)Math.Round(value)).With(Name<int>.Range.Format(minimum, maximum));
+        public static Generator<long> Range(long maximum) => Range(0, maximum);
+        public static Generator<long> Range(long minimum, long maximum) =>
+            Number(minimum, maximum, minimum).Map(value => (long)Math.Round(value)).With(Name<long>.Range.Format(minimum, maximum));
         public static Generator<T> Range<T>(params T[] values) =>
             Range(values.Length - 1).Map(index => values[index]).With(Name<T>.Range.Format(values));
 
@@ -397,17 +407,17 @@ namespace Entia.Check
             }
         }
 
-        static Generator<double> Number(double minimum, double maximum, double target)
+        static Generator<decimal> Number(decimal minimum, decimal maximum, decimal target)
         {
             if (minimum == maximum) return minimum;
             return From(nameof(Number).Format(minimum, maximum, target), state =>
             {
-                var random = Interpolate(minimum, maximum, state.Random.NextDouble());
-                var value = Interpolate(target, random, state.Size);
+                var random = Interpolate(minimum, maximum, (decimal)state.Random.NextDouble());
+                var value = Interpolate(target, random, (decimal)state.Size);
                 return (value, Shrinker.Number(value, target));
             });
 
-            static double Interpolate(double source, double target, double ratio) => (target - source) * ratio + source;
+            static decimal Interpolate(decimal source, decimal target, decimal ratio) => (target - source) * ratio + source;
         }
     }
 }

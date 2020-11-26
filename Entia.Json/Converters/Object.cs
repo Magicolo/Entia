@@ -40,10 +40,10 @@ namespace Entia.Json.Converters
             Type = type;
             _instantiate =
                 type.IsAbstract ? new Func<object>(() => default) :
-                type.DefaultInstance().TryValue(out var @default) ?
+                type.IsValueType && type.DefaultInstance().TryValue(out var @default) ?
                     new Func<object>(() => CloneUtility.Shallow(@default)) :
-                type.DefaultConstructor().TryValue(out var constructor) ?
-                    new Func<object>(() => constructor.Invoke(Array.Empty<object>())) :
+                type.DefaultConstructors().OrderBy(pair => pair.parameters.Length).TryFirst(out var pair) ?
+                    new Func<object>(() => pair.constructor.Invoke(pair.parameters)) :
                 new Func<object>(() => FormatterServices.GetUninitializedObject(type));
             _members = type.Fields(true, false)
                 .DistinctBy(field => field.Name)
