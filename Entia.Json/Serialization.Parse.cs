@@ -389,9 +389,12 @@ namespace Entia.Json
 
             static void UnwrapIdentified(ref Node node, ref uint?[] identifiers)
             {
-                if (node.Children.Length == 4 && node.Children[0] == Node.DollarI && node.Children[2] == Node.DollarV)
+                if (node.IsObject() &&
+                    node.Children.Length == 4 &&
+                    node.Children[0] == Node.DollarI &&
+                    node.Children[1].TryInt(out var index) &&
+                    node.Children[2] == Node.DollarV)
                 {
-                    var index = node.Children[1].AsInt();
                     var value = node.Children[3];
                     UnwrapIdentified(ref value, ref identifiers);
                     ArrayUtility.Ensure(ref identifiers, index + 1);
@@ -404,11 +407,13 @@ namespace Entia.Json
 
             static void UnwrapReferences(ref Node node, uint?[] identifiers)
             {
-                if (node.Children.Length == 2 && node.Children[0] == Node.DollarR)
+                if (node.IsObject() &&
+                    node.Children.Length == 2 &&
+                    node.Children[0] == Node.DollarR &&
+                    node.Children[1].TryInt(out var index))
                 {
-                    var index = node.Children[1].AsInt();
                     var reference =
-                        index < identifiers.Length && identifiers[index] is uint identifier ?
+                        index >= 0 && index < identifiers.Length && identifiers[index] is uint identifier ?
                         Node.Reference(identifier) : Node.Null;
                     node = reference.With(node.Identifier);
                 }
@@ -421,9 +426,9 @@ namespace Entia.Json
 
             static void ConvertTypes(ref Node node, in FromContext context)
             {
-                if (node.Children.Length == 2 && node.Children[0] == Node.DollarT)
+                if (node.IsObject() && node.Children.Length == 2 && node.Children[0] == Node.DollarT)
                     node = ConvertType(node.Children[1], context).With(node.Identifier);
-                else if (node.Children.Length == 4 && node.Children[0] == Node.DollarT && node.Children[2] == Node.DollarV)
+                else if (node.IsObject() && node.Children.Length == 4 && node.Children[0] == Node.DollarT && node.Children[2] == Node.DollarV)
                 {
                     var type = node.Children[1];
                     var value = node.Children[3];

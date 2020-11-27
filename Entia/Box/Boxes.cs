@@ -236,8 +236,8 @@ namespace Entia.Modules
         public IEnumerator<(Type type, object key, object value)> GetEnumerator() =>
             _boxes.Read(boxes => boxes
                 .SelectMany(pair => pair.value.Map
-                    .Select(pair2 => (pair.type, key: pair2.Key, box: pair2.Value))
-                    .Prepend((pair.type, null, pair.value.Box))
+                    .Select(pair2 => (type: pair.key, key: pair2.Key, box: pair2.Value))
+                    .Prepend((pair.key, null, pair.value.Box))
                     .Where(data => data.box.IsValid)
                     .Select(data => (data.type, data.key, data.box.Value)))
                 .ToArray())

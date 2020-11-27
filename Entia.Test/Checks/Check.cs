@@ -50,6 +50,9 @@ namespace Entia.Check
             Types.Default.Check("Types.Generic has default constructor.", type => type.DefaultConstructor().IsSome());
             Types.Tuple.Check("Types.Tuple is 'ITuple'.", type => type.Is<ITuple>());
             Types.Generic.Check("Types.Generic is constructed generic type.", type => type.IsConstructedGenericType);
+            Types.Type.And(Generator.Boolean, Generator.Boolean)
+                .Bind(tuple => Types.Derived(tuple.Item1, tuple.Item2, tuple.Item3).Map(type => (type, @base: tuple.Item1, hierarchy: tuple.Item2, definition: tuple.Item3)))
+                .Check("Types.Derived is derived.", tuple => tuple.type.Is(tuple.@base, tuple.hierarchy, tuple.definition));
         }
 
         static Failure<T>[] Check<T>(this Generator<T> generator, string name, Func<T, bool> prove) =>

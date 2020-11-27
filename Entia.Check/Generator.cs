@@ -56,6 +56,11 @@ namespace Entia.Check
 
         public static class Types
         {
+            static class Cache<T>
+            {
+                public static readonly Generator<Type> Derived = Any(_types.Where(type => type.Is<T>()).ToArray());
+            }
+
             static readonly Type[] _types = ReflectionUtility.AllTypes
                 .Except(typeof(void), typeof(TypedReference))
                 .Where(type => type.IsPublic)
@@ -72,7 +77,7 @@ namespace Entia.Check
             static readonly Type[] _primitives = _values.Where(type => type.IsPrimitive).ToArray();
             static readonly Type[] _enumerables = _concretes.Where(type => type.Is<IEnumerable>()).ToArray();
             static readonly Type[] _serializables = _concretes.Where(type => type.Is<ISerializable>()).ToArray();
-            static readonly Type[] _arguments = _types.Where(type => !type.IsByRef && !type.IsPointer && !type.IsGenericTypeDefinition).ToArray();
+            static readonly Type[] _arguments = _types.Where(type => !type.IsStatic() && !type.IsByRef && !type.IsPointer && !type.IsGenericTypeDefinition).ToArray();
             static readonly Type[] _arrays = _arguments.Select(type => type.ArrayType()).Choose().ToArray();
             static readonly Type[] _pointers = _values.Select(type => type.PointerType()).Choose().ToArray();
             static readonly Type[] _defaults = _concretes.Where(type => type.DefaultConstructor().TryValue(out var constructor) && constructor.IsPublic).ToArray();
@@ -118,15 +123,19 @@ namespace Entia.Check
                 .Flatten()
                 .With($"{nameof(Types)}.{nameof(Tuple)}");
 
-            public static Generator<Type> Make(Type definition) => definition.GetGenericArguments()
-                .Select(Argument)
-                .All()
+            public static Generator<Type> Make(Type definition) =>
+                Make(definition, definition.GetGenericArguments().Select(Argument).All());
+            public static Generator<Type> Make(Type definition, Generator<Type> argument) =>
+                Make(definition, definition.GetGenericArguments().Select(_ => argument).All());
+            public static Generator<Type> Make(Type definition, Generator<Type[]> arguments) => arguments
                 .Choose(arguments => Core.Option.Try(() => definition.MakeGenericType(arguments)))
                 .With(nameof(Make).Format(definition.Name));
 
-            public static Generator<MethodInfo> Make(MethodInfo definition) => definition.GetGenericArguments()
-                .Select(Argument)
-                .All()
+            public static Generator<MethodInfo> Make(MethodInfo definition) =>
+                Make(definition, definition.GetGenericArguments().Select(Argument).All());
+            public static Generator<MethodInfo> Make(MethodInfo definition, Generator<Type> argument) =>
+                Make(definition, definition.GetGenericArguments().Select(_ => argument).All());
+            public static Generator<MethodInfo> Make(MethodInfo definition, Generator<Type[]> arguments) => arguments
                 .Choose(arguments => Core.Option.Try(() => definition.MakeGenericMethod(arguments)))
                 .With(nameof(Make).Format(definition.Name));
 
@@ -142,6 +151,10 @@ namespace Entia.Check
                     return _valueArgument;
                 return _argument;
             }
+
+            public static Generator<Type> Derived<T>() => Cache<T>.Derived;
+            public static Generator<Type> Derived(Type type, bool hierarchy, bool definition) =>
+                Any(_types.Where(other => other.Is(type, hierarchy, definition)).ToArray());
         }
 
         static class GeneratorCache<T>
@@ -350,11 +363,9 @@ namespace Entia.Check
             generators.Length == 0 ? Empty<T>() :
             From(Name<T>.All.Format(generators), state =>
             {
-                var initial = state.Clone();
                 var values = new T[generators.Length];
                 var shrinkers = new Shrinker<T>[generators.Length];
                 for (int i = 0; i < generators.Length; i++) (values[i], shrinkers[i]) = generators[i].Generate(state);
-                // return (values, Shrinker.All2(generators, shrinkers, initial));
                 return (values, Shrinker.All(values, shrinkers));
             });
 
@@ -368,7 +379,6 @@ namespace Entia.Check
                 var values = new T[length];
                 var shrinkers = new Shrinker<T>[length];
                 for (int i = 0; i < length; i++) (values[i], shrinkers[i]) = generator.Generate(state);
-                // return (values, Shrinker.Repeat2(generator, shrinkers, initial));
                 return (values, Shrinker.Repeat(values, shrinkers));
             });
 
@@ -378,7 +388,7 @@ namespace Entia.Check
 
             var cache = new Tuple<T, Shrinker<T>>[size];
             var count = 0;
-            return From("", state =>
+            return From(Name<T>.Cache, state =>
             {
                 if (state.Random.NextDouble() < ratio &&
                     state.Random.Next(count) is var index &&
@@ -406,6 +416,26 @@ namespace Entia.Check
                 yield return generator.Generate(state).value;
             }
         }
+
+        public static Generator<Outcome<T>> Mutate<T>(this Generator<Mutation<T>[]> mutations, Func<T> create) =>
+            From(Name<T>.Mutate.Format(mutations), state =>
+            {
+                var pair = (value: create(), mutations: mutations.Generate(state));
+                var properties = pair.mutations.value.Select(action => action.Mutate(pair.value)).Flatten();
+                var outcome = new Outcome<T>(pair.value, pair.mutations.value, properties);
+                return (outcome, Shrinker.Mutate(pair.mutations.shrinker, create));
+            });
+
+        public static Generator<Outcome<T>> Mutate<T>(this Generator<T> generator, Generator<Mutation<T>[]> mutations) =>
+            From(Name<T>.Mutate.Format(generator, mutations), state =>
+            {
+                var pair = (value: generator.Generate(state), mutations: mutations.Generate(state));
+                var properties = pair.mutations.value
+                    .Select(pair.value.value, (mutation, value) => mutation.Mutate(value))
+                    .Flatten();
+                var outcome = new Outcome<T>(pair.value.value, pair.mutations.value, properties);
+                return (outcome, Shrinker.Mutate((generator, pair.value.shrinker), pair.mutations));
+            });
 
         static Generator<decimal> Number(decimal minimum, decimal maximum, decimal target)
         {

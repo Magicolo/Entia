@@ -148,6 +148,8 @@ namespace Entia.Core
 
         public static bool Is<T>(this Type type) => typeof(T).IsAssignableFrom(type);
 
+        public static bool IsStatic(this Type type) => type.IsAbstract && type.IsSealed;
+
         public static IEnumerable<string> Path(this Type type)
         {
             var stack = new Stack<string>();

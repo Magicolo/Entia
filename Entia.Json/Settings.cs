@@ -87,5 +87,7 @@ namespace Entia.Json
 
         public Settings With(Features? features = null, Formats? format = null, IConverter[] converters = null) =>
             new Settings(features ?? Features, format ?? Format, converters ?? _converters.Values.ToArray());
+
+        public override string ToString() => $"{nameof(Settings)} {{ {nameof(Features)}: {Features}, {nameof(Format)}: {Format} }})";
     }
 }

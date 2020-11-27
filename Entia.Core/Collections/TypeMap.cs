@@ -27,12 +27,12 @@ namespace Entia.Core
     /// <typeparamref name="TKey"/> constrains keys to types that are assignable to it and <typeparamref name="TValue"/> constrains values
     /// to ones that are assignable to it. These generic parameters also serve to mitigate the memory efficiency problem.
     /// </summary>
-    public sealed class TypeMap<TKey, TValue> : IEnumerable<TypeMap<TKey, TValue>.Enumerator, (Type type, TValue value)>, ICloneable
+    public sealed class TypeMap<TKey, TValue> : IEnumerable<TypeMap<TKey, TValue>.Enumerator, (Type key, TValue value)>, ICloneable
     {
-        public struct Enumerator : IEnumerator<(Type type, TValue value)>
+        public struct Enumerator : IEnumerator<(Type key, TValue value)>
         {
             /// <inheritdoc cref="IEnumerator{T}.Current"/>
-            public (Type type, TValue value) Current => (_entries[_index].Type, _map._values[_index].value);
+            public (Type key, TValue value) Current => (_entries[_index].Type, _map._values[_index].value);
             object IEnumerator.Current => Current;
 
             readonly TypeMap<TKey, TValue> _map;
@@ -220,11 +220,11 @@ namespace Entia.Core
                 throw new IndexOutOfRangeException();
             }
         }
-        public TValue this[Type type]
+        public TValue this[Type key]
         {
             [ThreadSafe]
-            get => TryGet(type, out var value) ? value : throw new IndexOutOfRangeException();
-            set => Set(type, value);
+            get => TryGet(key, out var value) ? value : throw new IndexOutOfRangeException();
+            set => Set(key, value);
         }
         [ThreadSafe]
         public int Count => _count;
@@ -234,18 +234,18 @@ namespace Entia.Core
 
         public TypeMap(int capacity = 4) { _values = new (TValue, bool)[capacity]; }
 
-        public TypeMap(params (Type type, TValue value)[] pairs) : this()
+        public TypeMap(params (Type key, TValue value)[] pairs) : this()
         {
-            foreach (var (type, value) in pairs) Set(type, value);
+            foreach (var (key, value) in pairs) Set(key, value);
         }
 
         [ThreadSafe]
         public int Index<T>() where T : TKey => Cache<T>.Entry.Index;
 
         [ThreadSafe]
-        public bool TryIndex(Type type, out int index)
+        public bool TryIndex(Type key, out int index)
         {
-            var entry = GetEntry(type);
+            var entry = GetEntry(key);
             if (entry.Index < int.MaxValue)
             {
                 index = entry.Index;
@@ -260,18 +260,18 @@ namespace Entia.Core
             Indices(Cache<T>.Entry, super, sub);
 
         [ThreadSafe]
-        public IEnumerable<int> Indices(Type type, bool super = false, bool sub = false) =>
-            Indices(GetEntry(type), super, sub);
+        public IEnumerable<int> Indices(Type key, bool super = false, bool sub = false) =>
+            Indices(GetEntry(key), super, sub);
 
         [ThreadSafe]
-        public ref TValue Get(Type type, out bool success)
+        public ref TValue Get(Type key, out bool success)
         {
-            if (_typeToEntry.TryGetValue(type, out var entry)) return ref Get(entry, out success);
+            if (_typeToEntry.TryGetValue(key, out var entry)) return ref Get(entry, out success);
             success = false;
             return ref Dummy<TValue>.Value;
         }
         [ThreadSafe]
-        public ref TValue Get(Type type, out bool success, bool super, bool sub) => ref Get(GetEntry(type), out success, super, sub);
+        public ref TValue Get(Type key, out bool success, bool super, bool sub) => ref Get(GetEntry(key), out success, super, sub);
         [ThreadSafe]
         public ref TValue Get<T>(out bool success) where T : TKey => ref Get(Cache<T>.Entry, out success);
         [ThreadSafe]
@@ -282,14 +282,14 @@ namespace Entia.Core
         public ref TValue Get(int index, out bool success, bool super, bool sub) => ref Get(_entries[index], out success, super, sub);
 
         [ThreadSafe]
-        public bool TryGet(Type type, out TValue value)
+        public bool TryGet(Type key, out TValue value)
         {
-            if (_typeToEntry.TryGetValue(type, out var entry)) return TryGet(entry, out value);
+            if (_typeToEntry.TryGetValue(key, out var entry)) return TryGet(entry, out value);
             value = default;
             return false;
         }
         [ThreadSafe]
-        public bool TryGet(Type type, out TValue value, bool super, bool sub) => TryGet(GetEntry(type), out value, super, sub);
+        public bool TryGet(Type key, out TValue value, bool super, bool sub) => TryGet(GetEntry(key), out value, super, sub);
         [ThreadSafe]
         public bool TryGet<T>(out TValue value) where T : TKey => TryGet(Cache<T>.Entry, out value);
         [ThreadSafe]
@@ -300,9 +300,9 @@ namespace Entia.Core
         public bool TryGet(int index, out TValue value, bool super, bool sub) => TryGet(_entries[index], out value, super, sub);
 
         [ThreadSafe]
-        public bool Has(Type type) => _typeToEntry.TryGetValue(type, out var entry) && Has(entry);
+        public bool Has(Type key) => _typeToEntry.TryGetValue(key, out var entry) && Has(entry);
         [ThreadSafe]
-        public bool Has(Type type, bool super, bool sub) => Has(GetEntry(type), super, sub);
+        public bool Has(Type key, bool super, bool sub) => Has(GetEntry(key), super, sub);
         [ThreadSafe]
         public bool Has<T>() where T : TKey => Has(Cache<T>.Entry);
         [ThreadSafe]
@@ -313,13 +313,13 @@ namespace Entia.Core
         public bool Has(int index, bool super, bool sub) => Has(_entries[index], super, sub);
 
         public bool Set<T>(in TValue value) where T : TKey => Set(Cache<T>.Entry, value);
-        public bool Set(Type type, in TValue value) => GetEntry(type) is Entry entry && Set(entry, value);
+        public bool Set(Type key, in TValue value) => GetEntry(key) is Entry entry && Set(entry, value);
         public bool Set(int index, in TValue value) => Set(_entries[index], value);
 
         public bool Remove<T>() where T : TKey => Remove(Cache<T>.Entry);
         public bool Remove<T>(bool super, bool sub) where T : TKey => Remove(Cache<T>.Entry, super, sub);
-        public bool Remove(Type type) => _typeToEntry.TryGetValue(type, out var entry) && Remove(entry);
-        public bool Remove(Type type, bool super, bool sub) => Remove(GetEntry(type), super, sub);
+        public bool Remove(Type key) => _typeToEntry.TryGetValue(key, out var entry) && Remove(entry);
+        public bool Remove(Type key, bool super, bool sub) => Remove(GetEntry(key), super, sub);
         public bool Remove(int index) => Remove(_entries[index]);
         public bool Remove(int index, bool super, bool sub) => Remove(_entries[index], super, sub);
 
@@ -344,7 +344,7 @@ namespace Entia.Core
         /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
         [ThreadSafe]
         public Enumerator GetEnumerator() => new(this);
-        IEnumerator<(Type type, TValue value)> IEnumerable<(Type type, TValue value)>.GetEnumerator() => GetEnumerator();
+        IEnumerator<(Type key, TValue value)> IEnumerable<(Type key, TValue value)>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

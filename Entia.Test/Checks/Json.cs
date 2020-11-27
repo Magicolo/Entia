@@ -24,14 +24,21 @@ namespace Entia.Json
             Range(decimal.MinValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number), // Very small negative numbers.
             Range(decimal.MaxValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number), // Very small positive numbers.
             All(Rational, Rational).Map(values => Node.Number(values[0] / values[1])));
+        static readonly Generator<Node> _dollar = ASCII.Map(value => Node.String("$" + value));
+        static readonly Generator<Node> _plain = Any(
+            Node.EmptyString,
+            Enumeration().Map(Node.String),
+            Flags().Map(Node.String),
+            Any(Letter, Digit).Map(Node.String));
         static readonly Generator<Node> _string = Any(
-            Any(Node.EmptyString, Enumeration().Map(Node.String), Flags().Map(Node.String)),
+            Any(_plain, _dollar),
             Any(ASCII, Letter, Digit).String(Range(100)).Map(Node.String),
             Any(Character).String(Range(100)).Map(Node.String),
             Any(Character, ASCII, Letter, Digit, '\\', '\"', '/', '\t', '\f', '\b', '\n', '\r').String(Range(100)).Map(Node.String));
         static readonly Generator<Node> _type = Types.Type.Map(Node.Type);
         static readonly Generator<Node> _array = Lazy(() => _node).Repeat(Range(10).Attenuate(10)).Map(Node.Array);
-        static readonly Generator<Node> _object = All(_string, Lazy(() => _node))
+        static readonly Generator<Node> _key = _string.Filter(node => !node.HasSpecial());
+        static readonly Generator<Node> _object = All(_key, Lazy(() => _node))
             .Repeat(Range(10).Attenuate(10))
             .Map(nodes => Node.Object(nodes.DistinctBy(pair => pair[0].AsString()).ToArray().Flatten()));
         static readonly Generator<Node> _leaf = Any(Node.Null, Node.EmptyArray, Node.EmptyObject, _boolean, _string, _number, _type);
@@ -230,6 +237,8 @@ namespace Entia.Json
                 tuple.node == tuple.system &&
                 tuple.parsed == tuple.system);
 
+            _dollar.Check("Dollar node is special.", node => node.HasSpecial());
+            _plain.Check("Plain string node is plain.", node => node.HasPlain());
             _string.CheckSymmetry("Generate/parse symmetry for String nodes.");
             _number.CheckSymmetry("Generate/parse symmetry for Number nodes.");
             _type.CheckSymmetry("Generate/parse symmetry for Type nodes.");
@@ -258,7 +267,7 @@ namespace Entia.Json
         static Failure<T>[] Check<T>(this Generator<T> generator, string name, Prove<T> prove) =>
             generator.Prove(prove).Log(name).Check();
 
-        static Failure<(Node, string, Result<Node>, Result<string>)>[] CheckSymmetry(this Generator<Node> generator, string name) =>
+        static Failure<(Settings, Node, string, Result<Node>, Result<string>)>[] CheckSymmetry(this Generator<Node> generator, string name) =>
             generator.And(_settings)
                 .Map(pair =>
                 {
@@ -266,7 +275,7 @@ namespace Entia.Json
                     var json1 = Serialization.Generate(node1, settings);
                     var node2 = Serialization.Parse(json1, settings);
                     var json2 = node2.Map(node => Serialization.Generate(node, settings));
-                    return (node1, json1, node2, json2);
+                    return (settings, node1, json1, node2, json2);
                 })
                 .Check(name, values => values.node1 == values.node2 && values.json1 == values.json2);
     }

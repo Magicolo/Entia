@@ -25,8 +25,8 @@ namespace Entia.Core
         Result.Tags IResult.Tag => Result.Tags.Failure;
         Result<T> IResult.Cast<T>() => Result.Failure(Messages);
 
-        public override int GetHashCode() => ArrayUtility.GetHashCode(Messages);
-        public override string ToString() => $"{nameof(Result.Tags.Failure)}({string.Join(", ", Messages)})";
+        public override int GetHashCode() => ArrayUtility.GetHashCode(Messages ?? Array.Empty<string>());
+        public override string ToString() => $"{nameof(Result.Tags.Failure)}({string.Join(", ", Messages ?? Array.Empty<string>())})";
     }
 
     /// <summary>

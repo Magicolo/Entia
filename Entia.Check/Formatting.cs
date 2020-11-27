@@ -1,10 +1,12 @@
+using Entia.Core;
+
 namespace Entia.Check
 {
     static class Formatting
     {
         public static class Name<T>
         {
-            public static readonly string Parameters = $"<{typeof(T).Name}>";
+            public static readonly string Parameters = $"<{typeof(T).Format()}>";
             public static readonly string Constant = $"{nameof(Constant)}{Parameters}";
             public static readonly string Factory = $"{nameof(Factory)}{Parameters}";
             public static readonly string Lazy = $"{nameof(Lazy)}{Parameters}";
@@ -25,11 +27,13 @@ namespace Entia.Check
             public static readonly string Shrink = $"{nameof(Shrink)}{Parameters}";
             public static readonly string Enumeration = $"{nameof(Enumeration)}{Parameters}";
             public static readonly string Flag = $"{nameof(Flag)}{Parameters}";
+            public static readonly string Mutate = $"{nameof(Mutate)}{Parameters}";
+            public static readonly string Cache = $"{nameof(Cache)}{Parameters}";
         }
 
         public static class Name<T1, T2>
         {
-            public static readonly string Parameters = $"<{typeof(T1).Name}, {typeof(T2).Name}>";
+            public static readonly string Parameters = $"<{typeof(T1).Format()}, {typeof(T2).Format()}>";
             public static readonly string Map = $"{nameof(Map)}{Parameters}";
             public static readonly string Bind = $"{nameof(Bind)}{Parameters}";
             public static readonly string Choose = $"{nameof(Choose)}{Parameters}";
@@ -38,19 +42,19 @@ namespace Entia.Check
 
         public static class Name<T1, T2, T3>
         {
-            public static readonly string Parameters = $"<{typeof(T1).Name}, {typeof(T2).Name}, {typeof(T3).Name}>";
+            public static readonly string Parameters = $"<{typeof(T1).Format()}, {typeof(T2).Format()}, {typeof(T3).Format()}>";
             public static readonly string And = $"{nameof(And)}{Parameters}";
         }
 
         public static class Name<T1, T2, T3, T4>
         {
-            public static readonly string Parameters = $"<{typeof(T1).Name}, {typeof(T2).Name}, {typeof(T3).Name}, {typeof(T4).Name}>";
+            public static readonly string Parameters = $"<{typeof(T1).Format()}, {typeof(T2).Format()}, {typeof(T3).Format()}, {typeof(T4).Format()}>";
             public static readonly string And = $"{nameof(And)}{Parameters}";
         }
 
         public static class Name<T1, T2, T3, T4, T5>
         {
-            public static readonly string Parameters = $"<{typeof(T1).Name}, {typeof(T2).Name}, {typeof(T3).Name}, {typeof(T4).Name}, {typeof(T5).Name}>";
+            public static readonly string Parameters = $"<{typeof(T1).Format()}, {typeof(T2).Format()}, {typeof(T3).Format()}, {typeof(T4).Format()}, {typeof(T5).Format()}>";
             public static readonly string And = $"{nameof(And)}{Parameters}";
         }
 

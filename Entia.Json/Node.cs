@@ -80,12 +80,12 @@ namespace Entia.Json
         public static readonly Node EmptyArray = new Node(Kinds.Array, Tags.None, null, _empty);
         public static readonly Node EmptyString = new Node(Kinds.String, Tags.Plain, "", _empty);
 
-        internal static readonly Node DollarT = Dollar('t');
-        internal static readonly Node DollarI = Dollar('i');
-        internal static readonly Node DollarV = Dollar('v');
-        internal static readonly Node DollarR = Dollar('r');
-        internal static readonly Node DollarK = Dollar('k');
         internal static readonly Node DollarA = Dollar('a');
+        internal static readonly Node DollarI = Dollar('i');
+        internal static readonly Node DollarK = Dollar('k');
+        internal static readonly Node DollarR = Dollar('r');
+        internal static readonly Node DollarT = Dollar('t');
+        internal static readonly Node DollarV = Dollar('v');
 
         public static Node Boolean(bool value) => value ? True : False;
         public static Node Number(char value) => Number((decimal)value);
@@ -131,7 +131,7 @@ namespace Entia.Json
             if (value == null) return Null;
             if (value.Length == 0) return EmptyString;
             if (value.Length == 1) return String(value[0]);
-            if (value.Length == 2 && value[0] == '$') return Dollar(value[1]);
+            if (value.Length == 2 && value[0] == '$') return Dollar(value[1], value);
             return String(value, Tags.None);
         }
 
@@ -144,13 +144,14 @@ namespace Entia.Json
 
         internal static Node Array(Node[] items, Tags tags) => items.Length == 0 ? EmptyArray : new Node(Kinds.Array, tags, null, items);
         internal static Node Object(Node[] members, Tags tags) => members.Length == 0 ? EmptyObject : new Node(Kinds.Object, tags, null, members);
-        internal static uint Reserve() => (uint)Interlocked.Increment(ref _counter);
         internal static Node String(string value, Tags tags) => new Node(Kinds.String, tags, value, _empty);
-        internal static Node Dollar(char value)
+        internal static Node Dollar(char value, string full = null)
         {
-            if (value >= Characters) return String("$" + value, Tags.Special | DefaultTags(value));
-            return _dollars[value] ?? (_dollars[value] = String("$" + value, GetTags(value) | Tags.Special));
+            if (value >= Characters) return String(full ?? "$" + value, DefaultTags(value) | Tags.Special);
+            return _dollars[value] ?? (_dollars[value] = String(full ?? "$" + value, GetTags(value) | Tags.Special));
         }
+
+        internal static uint Reserve() => (uint)Interlocked.Increment(ref _counter);
 
         static Tags GetTags(char value)
         {

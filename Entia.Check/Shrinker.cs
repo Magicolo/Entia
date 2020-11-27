@@ -38,6 +38,7 @@ namespace Entia.Check
         public static Shrinker<T> And<T>(this Shrinker<T> shrinker1, Shrinker<T> shrinker2)
         {
             return From(Name<T>.And.Format(shrinker1, shrinker2), Shrink);
+
             IEnumerable<Generator<T>> Shrink()
             {
                 foreach (var generator in shrinker1.Shrink()) yield return generator;
@@ -48,6 +49,7 @@ namespace Entia.Check
         internal static Shrinker<decimal> Number(decimal source, decimal target)
         {
             return From(nameof(Number).Format(source, target), Shrink);
+
             IEnumerable<Generator<decimal>> Shrink()
             {
                 var difference = target - source;
@@ -66,55 +68,24 @@ namespace Entia.Check
         internal static Shrinker<T[]> Repeat<T>(T[] values, Shrinker<T>[] shrinkers)
         {
             return From(Name<T>.Repeat.Format(shrinkers), Shrink);
+
             IEnumerable<Generator<T[]>> Shrink()
             {
                 // Try to remove irrelevant generators.
                 for (int i = 0; i < values.Length; i++)
                 {
-                    var pair = (values.RemoveAt(i), shrinkers.RemoveAt(i));
-                    yield return Generator.Constant(pair.Item1, Repeat(pair.Item1, pair.Item2));
+                    var pair = (values: values.RemoveAt(i), shrinkers: shrinkers.RemoveAt(i));
+                    yield return Generator.Constant(pair.values, Repeat(pair.values, pair.shrinkers));
                 }
                 // Try to shrink relevant generators.
                 foreach (var generator in All(values, shrinkers).Shrink()) yield return generator;
             }
         }
 
-        internal static Shrinker<T[]> Repeat2<T>(Generator<T> generator, Shrinker<T>[] shrinkers, Generator.State state)
-        {
-            return From(Name<T>.Repeat.Format(shrinkers), Shrink);
-            IEnumerable<Generator<T[]>> Shrink()
-            {
-                // Try to remove irrelevant generators.
-                for (int i = 0; i < shrinkers.Length; i++)
-                    yield return generator.Repeat(shrinkers.Length).Adapt(state.Clone()).Map(values => values.RemoveAt(i));
-
-                // Try to shrink relevant generators.
-                var generators = Enumerable.Repeat(generator, shrinkers.Length).ToArray();
-                foreach (var generator in All2(generators, shrinkers, state).Shrink())
-                    yield return generator;
-            }
-        }
-
-        internal static Shrinker<T[]> All2<T>(Generator<T>[] generators, Shrinker<T>[] shrinkers, Generator.State state)
-        {
-            return From(Name<T>.Repeat.Format(shrinkers), Shrink);
-            IEnumerable<Generator<T[]>> Shrink()
-            {
-                for (int i = 0; i < shrinkers.Length; i++)
-                {
-                    foreach (var generator in shrinkers[i].Shrink())
-                    {
-                        var clones = CloneUtility.Shallow(generators);
-                        clones[i] = generator;
-                        yield return Generator.All(clones).Adapt(state);
-                    }
-                }
-            }
-        }
-
         internal static Shrinker<T[]> All<T>(T[] values, Shrinker<T>[] shrinkers)
         {
             return From(Name<T>.All.Format(shrinkers), Shrink);
+
             IEnumerable<Generator<T[]>> Shrink()
             {
                 for (int i = 0; i < shrinkers.Length; i++)
@@ -123,12 +94,34 @@ namespace Entia.Check
                     {
                         yield return Generator.From(generator.Name, state =>
                         {
-                            var pair = (CloneUtility.Shallow(values), CloneUtility.Shallow(shrinkers));
-                            (pair.Item1[i], pair.Item2[i]) = generator.Generate(state);
-                            return (pair.Item1, All(pair.Item1, pair.Item2));
+                            var pair = (values: CloneUtility.Shallow(values), shrinkers: CloneUtility.Shallow(shrinkers));
+                            (pair.values[i], pair.shrinkers[i]) = generator.Generate(state);
+                            return (pair.values, All(pair.values, pair.shrinkers));
                         });
                     }
                 }
+            }
+        }
+
+        internal static Shrinker<Outcome<T>> Mutate<T>(Shrinker<Mutation<T>[]> shrinker, Func<T> create)
+        {
+            return From(Name<T>.Mutate.Format(shrinker), Shrink);
+
+            IEnumerable<Generator<Outcome<T>>> Shrink()
+            {
+                foreach (var generator in shrinker.Shrink())
+                    yield return generator.Mutate(create);
+            }
+        }
+
+        internal static Shrinker<Outcome<T>> Mutate<T>((Generator<T> generator, Shrinker<T> shrinker) value, (Generator<Mutation<T>[]> generator, Shrinker<Mutation<T>[]> shrinker) mutations)
+        {
+            return From(Name<T>.Mutate.Format(value.shrinker, mutations.shrinker), Shrink);
+
+            IEnumerable<Generator<Outcome<T>>> Shrink()
+            {
+                foreach (var generator in value.shrinker.Shrink()) yield return generator.Mutate(mutations.generator);
+                foreach (var generator in mutations.shrinker.Shrink()) yield return value.generator.Mutate(generator);
             }
         }
     }

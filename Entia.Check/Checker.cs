@@ -91,11 +91,11 @@ namespace Entia.Check
                     var size = Math.Min(i / maximum, 1.0);
                     var state = new Generator.State(size, 0, new Random(seed));
                     var (value, shrinker) = checker.Generator.Generate(state);
-                    foreach (var property in checker.Prover.Prove(value))
+                    var properties = checker.Prover.Prove(value);
+                    foreach (var property in properties)
                     {
                         if (property.Proof) continue;
                         return Shrink(checker, value, shrinker, property, i, seed, size);
-
                     }
                 }
                 return Option.None();
@@ -111,7 +111,8 @@ namespace Entia.Check
                     {
                         var state = new Generator.State(size, 0, new Random(seed));
                         var pair = generator.Generate(state);
-                        foreach (var property in checker.Prover.Prove(pair.value))
+                        var properties = checker.Prover.Prove(pair.value);
+                        foreach (var property in properties)
                         {
                             if (property.Proof) continue;
                             (shrinked, shrinker) = pair;
