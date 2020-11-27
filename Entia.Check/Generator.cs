@@ -26,17 +26,6 @@ namespace Entia.Check
     {
         public sealed class State
         {
-            static FieldInfo[] _fields = typeof(Random).Fields(true, false)
-                .Where(field => !field.FieldType.IsPrimitive)
-                .ToArray();
-            static Random Clone(Random random)
-            {
-                var clone = CloneUtility.Shallow(random);
-                foreach (var field in _fields)
-                    field.SetValue(clone, CloneUtility.Shallow(field.GetValue(random)));
-                return clone;
-            }
-
             public readonly double Size;
             public readonly uint Depth;
             public readonly Random Random;
@@ -47,8 +36,6 @@ namespace Entia.Check
                 Depth = depth;
                 Random = random;
             }
-
-            public State Clone() => new State(Size, Depth, Clone(Random));
 
             public State With(double? size = null, uint? depth = null) =>
                 new State(size ?? Size, depth ?? Depth, Random);
@@ -375,7 +362,6 @@ namespace Entia.Check
                 var length = count.Generate(state).value;
                 if (length == 0) return Empty<T>().Generate(state);
 
-                var initial = state.Clone();
                 var values = new T[length];
                 var shrinkers = new Shrinker<T>[length];
                 for (int i = 0; i < length; i++) (values[i], shrinkers[i]) = generator.Generate(state);
