@@ -403,15 +403,6 @@ namespace Entia.Check
             }
         }
 
-        public static Generator<Outcome<T>> Mutate<T>(this Generator<Mutation<T>[]> mutations, Func<T> create) =>
-            From(Name<T>.Mutate.Format(mutations), state =>
-            {
-                var pair = (value: create(), mutations: mutations.Generate(state));
-                var properties = pair.mutations.value.Select(action => action.Mutate(pair.value)).Flatten();
-                var outcome = new Outcome<T>(pair.value, pair.mutations.value, properties);
-                return (outcome, Shrinker.Mutate(pair.mutations.shrinker, create));
-            });
-
         public static Generator<Outcome<T>> Mutate<T>(this Generator<T> generator, Generator<Mutation<T>[]> mutations) =>
             From(Name<T>.Mutate.Format(generator, mutations), state =>
             {

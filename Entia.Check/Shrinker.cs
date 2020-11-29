@@ -103,17 +103,6 @@ namespace Entia.Check
             }
         }
 
-        internal static Shrinker<Outcome<T>> Mutate<T>(Shrinker<Mutation<T>[]> shrinker, Func<T> create)
-        {
-            return From(Name<T>.Mutate.Format(shrinker), Shrink);
-
-            IEnumerable<Generator<Outcome<T>>> Shrink()
-            {
-                foreach (var generator in shrinker.Shrink())
-                    yield return generator.Mutate(create);
-            }
-        }
-
         internal static Shrinker<Outcome<T>> Mutate<T>((Generator<T> generator, Shrinker<T> shrinker) value, (Generator<Mutation<T>[]> generator, Shrinker<Mutation<T>[]> shrinker) mutations)
         {
             return From(Name<T>.Mutate.Format(value.shrinker, mutations.shrinker), Shrink);

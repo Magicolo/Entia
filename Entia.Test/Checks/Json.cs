@@ -19,10 +19,11 @@ namespace Entia.Json
             Integer.Map(Node.Number),
             Rational.Map(Node.Number),
             Rational.Inverse().Map(Node.Number), // Small numbers.
-            Range(decimal.MinValue).Size(size => Math.Pow(size, 20)).Map(Node.Number), // Very large negative numbers.
-            Range(decimal.MaxValue).Size(size => Math.Pow(size, 20)).Map(Node.Number), // Very large positive numbers.
-            Range(decimal.MinValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number), // Very small negative numbers.
-            Range(decimal.MaxValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number), // Very small positive numbers.
+            Any(
+                Range(decimal.MinValue).Size(size => Math.Pow(size, 20)).Map(Node.Number), // Very large negative numbers.
+                Range(decimal.MaxValue).Size(size => Math.Pow(size, 20)).Map(Node.Number), // Very large positive numbers.
+                Range(decimal.MinValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number), // Very small negative numbers.
+                Range(decimal.MaxValue).Size(size => Math.Pow(size, 20)).Inverse().Map(Node.Number)), // Very small positive numbers.
             All(Rational, Rational).Map(values => Node.Number(values[0] / values[1])));
         static readonly Generator<Node> _dollar = ASCII.Map(value => Node.String("$" + value));
         static readonly Generator<Node> _plain = Any(
