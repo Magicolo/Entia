@@ -16,8 +16,8 @@ namespace Entia.Test
         TConcrete _component;
         bool _has;
         bool _success;
-        OnAdd[] _onAdd;
-        OnAdd<TConcrete>[] _onAddT;
+        OnAdd[] _onAdd = { };
+        OnAdd<TConcrete>[] _onAddT = { };
 
         public AddComponent(Type @abstract) { _abstract = @abstract; }
 

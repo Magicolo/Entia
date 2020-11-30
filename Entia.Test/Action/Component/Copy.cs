@@ -13,11 +13,11 @@ namespace Entia.Test
         States _include;
         Entity _source;
         Entity _target;
-        IComponent[] _sources;
-        IComponent[] _targets;
-        IComponent[] _copies;
-        Type[] _missing;
-        OnAdd[] _onAdd;
+        IComponent[] _sources = { };
+        IComponent[] _targets = { };
+        IComponent[] _copies = { };
+        Type[] _missing = { };
+        OnAdd[] _onAdd = { };
         bool _success;
 
         public override bool Pre(World value, Model model)
@@ -83,11 +83,11 @@ namespace Entia.Test
         States _include;
         Entity _source;
         Entity _target;
-        IComponent[] _sources;
-        IComponent[] _targets;
-        IComponent[] _copies;
-        Type[] _missing;
-        OnAdd[] _onAdd;
+        IComponent[] _sources = { };
+        IComponent[] _targets = { };
+        IComponent[] _copies = { };
+        Type[] _missing = { };
+        OnAdd[] _onAdd = { };
         bool _success;
 
         public CopyComponent(Type type) { _type = type; }
@@ -155,11 +155,11 @@ namespace Entia.Test
         States _include;
         Entity _source;
         Entity _target;
-        IComponent[] _sources;
-        IComponent[] _targets;
-        IComponent[] _copies;
-        Type[] _missing;
-        OnAdd[] _onAdd;
+        IComponent[] _sources = { };
+        IComponent[] _targets = { };
+        IComponent[] _copies = { };
+        Type[] _missing = { };
+        OnAdd[] _onAdd = { };
         bool _success;
 
         public override bool Pre(World value, Model model)

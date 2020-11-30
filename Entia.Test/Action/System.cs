@@ -97,12 +97,12 @@ namespace Entia.Test
         int _counter4;
         int _counter5;
         int _counter6;
-        Entity[] _entities1;
-        Entity[] _entities2;
-        Entity[] _entities3;
-        Entity[] _entities4;
-        Entity[] _entities5;
-        Entity[] _entities6;
+        Entity[] _entities1 = { };
+        Entity[] _entities2 = { };
+        Entity[] _entities3 = { };
+        Entity[] _entities4 = { };
+        Entity[] _entities5 = { };
+        Entity[] _entities6 = { };
         Result<Unit> _result;
 
         public override bool Pre(World value, Model model)

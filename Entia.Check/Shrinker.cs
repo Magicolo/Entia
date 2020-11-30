@@ -12,7 +12,7 @@ namespace Entia.Check
         public readonly string Name;
         public readonly Shrink<T> Shrink;
         public Shrinker(string name, Shrink<T> shrink) { Name = name; Shrink = shrink; }
-        public Shrinker<T> With(string name = null, Shrink<T> shrink = null) => new Shrinker<T>(name ?? Name, shrink ?? Shrink);
+        public Shrinker<T> With(string? name = null, Shrink<T>? shrink = null) => new Shrinker<T>(name ?? Name, shrink ?? Shrink);
         public override string ToString() => Name;
     }
 

@@ -9,9 +9,9 @@ namespace Entia.Core
 {
     public static class Checks
     {
-        static readonly Generator<Outcome<object>> _map =
-            Types.Make(typeof(Checks).GetMethod(nameof(Map), ReflectionUtility.All), Types.Abstract)
-                .Bind(method => (Generator<Outcome<object>>)method.Invoke(null, null))
+        static readonly Generator<Outcome<object?>> _map =
+            Types.Make(typeof(Checks).GetMethod(nameof(Map), ReflectionUtility.All)!, Types.Abstract)
+                .Bind(method => (Generator<Outcome<object?>>)method.Invoke(null, null)!)
                 .Cache(0.9);
 
         public static void Run()
@@ -19,9 +19,9 @@ namespace Entia.Core
             _map.Check(nameof(TypeMap<Unit, Unit>), outcome => outcome.Properties);
         }
 
-        static Generator<Outcome<object>> Map<TKey, TValue>()
+        static Generator<Outcome<object?>> Map<TKey, TValue>()
         {
-            static Mutation<TypeMap<TKey, TValue>> From(string name, Mutate<TypeMap<TKey, TValue>> mutate) =>
+            static Mutation<TypeMap<TKey, TValue?>> From(string name, Mutate<TypeMap<TKey, TValue?>> mutate) =>
                 Mutation.From(name, mutate);
 
             var key = Any(Types.Derived<TKey>(), Types.Type).Cache();
@@ -90,7 +90,7 @@ namespace Entia.Core
                 };
             }));
 
-            return Factory(() => new TypeMap<TKey, TValue>())
+            return Factory(() => new TypeMap<TKey, TValue?>())
                 .Mutate(Any((50f, set), (25f, remove), (1f, clear), (1f, clone)).Repeat(Range(1000)))
                 .Map(outcome =>
                 {

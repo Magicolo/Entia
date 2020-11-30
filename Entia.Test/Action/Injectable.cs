@@ -26,11 +26,11 @@ namespace Entia.Test
 
     public sealed class Inject<T> : Action<World, Model> where T : IInjectable
     {
-        readonly MemberInfo _member;
+        readonly MemberInfo? _member;
         Result<T> _resultT;
         Result<object> _result;
 
-        public Inject(MemberInfo member = null) { _member = member; }
+        public Inject(MemberInfo? member = null) { _member = member; }
 
         public override void Do(World value, Model model)
         {

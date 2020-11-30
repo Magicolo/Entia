@@ -12,10 +12,10 @@ namespace Entia.Test
     public class ClearComponents : Action<World, Model>
     {
         States _include;
-        Entity[] _entities;
+        Entity[] _entities = { };
         int _count;
         bool _success;
-        OnRemove[] _onRemove;
+        OnRemove[] _onRemove = { };
 
         public override bool Pre(World value, Model model)
         {
@@ -79,10 +79,10 @@ namespace Entia.Test
     {
         States _include;
         Type _type;
-        Entity[] _entities;
+        Entity[] _entities = { };
         int _count;
         bool _success;
-        OnRemove[] _onRemove;
+        OnRemove[] _onRemove = { };
 
         public ClearComponent(Type type) { _type = type; }
 
@@ -146,11 +146,11 @@ namespace Entia.Test
     public class ClearComponent<T> : Action<World, Model> where T : struct, IComponent
     {
         States _include;
-        Entity[] _entities;
+        Entity[] _entities = { };
         int _count;
         bool _success;
-        OnRemove[] _onRemove;
-        OnRemove<T>[] _onRemoveT;
+        OnRemove[] _onRemove = { };
+        OnRemove<T>[] _onRemoveT = { };
 
         public override bool Pre(World value, Model model)
         {

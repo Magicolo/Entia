@@ -49,7 +49,7 @@ namespace Entia.Json
             var twitterNode = Serialization.Parse(twitterJson).Or(Node.Null);
             var twitterObject = JsonConvert.DeserializeObject<JObject>(twitterJson, settings);
 
-            void Test<T>(in T value, out string json, out Node node, out T instance, Settings settings = null)
+            void Test<T>(in T value, out string json, out Node node, out T instance, Settings? settings = null)
             {
                 json = Json.Serialization.Serialize(value, settings);
                 node = Serialization.Parse(json, settings).Or(Node.Null);
@@ -58,7 +58,7 @@ namespace Entia.Json
 
             Test(new Cyclic(), out var json4, out var node4, out var value4, withAll);
             Test<object>(new Cyclic(), out var json4B, out var node4B, out var value4B, withAll);
-            Test<object>(new Dictionary<object, object>
+            Test<object>(new Dictionary<object, object?>
             {
                 { 1, "2" },
                 { "3", null },

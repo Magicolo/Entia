@@ -18,7 +18,7 @@ namespace Entia.Check
         public readonly string Name;
         public readonly Generate<T> Generate;
         public Generator(string name, Generate<T> generate) { Name = name; Generate = generate; }
-        public Generator<T> With(string name = null, Generate<T> generate = null) => new Generator<T>(name ?? Name, generate ?? Generate);
+        public Generator<T> With(string? name = null, Generate<T>? generate = null) => new Generator<T>(name ?? Name, generate ?? Generate);
         public override string ToString() => Name;
     }
 
@@ -146,7 +146,6 @@ namespace Entia.Check
 
         static class GeneratorCache<T>
         {
-            public static readonly Generator<T> Default = Constant(default(T)).With(Name<T>.Default);
             public static readonly Generator<T[]> Empty = Constant(Array.Empty<T>()).With(Name<T>.Empty);
         }
 
@@ -174,7 +173,6 @@ namespace Entia.Check
         public static readonly Generator<float> Infinity = Any(float.NegativeInfinity, float.PositiveInfinity).With(nameof(Infinity));
         public static readonly Generator<Assembly> Assembly = ReflectionUtility.AllAssemblies.Select(Constant).Any().With(nameof(Assembly));
 
-        public static Generator<T> Default<T>() => GeneratorCache<T>.Default;
         public static Generator<T[]> Empty<T>() => GeneratorCache<T>.Empty;
         public static Generator<Array> Empty(Type type) => Constant(Array.CreateInstance(type, 0)).With(nameof(Empty).Format(type.Name));
         public static Generator<T> From<T>(string name, Generate<T> generate) => new Generator<T>(name, generate);
@@ -329,20 +327,20 @@ namespace Entia.Check
             });
         }
 
-        public static Generator<object> Box<T>(this Generator<T> generator) =>
-            generator.Map(value => (object)value).With(Name<T>.Box.Format(generator));
+        public static Generator<object?> Box<T>(this Generator<T> generator) =>
+            generator.Map(value => (object?)value).With(Name<T>.Box.Format(generator));
 
         public static Generator<(T1, T2)> And<T1, T2>(this Generator<T1> generator1, Generator<T2> generator2) =>
-            All(generator1.Box(), generator2.Box()).Map(values => ((T1)values[0], (T2)values[1]))
+            All(generator1.Box(), generator2.Box()).Map(values => ((T1)values[0]!, (T2)values[1]!))
                 .With(Name<T1, T2>.And.Format(generator1, generator2));
         public static Generator<(T1, T2, T3)> And<T1, T2, T3>(this Generator<T1> generator1, Generator<T2> generator2, Generator<T3> generator3) =>
-            All(generator1.Box(), generator2.Box(), generator3.Box()).Map(values => ((T1)values[0], (T2)values[1], (T3)values[2]))
+            All(generator1.Box(), generator2.Box(), generator3.Box()).Map(values => ((T1)values[0]!, (T2)values[1]!, (T3)values[2]!))
                 .With(Name<T1, T2, T3>.And.Format(generator1, generator2, generator3));
         public static Generator<(T1, T2, T3, T4)> And<T1, T2, T3, T4>(this Generator<T1> generator1, Generator<T2> generator2, Generator<T3> generator3, Generator<T4> generator4) =>
-            All(generator1.Box(), generator2.Box(), generator3.Box(), generator4.Box()).Map(values => ((T1)values[0], (T2)values[1], (T3)values[2], (T4)values[3]))
+            All(generator1.Box(), generator2.Box(), generator3.Box(), generator4.Box()).Map(values => ((T1)values[0]!, (T2)values[1]!, (T3)values[2]!, (T4)values[3]!))
                 .With(Name<T1, T2, T3, T4>.And.Format(generator1, generator2, generator3, generator4));
         public static Generator<(T1, T2, T3, T4, T5)> And<T1, T2, T3, T4, T5>(this Generator<T1> generator1, Generator<T2> generator2, Generator<T3> generator3, Generator<T4> generator4, Generator<T5> generator5) =>
-            All(generator1.Box(), generator2.Box(), generator3.Box(), generator4.Box(), generator5.Box()).Map(values => ((T1)values[0], (T2)values[1], (T3)values[2], (T4)values[3], (T5)values[4]))
+            All(generator1.Box(), generator2.Box(), generator3.Box(), generator4.Box(), generator5.Box()).Map(values => ((T1)values[0]!, (T2)values[1]!, (T3)values[2]!, (T4)values[3]!, (T5)values[4]!))
                 .With(Name<T1, T2, T3, T4, T5>.And.Format(generator1, generator2, generator3, generator4, generator5));
 
         public static Generator<T[]> All<T>(this IEnumerable<Generator<T>> generators) => All(generators.ToArray());

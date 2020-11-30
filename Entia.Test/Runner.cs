@@ -20,7 +20,7 @@ namespace Entia.Test
             public TestResult Result;
         }
 
-        public (bool success, Action.Sequence<World, Model> original, Action.Sequence<World, Model> shrunk, int seed) Result { get; private set; }
+        public (bool success, Action.Sequence<World, Model>? original, Action.Sequence<World, Model>? shrunk, int seed) Result { get; private set; }
 
         readonly object _lock = new object();
         readonly State[] _states;

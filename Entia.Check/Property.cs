@@ -13,7 +13,7 @@ namespace Entia.Check
         public readonly string Name;
         public readonly bool Proof;
         public Property(string name, bool proof) { Name = name; Proof = proof; }
-        public Property With(string name = null, bool? proof = null) => new Property(name ?? Name, proof ?? Proof);
+        public Property With(string? name = null, bool? proof = null) => new Property(name ?? Name, proof ?? Proof);
         public override string ToString() => Name;
     }
 }

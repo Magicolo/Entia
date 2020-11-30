@@ -13,7 +13,7 @@ namespace Entia.Test
     {
         Entity _parent;
         Entity _child;
-        OnAdopt[] _onAdopt;
+        OnAdopt[] _onAdopt = { };
         bool _success;
 
         public override bool Pre(World value, Model model)
@@ -74,7 +74,7 @@ namespace Entia.Test
     {
         Entity _child;
         Entity _parent;
-        OnReject[] _onReject;
+        OnReject[] _onReject = { };
         bool _success;
 
         public override bool Pre(World value, Model model)

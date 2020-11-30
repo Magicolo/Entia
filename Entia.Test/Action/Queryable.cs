@@ -11,7 +11,7 @@ namespace Entia.Test
     public sealed class Query : Action<World, Model>
     {
         readonly Type[] _types;
-        IQuerier[] _failures;
+        IQuerier[] _failures = { };
 
         public Query(params Type[] types) { _types = types; }
 

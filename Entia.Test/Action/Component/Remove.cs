@@ -15,7 +15,7 @@ namespace Entia.Test
         States _include;
         Entity _entity;
         bool _success;
-        OnRemove[] _onRemove;
+        OnRemove[] _onRemove = { };
 
         public RemoveComponent(Type type) { _type = type; }
 
@@ -72,8 +72,8 @@ namespace Entia.Test
         States _include;
         Entity _entity;
         bool _success;
-        OnRemove[] _onRemove;
-        OnRemove<T>[] _onRemoveT;
+        OnRemove[] _onRemove = { };
+        OnRemove<T>[] _onRemoveT = { };
 
         public override bool Pre(World value, Model model)
         {

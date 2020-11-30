@@ -13,12 +13,12 @@ namespace Entia.Test
         States _include;
         Entity _source;
         Entity _target;
-        IComponent[] _sources;
-        IComponent[] _targets;
-        IComponent[] _trimmed;
-        Type[] _exceeding;
+        IComponent[] _sources = { };
+        IComponent[] _targets = { };
+        IComponent[] _trimmed = { };
+        Type[] _exceeding = { };
         bool _success;
-        OnRemove[] _onRemove;
+        OnRemove[] _onRemove = { };
 
         public override bool Pre(World value, Model model)
         {

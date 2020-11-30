@@ -30,7 +30,7 @@ namespace Entia.Check
             OnProgress = onProgress;
         }
 
-        public Checker<T> With(Generator<T>? generator = null, Prover<T>? prover = null, int? iterations = null, int? parallel = null, Action onPre = null, Action<Failure<T>[]> onPost = null, Action<TimeSpan, double> onProgress = null) =>
+        public Checker<T> With(Generator<T>? generator = null, Prover<T>? prover = null, int? iterations = null, int? parallel = null, Action? onPre = null, Action<Failure<T>[]>? onPost = null, Action<TimeSpan, double>? onProgress = null) =>
             new Checker<T>(generator ?? Generator, prover ?? Prover, iterations ?? Iterations, parallel ?? Parallel, OnPre + onPre, OnPost + onPost, OnProgress + onProgress);
     }
 

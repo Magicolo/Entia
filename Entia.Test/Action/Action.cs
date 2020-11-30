@@ -97,7 +97,7 @@ $@"
                     .Select(actions => new Sequence<T, TModel>(sequence.Initial, sequence.Check, actions))) :
             Arb.From(generator);
 
-        public static Gen<Sequence<T, TModel>> ToSequence<T, TModel>(this Gen<Action<T, TModel>> generator, Func<int, (T, TModel)> initial, Func<T, TModel, Property> check = null)
+        public static Gen<Sequence<T, TModel>> ToSequence<T, TModel>(this Gen<Action<T, TModel>> generator, Func<int, (T, TModel)> initial, Func<T, TModel, Property>? check = null)
         {
             check = check ?? ((_, __) => true.ToProperty());
             return Gen.ArrayOf(generator).Select(actions => new Sequence<T, TModel>(initial, check, actions));

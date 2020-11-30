@@ -11,7 +11,7 @@ namespace Entia.Test
     public class CreateEntity : Action<World, Model>
     {
         Entity _entity;
-        OnCreate[] _onCreate;
+        OnCreate[] _onCreate = { };
 
         public override void Do(World value, Model model)
         {
@@ -54,9 +54,9 @@ namespace Entia.Test
     public class DestroyEntity : Action<World, Model>
     {
         Entity _entity;
-        Entity[] _entities;
-        OnPreDestroy[] _onPreDestroy;
-        OnPostDestroy[] _onPostDestroy;
+        Entity[] _entities = { };
+        OnPreDestroy[] _onPreDestroy = { };
+        OnPostDestroy[] _onPostDestroy = { };
 
         public override bool Pre(World value, Model model)
         {
@@ -104,9 +104,9 @@ namespace Entia.Test
 
     public class ClearEntities : Action<World, Model>
     {
-        Entity[] _entities;
-        OnPreDestroy[] _onPreDestroy;
-        OnPostDestroy[] _onPostDestroy;
+        Entity[] _entities = { };
+        OnPreDestroy[] _onPreDestroy = { };
+        OnPostDestroy[] _onPostDestroy = { };
 
         public override bool Pre(World value, Model model)
         {

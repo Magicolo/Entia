@@ -14,7 +14,7 @@ namespace Entia.Test
         Type _type;
         Entity _entity;
         bool _success;
-        OnDisable[] _onDisable;
+        OnDisable[] _onDisable = { };
 
         public DisableComponent(Type type) { _type = type; }
 
@@ -92,8 +92,8 @@ namespace Entia.Test
     {
         Entity _entity;
         bool _success;
-        OnDisable[] _onDisable;
-        OnDisable<T>[] _onDisableT;
+        OnDisable[] _onDisable = { };
+        OnDisable<T>[] _onDisableT = { };
 
         public override bool Pre(World value, Model model)
         {

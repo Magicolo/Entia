@@ -14,7 +14,7 @@ namespace Entia.Test
 {
     public sealed class GetEntityGroup : GetGroup<Entity>
     {
-        public GetEntityGroup(MemberInfo member = null) : base(member) { }
+        public GetEntityGroup(MemberInfo? member = null) : base(member) { }
 
         public override Property Check(World value, Model model)
         {
@@ -22,6 +22,8 @@ namespace Entia.Test
 
             IEnumerable<(bool test, string label)> Tests()
             {
+                if (_group == null) yield break;
+
                 yield return (_group.SequenceEqual(_group.Entities), "Group.SequenceEqual(Entities)");
                 yield return (_group.All(_group.Has), "Group.All(Group.Has)");
             }
@@ -45,7 +47,7 @@ namespace Entia.Test
             public Write<Tests.ComponentB> WriteB;
         }
 
-        public GetPointerGroup(MemberInfo member = null) : base(member) { }
+        public GetPointerGroup(MemberInfo? member = null) : base(member) { }
 
         public override Property Check(World value, Model model)
         {
@@ -62,6 +64,8 @@ namespace Entia.Test
 
             IEnumerable<(bool test, string label)> Tests()
             {
+                if (_group == null) yield break;
+
                 var entities = value.Entities();
                 var components = value.Components();
                 yield return (pointerA1.SequenceEqual(pointerA2), "pointerA1 == pointerA2");
@@ -86,13 +90,13 @@ namespace Entia.Test
 
     public class GetGroup<T> : Action<World, Model> where T : struct, Queryables.IQueryable
     {
-        protected MemberInfo _member;
-        protected Querier<T> _querier;
-        protected Segment[] _segments;
-        protected Entity[] _entities;
-        protected Group<T> _group;
+        protected MemberInfo? _member;
+        protected Querier<T>? _querier;
+        protected Segment[] _segments = { };
+        protected Entity[] _entities = { };
+        protected Group<T>? _group;
 
-        public GetGroup(MemberInfo member = null) { _member = member; }
+        public GetGroup(MemberInfo? member = null) { _member = member; }
 
         public override bool Pre(World value, Model model)
         {
@@ -108,6 +112,8 @@ namespace Entia.Test
 
             IEnumerable<(bool test, string label)> Tests()
             {
+                if (_group == null) yield break;
+
                 yield return (_group.Count == _entities.Length, "Group.Count");
                 yield return (_group.Count == _group.Count(), "Group.Count()");
                 yield return (_group.ToArray().Length == _group.Count, "Group.ToArray()");

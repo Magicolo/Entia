@@ -1,6 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using FsCheck;
 
 namespace Entia.Test
@@ -18,7 +16,7 @@ namespace Entia.Test
                 var slave = new SlaveRunner(index, count / parallel, master);
                 property.Check(new Configuration { Name = name, MaxNbOfTest = count / parallel, EndSize = size, Runner = slave });
             });
-            return master.Result;
+            return master.Result!;
         }
     }
 }
