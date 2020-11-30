@@ -21,7 +21,7 @@ namespace Entia.Core
 
         static Generator<Outcome<object?>> Map<TKey, TValue>()
         {
-            static Mutation<TypeMap<TKey, TValue?>> From(string name, Mutate<TypeMap<TKey, TValue?>> mutate) =>
+            static Mutation<TypeMap<TKey, TValue>> From(string name, Mutate<TypeMap<TKey, TValue>> mutate) =>
                 Mutation.From(name, mutate);
 
             var key = Any(Types.Derived<TKey>(), Types.Type).Cache();
@@ -29,7 +29,7 @@ namespace Entia.Core
             {
                 var count = map.Count;
                 var has = map.Has(key);
-                var set = map.Set(key, default);
+                var set = map.Set(key, default!);
                 return Prove().ToArray();
 
                 IEnumerable<Property> Prove()
@@ -90,7 +90,7 @@ namespace Entia.Core
                 };
             }));
 
-            return Factory(() => new TypeMap<TKey, TValue?>())
+            return Factory(() => new TypeMap<TKey, TValue>())
                 .Mutate(Any((50f, set), (25f, remove), (1f, clear), (1f, clone)).Repeat(Range(1000)))
                 .Map(outcome =>
                 {

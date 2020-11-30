@@ -253,7 +253,7 @@ namespace Entia.Json
                 return (node, generated, parsed);
 
                 string Generate(Node node) => Serialization.Generate(node.Map(child => Generate(child)), settings);
-                Node Parse(string json) => Serialization.Parse(json, settings).Or(Node.Null).Map(child => Parse(child.AsString()));
+                Node Parse(string? json) => Serialization.Parse(json, settings).Or(Node.Null).Map(child => Parse(child.AsString()));
             }).Check("Generate/parse symmetry for nested json.", tuple => tuple.node == tuple.parsed);
 
             // TODO: Add test for parsing foreign jsons

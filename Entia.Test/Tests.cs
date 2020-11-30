@@ -52,8 +52,8 @@ namespace Entia
         public struct ComponentC<T> : IComponentB
         {
             [Default]
-            public static ComponentC<T> Default => new ComponentC<T> { B = new(), C = new() { default, default } };
-            public List<T?>? A, B, C;
+            public static ComponentC<T> Default => new ComponentC<T> { B = new(), C = new() { default!, default! } };
+            public List<T> A, B, C;
         }
         public struct MessageA : IMessage { }
         public struct MessageB : IMessage
