@@ -38,6 +38,10 @@ namespace Entia.Check
             Integer.Filter(value => value % 2 == 0).Check("Filter filters for even numbers.", value => value % 2 == 0);
             Rational.Filter(value => value >= 0f).Check("Filter filters for positive numbers.", value => value >= 0f);
 
+            Types.Concrete.Bind(type => Factory(type).Map(value => (type, value)))
+                .Check("Factory produces values of appropriate type.", pair => pair.value is null || pair.value.GetType() == pair.type);
+            Types.Argument().Bind(type => Empty(type).Map(value => (type, value)))
+                .Check("Empty produces arrays of appropriate type.", value => value.value is null || value.value.GetType().GetElementType() == value.type);
             Types.Abstract.Check("Types.Abstract is abstract.", type => type.IsAbstract);
             Types.Interface.Check("Types.Interface is interface.", type => type.IsInterface);
             Types.Reference.Check("Types.Reference is class.", type => type.IsClass);

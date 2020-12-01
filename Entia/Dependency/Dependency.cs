@@ -100,24 +100,24 @@ namespace Entia.Dependencies
     {
         public readonly Type Type;
         public Read(Type type) { Type = type; }
-        public override string ToString() => $"{GetType().Format()}({Type.Format()})";
+        public override string ToString() => $"{GetType().Format()}({Type?.Format()})";
     }
     public readonly struct Write : IDependency
     {
         public readonly Type Type;
         public Write(Type type) { Type = type; }
-        public override string ToString() => $"{GetType().Format()}({Type.Format()})";
+        public override string ToString() => $"{GetType().Format()}({Type?.Format()})";
     }
     public readonly struct Emit : IDependency
     {
         public readonly Type Type;
         public Emit(Type type) { Type = type; }
-        public override string ToString() => $"{GetType().Format()}({Type.Format()})";
+        public override string ToString() => $"{GetType().Format()}({Type?.Format()})";
     }
     public readonly struct React : IDependency
     {
         public readonly Type Type;
         public React(Type type) { Type = type; }
-        public override string ToString() => $"{GetType().Format()}({Type.Format()})";
+        public override string ToString() => $"{GetType().Format()}({Type?.Format()})";
     }
 }

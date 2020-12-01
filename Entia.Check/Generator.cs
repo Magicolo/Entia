@@ -11,6 +11,7 @@ using static Entia.Check.Formatting;
 namespace Entia.Check
 {
     public delegate (T value, Shrinker<T> shrinker) Generate<T>(Generator.State state);
+
     public readonly struct Generator<T>
     {
         public static implicit operator Generator<T>(T value) => Generator.Constant(value);
@@ -43,9 +44,9 @@ namespace Entia.Check
 
         public static class Types
         {
-            static class Cache<T>
+            static class DerivedCache<T>
             {
-                public static readonly Generator<Type> Derived = Any(_types.Where(type => type.Is<T>()).ToArray());
+                public static readonly Generator<Type> Derived = Any(_types.Where(type => type.Is<T>()).ToArray()).With(Name<T>.Derived);
             }
 
             static readonly Type[] _types = ReflectionUtility.AllTypes
@@ -59,8 +60,8 @@ namespace Entia.Check
             static readonly Type[] _concretes = _types.Except(_abstracts).Except(_definitions).ToArray();
             static readonly Type[] _references = _concretes.Where(type => type.IsClass).ToArray();
             static readonly Type[] _values = _concretes.Where(type => type.IsValueType).ToArray();
-            static readonly Type[] _enumerations = _values.Where(type => type.IsEnum).ToArray();
-            static readonly Type[] _flags = _enumerations.Where(type => type.IsDefined(typeof(FlagsAttribute))).ToArray();
+            internal static readonly Type[] _enumerations = _values.Where(type => type.IsEnum).ToArray();
+            internal static readonly Type[] _flags = _enumerations.Where(type => type.IsDefined(typeof(FlagsAttribute))).ToArray();
             static readonly Type[] _primitives = _values.Where(type => type.IsPrimitive).ToArray();
             static readonly Type[] _enumerables = _concretes.Where(type => type.Is<IEnumerable>()).ToArray();
             static readonly Type[] _serializables = _concretes.Where(type => type.Is<ISerializable>()).ToArray();
@@ -105,9 +106,9 @@ namespace Entia.Check
 
             public static readonly Generator<Type> Tuple =
                 Any(
-                    Range(Make(typeof(Tuple<>)), Make(typeof(Tuple<,>)), Make(typeof(Tuple<,,>)), Make(typeof(Tuple<,,,>)), Make(typeof(Tuple<,,,,>)), Make(typeof(Tuple<,,,,,>)), Make(typeof(Tuple<,,,,,,>))),
-                    Range(Make(typeof(ValueTuple<>)), Make(typeof(ValueTuple<,>)), Make(typeof(ValueTuple<,,>)), Make(typeof(ValueTuple<,,,>)), Make(typeof(ValueTuple<,,,,>)), Make(typeof(ValueTuple<,,,,,>)), Make(typeof(ValueTuple<,,,,,,>))))
-                .Flatten()
+                    Range(typeof(Tuple<>), typeof(Tuple<,>), typeof(Tuple<,,>), typeof(Tuple<,,,>), typeof(Tuple<,,,,>), typeof(Tuple<,,,,,>), typeof(Tuple<,,,,,,>)),
+                    Range(typeof(ValueTuple<>), typeof(ValueTuple<,>), typeof(ValueTuple<,,>), typeof(ValueTuple<,,,>), typeof(ValueTuple<,,,,>), typeof(ValueTuple<,,,,,>), typeof(ValueTuple<,,,,,,>)))
+                .Bind(Make)
                 .With($"{nameof(Types)}.{nameof(Tuple)}");
 
             public static Generator<Type> Make(Type definition) =>
@@ -116,7 +117,7 @@ namespace Entia.Check
                 Make(definition, definition.GetGenericArguments().Select(_ => argument).All());
             public static Generator<Type> Make(Type definition, Generator<Type[]> arguments) => arguments
                 .Choose(arguments => Core.Option.Try(() => definition.MakeGenericType(arguments)))
-                .With(nameof(Make).Format(definition.Name));
+                .With(nameof(Make).Format(definition));
 
             public static Generator<MethodInfo> Make(MethodInfo definition) =>
                 Make(definition, definition.GetGenericArguments().Select(Argument).All());
@@ -124,7 +125,7 @@ namespace Entia.Check
                 Make(definition, definition.GetGenericArguments().Select(_ => argument).All());
             public static Generator<MethodInfo> Make(MethodInfo definition, Generator<Type[]> arguments) => arguments
                 .Choose(arguments => Core.Option.Try(() => definition.MakeGenericMethod(arguments)))
-                .With(nameof(Make).Format(definition.Name));
+                .With(nameof(Make).Format(definition));
 
             public static Generator<Type> Argument() => _argument;
             public static Generator<Type> Argument(Type argument)
@@ -139,24 +140,38 @@ namespace Entia.Check
                 return _argument;
             }
 
-            public static Generator<Type> Derived<T>() => Cache<T>.Derived;
+            public static Generator<Type> Derived<T>() => DerivedCache<T>.Derived;
             public static Generator<Type> Derived(Type type, bool hierarchy, bool definition) =>
-                Any(_types.Where(other => other.Is(type, hierarchy, definition)).ToArray());
+                Any(_types.Where(other => other.Is(type, hierarchy, definition)).ToArray()).With(nameof(Derived).Format(type));
         }
 
-        static class GeneratorCache<T>
+        static class DefaultCache<T> where T : struct
+        {
+            public static Generator<T> Default = Constant(default(T)).With(Name<T>.Default);
+        }
+
+        static class EmptyCache<T>
         {
             public static readonly Generator<T[]> Empty = Constant(Array.Empty<T>()).With(Name<T>.Empty);
         }
 
-        static class EnumCache<T> where T : struct, Enum, IConvertible
+        static class EnumerationCache<T> where T : struct, Enum, IConvertible
         {
             public static readonly Generator<T> Enumeration = Generator.Enumeration(typeof(T)).Map(value => (T)value).With(Name<T>.Enumeration);
+        }
+
+        static class FlagsCache<T> where T : struct, Enum, IConvertible
+        {
             public static readonly Generator<T> Flags = Generator.Flags(typeof(T)).Map(value => (T)value).With(Name<T>.Flag);
         }
 
-        static readonly Generator<Enum> _enumeration = Types.Enumeration.Bind(Enumeration).With(nameof(Enumeration));
-        static readonly Generator<Enum> _flags = Types.Flags.Bind(Flags).With(nameof(Flags));
+        static class FactoryCache<T> where T : new()
+        {
+            public static readonly Generator<T> Factory = Factory(() => new T()).With(Name<T>.Factory);
+        }
+
+        static readonly Generator<Enum> _enumeration = Types._enumerations.Select(Enumeration).Any().With(nameof(_enumeration));
+        static readonly Generator<Enum> _flags = Types._flags.Select(Flags).Any().With(nameof(_flags));
         static readonly Generator<decimal> _number = Number(int.MinValue, int.MaxValue, 0).Size(size => Math.Pow(size, 15) + (1.0 - size) * 9e-9);
 
         public static readonly Generator<char> Letter = Any(Range('A', 'Z'), Range('a', 'z')).With(nameof(Letter));
@@ -173,19 +188,35 @@ namespace Entia.Check
         public static readonly Generator<float> Infinity = Any(float.NegativeInfinity, float.PositiveInfinity).With(nameof(Infinity));
         public static readonly Generator<Assembly> Assembly = ReflectionUtility.AllAssemblies.Select(Constant).Any().With(nameof(Assembly));
 
-        public static Generator<T[]> Empty<T>() => GeneratorCache<T>.Empty;
-        public static Generator<Array> Empty(Type type) => Constant(Array.CreateInstance(type, 0)).With(nameof(Empty).Format(type.Name));
+        public static Generator<T> Default<T>() where T : struct => DefaultCache<T>.Default;
+        public static Generator<object?> Default(Type type) => Constant<object?>(type.DefaultInstance().OrDefault()).With(nameof(Default).Format(type));
+        public static Generator<T[]> Empty<T>() => EmptyCache<T>.Empty;
+        public static Generator<Array?> Empty(Type type) => Constant<Array?>(Option.Try(type, state => Array.CreateInstance(state, 0)).OrDefault()).With(nameof(Empty).Format(type));
         public static Generator<T> From<T>(string name, Generate<T> generate) => new Generator<T>(name, generate);
-        public static Generator<T> Constant<T>(T value) => Constant(value, Shrinker.Empty<T>());
-        public static Generator<T> Constant<T>(T value, Shrinker<T> shrinker) => From(Format(value), _ => (value, shrinker));
-        public static Generator<T> Factory<T>(Func<T> create) => Factory(create, Shrinker.Empty<T>());
-        public static Generator<T> Factory<T>(Func<T> create, Shrinker<T> shrinker) => From(Name<T>.Factory, _ => (create(), shrinker));
+        public static Generator<T> From<T>(Generate<T> generate) => From(Format(generate.Method), generate);
+        public static Generator<T> Constant<T>(T value) => From(Format(value), _ => (value, Shrinker.Empty<T>()));
+        public static Generator<T> Factory<T>(Func<T> create) => From(Name<T>.Factory, _ => (create(), Shrinker.Empty<T>()));
+        public static Generator<T> Factory<T>() where T : new() => FactoryCache<T>.Factory;
+        public static Generator<object?> Factory(Type type)
+        {
+            var name = nameof(Factory).Format(type);
+            if (type.DefaultConstructors()
+                .Where(pair => pair.constructor.IsPublic)
+                .OrderBy(pair => pair.parameters.Length)
+                .TryFirst(out var pair))
+                return Factory<object?>(() => pair.constructor.Invoke(pair.parameters)).With(name);
+            return Default(type).With(name);
+        }
+
         public static Generator<T> Lazy<T>(Func<T> provide) => Lazy(() => Constant(provide()));
         public static Generator<T> Lazy<T>(Func<Generator<T>> provide)
         {
             var generator = new Lazy<Generator<T>>(provide);
             return From(Name<T>.Lazy, state => generator.Value.Generate(state));
         }
+
+        public static Generator<T> Some<T>(this Generator<Option<T>> generator) =>
+            generator.Filter(value => value.IsSome()).Map(value => value.OrDefault());
 
         public static Generator<T> Adapt<T>(this Generator<T> generator, Func<State, State> map) =>
             From(Name<T>.Adapt.Format(generator), state => generator.Generate(map(state)));
@@ -219,19 +250,19 @@ namespace Entia.Check
         public static Generator<uint> Unsigned(this Generator<int> generator) => generator.Map(value => (uint)value).With(nameof(Unsigned).Format(generator));
         public static Generator<ulong> Unsigned(this Generator<long> generator) => generator.Map(value => (ulong)value).With(nameof(Unsigned).Format(generator));
 
-        public static Generator<T> Enumeration<T>() where T : struct, Enum => EnumCache<T>.Enumeration;
-        public static Generator<Enum> Enumeration(Type type) => Any(Enum.GetValues(type).OfType<Enum>().ToArray()).With(nameof(Enumeration).Format(type.Name));
         public static Generator<Enum> Enumeration() => _enumeration;
-        public static Generator<T> Flags<T>() where T : struct, Enum => EnumCache<T>.Flags;
+        public static Generator<T> Enumeration<T>() where T : struct, Enum => EnumerationCache<T>.Enumeration;
+        public static Generator<Enum> Enumeration(Type type) => Any(Enum.GetValues(type).OfType<Enum>().ToArray()).With(nameof(Enumeration).Format(type));
+        public static Generator<Enum> Flags() => _flags;
+        public static Generator<T> Flags<T>() where T : struct, Enum => FlagsCache<T>.Flags;
         public static Generator<Enum> Flags(Type type)
         {
             var values = Enum.GetValues(type).OfType<Enum>().ToArray();
             return Any(values)
-                .Repeat(values.Length)
+                .Repeat(Range(values.Length))
                 .Map(values => (Enum)Enum.ToObject(type, values.Aggregate(0L, (flags, value) => flags | Convert.ToInt64(value))))
-                .With(nameof(Flags).Format(type.Name));
+                .With(nameof(Flags).Format(type));
         }
-        public static Generator<Enum> Flags() => _flags;
 
         public static Generator<string> String(Generator<int> count) => Character.String(count);
         public static Generator<string> String(this Generator<char> generator, Generator<int> count) =>

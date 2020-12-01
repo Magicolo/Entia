@@ -7,6 +7,7 @@ using static Entia.Check.Formatting;
 namespace Entia.Check
 {
     public delegate IEnumerable<Generator<T>> Shrink<T>();
+
     public readonly struct Shrinker<T>
     {
         public readonly string Name;
@@ -60,7 +61,7 @@ namespace Entia.Check
                 {
                     var middle = Math.Round(magnitude * 0.5m * sign + source, 9);
                     if (middle == source) yield break;
-                    yield return Generator.Constant(middle, Number(middle, target));
+                    yield return Generator.From(_ => (middle, Number(middle, target)));
                 }
             }
         }
@@ -75,7 +76,7 @@ namespace Entia.Check
                 for (int i = 0; i < values.Length; i++)
                 {
                     var pair = (values: values.RemoveAt(i), shrinkers: shrinkers.RemoveAt(i));
-                    yield return Generator.Constant(pair.values, Repeat(pair.values, pair.shrinkers));
+                    yield return Generator.From(_ => (pair.values, Repeat(pair.values, pair.shrinkers)));
                 }
                 // Try to shrink relevant generators.
                 foreach (var generator in All(values, shrinkers).Shrink()) yield return generator;
