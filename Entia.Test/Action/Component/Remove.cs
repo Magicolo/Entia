@@ -45,10 +45,10 @@ namespace Entia.Test
                 var components = value.Components();
 
                 yield return (components.Has(_entity, _type, _include).Not(), "components.Has().Not()");
-                yield return (components.Get(_entity, _include).OfType(_type, true, true).None(), "components.Get().OfType(type).None()");
+                yield return (components.Get(_entity, _include).OfType(_type).None(), "components.Get().OfType(type).None()");
                 yield return (components.TryGet(_entity, _type, out _, _include).Not(), "components.TryGet().Not()");
                 yield return (components.State(_entity, _type).HasNone(_include), "components.State()");
-                yield return (_onRemove.All(message => message.Entity == _entity && message.Component.Type.Is(_type, true, true)), "OnRemove");
+                yield return (_onRemove.All(message => message.Entity == _entity && message.Component.Type.Is(_type)), "OnRemove");
 
                 if (_success)
                     yield return (_onRemove.Length > 0, "onRemove.Length");

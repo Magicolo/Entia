@@ -63,7 +63,7 @@ namespace Entia.Nodes
             {
                 var writes = right.dependencies.Writes().ToArray();
                 return left.dependencies.Writes()
-                    .Where(type => writes.Any(write => type.Is(write, true, true)))
+                    .Where(type => writes.Any(write => type.Is(write)))
                     .Select(type => Result.Failure($"'{left.node}' and '{right.node}' both have a write dependency on type '{type.FullFormat()}'.").AsResult())
                     .All();
             }
@@ -72,7 +72,7 @@ namespace Entia.Nodes
             {
                 var reads = right.dependencies.Reads().ToArray();
                 return left.dependencies.Writes()
-                    .Where(type => reads.Any(read => type.Is(read, true, true)))
+                    .Where(type => reads.Any(read => type.Is(read)))
                     .Select(type => Result.Failure($"'{left.node}' has a write dependency on type '{type.FullFormat()}' and '{right.node}' reads from it.").AsResult())
                     .All();
             }

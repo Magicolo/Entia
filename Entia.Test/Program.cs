@@ -1,17 +1,11 @@
 ﻿using System;
 
-namespace Entia
-{
-    static class Program
-    {
-        static void Main()
-        {
-            // Json.Benches.Run();
-            Check.Checks.Run();
-            Core.Checks.Run();
-            Json.Checks.Run();
-            Console.ReadLine();
-            Tests.Run();
-        }
-    }
-}
+Entia.Check.Checks.Run();
+Entia.Core.Checks.Run();
+Entia.Json.Checks.Run();
+Entia.Checks.Run();
+
+Console.ReadLine();
+
+// Entia.Json.Benches.Run();
+Entia.Tests.Run();

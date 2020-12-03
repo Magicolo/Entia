@@ -192,8 +192,8 @@ namespace Entia.Core
                     if (_typeToEntry.TryGetValue(type, out var entry)) return entry;
                     // 'super', 'sub' and 'entry' must stay within the lock since they access '_entries' which can be
                     // modified by other threads and could otherwise lead to race conditions.
-                    var super = _entries.Where(type, (current, state) => state.Is(current.Type, true, true)).ToArray();
-                    var sub = _entries.Where(type, (current, state) => current.Type.Is(state, true, true)).ToArray();
+                    var super = _entries.Where(type, (current, state) => state.Is(current.Type)).ToArray();
+                    var sub = _entries.Where(type, (current, state) => current.Type.Is(state)).ToArray();
                     entry = new Entry(type, _entries.Length, super, sub);
                     foreach (var current in super) Interlocked.Exchange(ref current.Sub, current.Sub.Append(entry));
                     foreach (var current in sub) Interlocked.Exchange(ref current.Super, current.Super.Append(entry));

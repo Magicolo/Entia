@@ -120,7 +120,7 @@ namespace Entia.Test
                 yield return (components.Count(_type, _include) == 0, "Components.Count() == 0");
                 yield return (entities.None(entity => components.Has(entity, _type, _include)), "Entities.None(Components.Has())");
                 yield return (entities.None(entity => components.TryGet(entity, _type, out _, _include)), "Entities.None(Components.TryGet())");
-                yield return (entities.All(entity => components.Get(entity, _include).OfType(_type, true, true).None()), "Entities.All(Components.Get().OfType().None())");
+                yield return (entities.All(entity => components.Get(entity, _include).OfType(_type).None()), "Entities.All(Components.Get().OfType().None())");
                 yield return (entities.None(entity => _include.HasAny(components.State(entity, _type))), "Entities.None(include.HasAny(Components.State()))");
 
                 yield return (_count > 0 == _success, "count == success");
@@ -128,7 +128,7 @@ namespace Entia.Test
                 yield return (_onRemove.Length > 0 == _success, "onRemove.Length == success");
                 yield return (_onRemove.Length >= _entities.Length, "onRemove.Length >= entities.Length");
                 yield return (_onRemove.Length == _count, "onRemove.Length == count");
-                yield return (_onRemove.All(message => message.Component.Type.Is(_type, true, true)), "onRemove.All(Is(type))");
+                yield return (_onRemove.All(message => message.Component.Type.Is(_type)), "onRemove.All(Is(type))");
                 yield return (_entities.Except(_onRemove.Select(message => message.Entity)).None(), "OnRemove.Entity");
 
                 if (_include.HasAny(States.Disabled))

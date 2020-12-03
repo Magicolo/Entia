@@ -29,6 +29,7 @@ namespace Entia.Core
         static readonly ConcurrentDictionary<(Assembly, string), Type> _types = new ConcurrentDictionary<(Assembly, string), Type>();
         static readonly ConcurrentDictionary<MemberInfo, IMemberData> _memberToData = new ConcurrentDictionary<MemberInfo, IMemberData>();
         static readonly ConcurrentDictionary<Guid, Type> _guidToType = new ConcurrentDictionary<Guid, Type>();
+        static readonly Func<Type, bool> _isByRefLike = Option.Try(() => typeof(Type).GetProperty("IsByRefLike").GetMethod.CreateDelegate<Func<Type, bool>>()).Or(_ => false);
 
         static ReflectionUtility()
         {
@@ -75,14 +76,18 @@ namespace Entia.Core
                 _ => new MemberData(member),
             });
 
+        public static Option<Assembly> GetAssembly(string name) => TryGetAssembly(name, out var assembly) ? assembly : default;
+        public static Option<Type> GetType(string name) => TryGetType(name, out var type) ? type : default;
+        public static Option<Type> GetType(string assembly, string name) => TryGetType(assembly, name, out var type) ? type : default;
+        public static Option<Type> GetType(Assembly assembly, string name) => TryGetType(assembly, name, out var type) ? type : default;
+        public static Option<Type> GetType(Guid guid) => TryGetType(guid, out var type) ? type : default;
 
         public static bool TryGetAssembly(string name, out Assembly assembly) => _assemblies.TryGetValue(name, out assembly);
         public static bool TryGetType(string name, out Type type) => TryGetType("", name, out type);
         public static bool TryGetType(string assembly, string name, out Type type) =>
             TryGetAssembly(assembly, out var current) & TryGetType(current, name, out type);
         public static bool TryGetType(Assembly assembly, string name, out Type type) => _types.TryGetValue((assembly, name), out type);
-        public static bool TryGetType(Guid guid, out Type type) =>
-            _guidToType.TryGetValue(guid, out type) && type != null;
+        public static bool TryGetType(Guid guid, out Type type) => _guidToType.TryGetValue(guid, out type) && type != null;
         public static bool TryGetGuid(Type type, out Guid guid)
         {
             guid = type.GUID;
@@ -124,31 +129,24 @@ namespace Entia.Core
         public static bool IsNullable(this Type type) =>
             type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
 
-        public static bool Is(this Type type, Type other, bool hierarchy = false, bool definition = false)
+        public static bool Is(this Type type, Type other)
         {
-            if (type == other) return true;
-            else if (hierarchy) return type.Hierarchy().Any(child => child.Is(other, false, definition));
-            else if (other.IsAssignableFrom(type)) return true;
-            else if (definition) return type.GenericDefinition() == other;
-            else return false;
+            static bool Equal(Type left, Type right) =>
+                left == right || right.IsAssignableFrom(left) || left.GenericDefinition() == right;
+
+            if (Equal(type, other)) return true;
+            else if (other.IsGenericType)
+            {
+                var definition = other.GetGenericTypeDefinition();
+                foreach (var child in type.Hierarchy()) if (Equal(child, definition)) return true;
+            }
+            return false;
         }
 
-        public static bool Is(object value, Type type, bool hierarchy = false, bool definition = false) => value switch
-        {
-            null => type.IsClass,
-            Type current => current.Is(type, hierarchy, definition),
-            _ => value.GetType().Is(type, hierarchy, definition),
-        };
-
-        public static bool Is<T>(object value) => value switch
-        {
-            Type type => type.Is<T>(),
-            _ => value is T,
-        };
-
         public static bool Is<T>(this Type type) => typeof(T).IsAssignableFrom(type);
-
         public static bool IsStatic(this Type type) => type.IsAbstract && type.IsSealed;
+        public static bool IsByRefLike(this Type type) => _isByRefLike(type);
+        public static bool IsConcrete(this Type type) => !type.IsAbstract && !type.IsInterface && !type.IsGenericTypeDefinition && !type.IsGenericParameter;
 
         public static IEnumerable<string> Path(this Type type)
         {
@@ -191,6 +189,15 @@ namespace Entia.Core
                 type = type.DeclaringType;
             }
         }
+
+        public static Type[] GenericArguments(this Type type) =>
+            type.IsGenericType ? type.GetGenericArguments() : Array.Empty<Type>();
+
+        public static Type[] GenericConstraints(this Type type) =>
+            type.IsGenericParameter ? type.GetGenericParameterConstraints() : Array.Empty<Type>();
+
+        public static GenericParameterAttributes GenericAttributes(this Type type) =>
+            type.IsGenericParameter ? type.GenericParameterAttributes : default;
 
         public static Option<Type> GenericDefinition(this Type type) =>
             type.IsGenericType ? type.GetGenericTypeDefinition() : default;
@@ -277,6 +284,7 @@ namespace Entia.Core
         {
             foreach (var constructor in type.Constructors(true, false))
             {
+                if (constructor.IsAbstract) continue;
                 var parameters = constructor.GetParameters();
                 if (parameters.All(parameter => parameter.HasDefaultValue))
                     yield return (constructor, parameters.Select(parameter => parameter.DefaultValue));

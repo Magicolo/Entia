@@ -32,6 +32,7 @@ namespace Entia.Check
             public static readonly string Mutate = $"{nameof(Mutate)}{Parameters}";
             public static readonly string Cache = $"{nameof(Cache)}{Parameters}";
             public static readonly string Derived = $"{nameof(Derived)}{Parameters}";
+            public static readonly string Choose = $"{nameof(Choose)}{Parameters}";
         }
 
         public static class Name<T1, T2>
@@ -47,6 +48,7 @@ namespace Entia.Check
         {
             public static readonly string Parameters = $"<{typeof(T1).Format()}, {typeof(T2).Format()}, {typeof(T3).Format()}>";
             public static readonly string And = $"{nameof(And)}{Parameters}";
+            public static readonly string Map = $"{nameof(Map)}{Parameters}";
         }
 
         public static class Name<T1, T2, T3, T4>
@@ -66,6 +68,7 @@ namespace Entia.Check
 #if DEBUG
             value is Type type ? type.Format() :
             value is MethodInfo method ? method.Format() :
+            value is Delegate @delegate ? Format(@delegate.Method) :
             $"{value}";
 #else
             "";

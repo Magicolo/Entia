@@ -482,12 +482,11 @@ namespace Entia.Core
         public static Result<T> Cast<T>(object value) => Success(value).Cast<T>();
         public static Result<TOut> Cast<TIn, TOut>(in TIn value) => Success(value).Cast<TOut>();
 
-        public static Result<T> As<T>(in this Result<T> result, Type type, bool hierarchy = false, bool definition = false) => result.Bind(
-            (type, hierarchy, definition),
-            (value, state) => As(value, state.type, state.hierarchy, state.definition));
+        public static Result<T> As<T>(in this Result<T> result, Type type) =>
+            result.Bind(type, (value, state) => As(value, state));
 
-        public static Result<T> As<T>(in T value, Type type, bool hierarchy = false, bool definition = false) =>
-            ReflectionUtility.Is(value, type, hierarchy, definition) ? Success(value) :
+        public static Result<T> As<T>(in T value, Type type) =>
+            value?.GetType().Is(type) is true ? Success(value) :
             Failure($"Expected value '{value?.ToString() ?? "null"}' to be of type '{type.FullFormat()}'.");
     }
 }

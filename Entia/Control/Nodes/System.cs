@@ -71,7 +71,7 @@ namespace Entia.Nodes
                         .Select(pair => (pair.child, dependencies: world.Dependencies(pair.system.Type)))
                         .ToArray();
                     dependencies = direct
-                        .Where(pair => pair.dependencies.Reacts().Any(react => emits.Any(emit => react.Is(emit, true, true))))
+                        .Where(pair => pair.dependencies.Reacts().Any(react => emits.Any(emit => react.Is(emit))))
                         .SelectMany(pair => pair.dependencies)
                         .Prepend(dependencies)
                         .Distinct()

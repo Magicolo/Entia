@@ -25,25 +25,38 @@ namespace Entia.Check
         }
 
         public static Shrinker<T> From<T>(string name, Shrink<T> shrink) => new Shrinker<T>(name, shrink);
-        public static Shrinker<T> From<T>(string name, IEnumerable<Generator<T>> shrinked) => From(name, () => shrinked);
+        public static Shrinker<T> From<T>(Shrink<T> shrink) => From(shrink.Method.Format(), shrink);
         public static Shrinker<T> Empty<T>() => Cache<T>.Empty;
-        public static Shrinker<TTarget> Map<TSource, TTarget>(this Shrinker<TSource> shrinker, Func<TSource, Generator.State, TTarget> map) =>
-            From(Name<TSource, TTarget>.Map.Format(shrinker),
-                () => shrinker.Shrink().Select(generator => generator.Map(map)));
-        public static Shrinker<TTarget> Choose<TSource, TTarget>(this Shrinker<TSource> shrinker, Func<TSource, Generator.State, Option<TTarget>> choose) =>
-            From(Name<TSource, TTarget>.Choose.Format(shrinker),
-                () => shrinker.Shrink().Select(generator => generator.Choose(choose)));
-        public static Shrinker<T> Flatten<T>(this Shrinker<Generator<T>> shrinker) =>
-            From(Name<T>.Flatten.Format(shrinker),
-                () => shrinker.Shrink().Select(generator => generator.Flatten()));
-        public static Shrinker<T> And<T>(this Shrinker<T> shrinker1, Shrinker<T> shrinker2)
-        {
-            return From(Name<T>.And.Format(shrinker1, shrinker2), Shrink);
 
-            IEnumerable<Generator<T>> Shrink()
+        public static Shrinker<TTarget> Map<TSource, TTarget>(this Shrinker<TSource> shrinker, Func<Generator<TSource>, Generator<TTarget>> map)
+        {
+            return From(Name<TSource, TTarget>.Map.Format(shrinker), Shrink);
+
+            IEnumerable<Generator<TTarget>> Shrink()
             {
-                foreach (var generator in shrinker1.Shrink()) yield return generator;
-                foreach (var generator in shrinker2.Shrink()) yield return generator;
+                foreach (var shrink in shrinker.Shrink()) yield return map(shrink);
+            }
+        }
+
+        public static Shrinker<TTarget> Map<TSource, TTarget>(this Shrinker<TSource> shrinker1, Shrinker<TTarget> shrinker2, Func<Generator<TSource>, Generator<TTarget>> map)
+        {
+            return From(Name<TSource, TTarget>.Map.Format(shrinker1, shrinker2), Shrink);
+
+            IEnumerable<Generator<TTarget>> Shrink()
+            {
+                foreach (var shrink in shrinker1.Shrink()) yield return map(shrink);
+                foreach (var shrink in shrinker2.Shrink()) yield return shrink;
+            }
+        }
+
+        public static Shrinker<TTarget> Map<TSource1, TSource2, TTarget>(this Shrinker<TSource1> shrinker1, Shrinker<TSource2> shrinker2, Func<Generator<TSource1>, Generator<TTarget>> map1, Func<Generator<TSource2>, Generator<TTarget>> map2)
+        {
+            return From(Name<TSource1, TSource2, TTarget>.Map.Format(shrinker1, shrinker2), Shrink);
+
+            IEnumerable<Generator<TTarget>> Shrink()
+            {
+                foreach (var shrink in shrinker1.Shrink()) yield return map1(shrink);
+                foreach (var shrink in shrinker2.Shrink()) yield return map2(shrink);
             }
         }
 

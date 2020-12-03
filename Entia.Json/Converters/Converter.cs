@@ -357,7 +357,7 @@ namespace Entia.Json.Converters
             }))
             .Choose()
             .OfType<IConverter>()
-            .Where(current => type.Is(current.Type, true, true))
+            .Where(current => type.Is(current.Type))
             .FirstOrNone();
 
         static IConverter GetDefault(Type type) => _defaults.GetOrAdd(type, key => CreateDefault(key));

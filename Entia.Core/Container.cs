@@ -21,7 +21,7 @@ namespace Entia.Core
         {
             public abstract IEnumerable<T> Provide(TypeData type);
             IEnumerable<ITrait> IProvider.Provide(TypeData type, TypeData trait) =>
-                typeof(T).Is(trait, true, true) ? Provide(type).Cast<ITrait>() : Array.Empty<ITrait>();
+                typeof(T).Is(trait) ? Provide(type).Cast<ITrait>() : Array.Empty<ITrait>();
         }
     }
 
@@ -198,7 +198,7 @@ namespace Entia.Core
         [ThreadSafe]
         static ITrait[] CreateDefaults(TypeData type, TypeData trait)
         {
-            static bool Is(Type current, Type other) => current.Is<IProvider>() || current.Is(other, true, true);
+            static bool Is(Type current, Type other) => current.Is<IProvider>() || current.Is(other);
 
             static Type Concrete(TypeData type, ImplementationAttribute attribute)
             {
@@ -263,7 +263,7 @@ namespace Entia.Core
 
                 foreach (var attribute in trait.Type.GetCustomAttributes<ImplementationAttribute>(true))
                 {
-                    if (type.Type.Is(attribute.Type.Type, true, true) && Is(attribute.Implementation.Type, trait))
+                    if (type.Type.Is(attribute.Type.Type) && Is(attribute.Implementation.Type, trait))
                         yield return GetInstance(Concrete(type, attribute), attribute.Arguments);
                 }
 
@@ -272,7 +272,7 @@ namespace Entia.Core
                     if (@interface.Definition == typeof(IImplementation<,>) &&
                         @interface.Arguments.TryAt(0, out var argument0) &&
                         @interface.Arguments.TryAt(1, out var argument1) &&
-                        type.Type.Is(argument0, true, true) &&
+                        type.Type.Is(argument0) &&
                         Is(argument1, trait))
                         yield return GetInstance(argument1);
                 }
@@ -291,7 +291,7 @@ namespace Entia.Core
             return Create()
                 .Choose()
                 .SelectMany(Flatten)
-                .OfType(trait, true, true)
+                .OfType(trait)
                 .Distinct()
                 .ToArray();
         }

@@ -97,7 +97,7 @@ namespace Entia.Test
                 yield return (components.Get(_entity).Any(), "Components.Get(entity).Any()");
                 yield return (components.Get(_entity).OfType<TConcrete>().Any(), "Components.Get().OfType<TConcrete>().Any()");
                 yield return (components.Get(_entity).OfType<TAbstract>().Any(), "Components.Get().OfType<TAbstract>().Any()");
-                yield return (components.Get(_entity).OfType(_abstract, true, true).Any(), "Components.Get().OfType(abstract).Any()");
+                yield return (components.Get(_entity).OfType(_abstract).Any(), "Components.Get().OfType(abstract).Any()");
                 yield return (components.Get(_entity).OfType<IComponent>().Any(), "Components.Get().OfType<IComponent>().Any()");
                 yield return (components.Get<TConcrete>(_entity).Equals(_component), "Components.Get<TConcrete>() == component");
                 yield return (components.Get(_entity, typeof(TConcrete)).Equals(_component), "Components.Get(TConcrete) == component");

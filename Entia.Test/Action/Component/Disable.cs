@@ -43,10 +43,10 @@ namespace Entia.Test
             {
                 var components = value.Components();
 
-                yield return (components.Get(_entity, States.Enabled).OfType(_type, true, true).None(), "Components.Get(Enabled).None()");
+                yield return (components.Get(_entity, States.Enabled).OfType(_type).None(), "Components.Get(Enabled).None()");
                 yield return (components.TryGet(_entity, _type, out _, States.Enabled).Not(), "Components.TryGet(Type, Enabled).Not()");
                 yield return (components.Has(_entity, _type, States.Enabled).Not(), "Components.Has(Type, Enabled).Not()");
-                yield return (_onDisable.All(message => message.Entity == _entity && message.Component.Type.Is(_type, true, true)), "onDisable.All()");
+                yield return (_onDisable.All(message => message.Entity == _entity && message.Component.Type.Is(_type)), "onDisable.All()");
 
                 if (_success)
                 {
@@ -67,10 +67,10 @@ namespace Entia.Test
                     yield return (components.Count(_entity, States.Disabled) > 0, "Components.Count(entity, Disabled)");
                     yield return (components.Count(_entity) > 0, "Components.Count(entity)");
 
-                    yield return (components.Get().OfType(_type, true, true).Any(), "Components.Get().Any()");
-                    yield return (components.Get(States.Disabled).OfType(_type, true, true).Any(), "Components.Get(Disabled).Any()");
-                    yield return (components.Get(_entity, States.Disabled).OfType(_type, true, true).Any(), "Components.Get(Disabled).Any()");
-                    yield return (components.Get(_entity).OfType(_type, true, true).Any(), "Components.Get().Any()");
+                    yield return (components.Get().OfType(_type).Any(), "Components.Get().Any()");
+                    yield return (components.Get(States.Disabled).OfType(_type).Any(), "Components.Get(Disabled).Any()");
+                    yield return (components.Get(_entity, States.Disabled).OfType(_type).Any(), "Components.Get(Disabled).Any()");
+                    yield return (components.Get(_entity).OfType(_type).Any(), "Components.Get().Any()");
 
                     yield return (components.TryGet(_entity, _type, out _), "Components.TryGet()");
                     yield return (components.TryGet(_entity, _type, out _, States.Disabled), "Components.TryGet(Disabled)");

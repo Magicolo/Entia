@@ -91,7 +91,7 @@ namespace Entia.Core
             }));
 
             return Factory(() => new TypeMap<TKey, TValue>())
-                .Mutate(Any((50f, set), (25f, remove), (1f, clear), (1f, clone)).Repeat(Range(1000)))
+                .Mutate(Any((50.0, set), (25.0, remove), (1.0, clear), (1.0, clone)).Repeat(Range(1000)))
                 .Map(outcome =>
                 {
                     return outcome.Add(Prove().ToArray()).Box();

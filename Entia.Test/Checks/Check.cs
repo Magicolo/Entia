@@ -38,25 +38,21 @@ namespace Entia.Check
             Integer.Filter(value => value % 2 == 0).Check("Filter filters for even numbers.", value => value % 2 == 0);
             Rational.Filter(value => value >= 0f).Check("Filter filters for positive numbers.", value => value >= 0f);
 
-            Types.Concrete.Bind(type => Factory(type).Map(value => (type, value)))
-                .Check("Factory produces values of appropriate type.", pair => pair.value is null || pair.value.GetType() == pair.type);
-            Types.Argument().Bind(type => Empty(type).Map(value => (type, value)))
-                .Check("Empty produces arrays of appropriate type.", value => value.value is null || value.value.GetType().GetElementType() == value.type);
+            Types.Concrete.Factory().Check("Factory produces non-null values.", value => value is not null);
             Types.Abstract.Check("Types.Abstract is abstract.", type => type.IsAbstract);
             Types.Interface.Check("Types.Interface is interface.", type => type.IsInterface);
             Types.Reference.Check("Types.Reference is class.", type => type.IsClass);
             Types.Value.Check("Types.Value is value type.", type => type.IsValueType);
             Types.Array.Check("Types.Array is array.", type => type.IsArray);
+            Types.Pointer.Check("Types.Pointer is pointer.", type => type.IsPointer);
             Types.Primitive.Check("Types.Primitive is primitive.", type => type.IsPrimitive);
             Types.Enumeration.Check("Types.Enumeration is enum.", type => type.IsEnum);
             Types.Flags.Check("Types.Flags is flags.", type => type.IsEnum && type.IsDefined(typeof(FlagsAttribute), true));
+            Types.Default.Check("Types.Default has default constructor.", type => Activator.CreateInstance(type)?.GetType() == type);
             Types.Definition.Check("Types.Definition is generic type definition.", type => type.IsGenericTypeDefinition);
-            Types.Default.Check("Types.Generic has default constructor.", type => type.DefaultConstructor().IsSome());
-            Types.Tuple.Check("Types.Tuple is 'ITuple'.", type => type.Is<ITuple>());
-            Types.Generic.Check("Types.Generic is constructed generic type.", type => type.IsConstructedGenericType);
-            Types.Type.And(Generator.Boolean, Generator.Boolean)
-                .Bind(tuple => Types.Derived(tuple.Item1, tuple.Item2, tuple.Item3).Map(type => (type, @base: tuple.Item1, hierarchy: tuple.Item2, definition: tuple.Item3)))
-                .Check("Types.Derived is derived.", tuple => tuple.type.Is(tuple.@base, tuple.hierarchy, tuple.definition));
+            Types.Definition.Make().Check("Types.Definition is constructed generic type.", type => type.IsConstructedGenericType);
+            Types.Type.Bind(type => Types.Derived(type).Map(derived => (derived, type)))
+                .Check("Types.Derived is derived.", pair => pair.derived.Is(pair.type));
         }
 
         static Failure<T>[] Check<T>(this Generator<T> generator, string name, Func<T, bool> prove) =>

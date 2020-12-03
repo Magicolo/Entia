@@ -348,8 +348,8 @@ namespace Entia.Core
         public static IEnumerable<T> Except<T>(this IEnumerable<T> source, params object[] values) where T : class =>
             source.Except(values.AsEnumerable());
 
-        public static IEnumerable<T> OfType<T>(this IEnumerable<T> source, Type type, bool hierarchy = false, bool definition = false) =>
-            source.Where(item => ReflectionUtility.Is(item, type, hierarchy, definition));
+        public static IEnumerable<T> OfType<T>(this IEnumerable<T> source, Type type) =>
+            source.Where(item => item?.GetType().Is(type) is true);
 
         public static bool Same<T>(this IEnumerable<T> source, Func<T, T, bool> equals)
         {

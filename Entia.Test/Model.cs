@@ -23,7 +23,7 @@ namespace Entia.Test
         {
             foreach (var type in Disabled.ToArray())
             {
-                if (type.Is(@abstract, true, true))
+                if (type.Is(@abstract))
                 {
                     Disabled.Remove(type);
                     Enabled.Add(type);
@@ -35,7 +35,7 @@ namespace Entia.Test
         {
             foreach (var type in Enabled.ToArray())
             {
-                if (type.Is(@abstract, true, true))
+                if (type.Is(@abstract))
                 {
                     Enabled.Remove(type);
                     Disabled.Add(type);
@@ -45,7 +45,7 @@ namespace Entia.Test
 
         public bool Contains(Type @abstract, States include = States.All)
         {
-            foreach (var type in ToArray(include)) if (type.Is(@abstract, true, true)) return true;
+            foreach (var type in ToArray(include)) if (type.Is(@abstract)) return true;
             return false;
         }
 
@@ -53,7 +53,7 @@ namespace Entia.Test
         {
             foreach (var type in ToArray())
             {
-                if (type.Is(@abstract, true, true))
+                if (type.Is(@abstract))
                 {
                     if (include.HasAny(States.Enabled)) Enabled.Remove(type);
                     if (include.HasAny(States.Disabled)) Disabled.Remove(type);
