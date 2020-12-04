@@ -1,8 +1,7 @@
 using System;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using static Entia.Check.Generator;
 using Entia.Core;
+using static Entia.Check.Generator;
 
 namespace Entia.Check
 {
@@ -33,8 +32,6 @@ namespace Entia.Check
             Range('a', 'z').Check("Range('a', 'z') is in range.", value => value >= 'a' && value <= 'z');
             Range(-1f, 1f).Check("Range(-1f, 1f) is in range.", value => value >= -1f && value <= 1f);
             Zero.Repeat(Range(100)).Check("Repeat(100) is in range.", values => values.Length <= 100);
-            Types.Enumeration.Bind(type => Enumeration(type).Map(value => (type, value)))
-                .Check("Enumeration(type) produces values of the same type.", pair => pair.type == pair.value.GetType());
             Integer.Filter(value => value % 2 == 0).Check("Filter filters for even numbers.", value => value % 2 == 0);
             Rational.Filter(value => value >= 0f).Check("Filter filters for positive numbers.", value => value >= 0f);
 
@@ -51,6 +48,8 @@ namespace Entia.Check
             Types.Default.Check("Types.Default has default constructor.", type => Activator.CreateInstance(type)?.GetType() == type);
             Types.Definition.Check("Types.Definition is generic type definition.", type => type.IsGenericTypeDefinition);
             Types.Definition.Make().Check("Types.Definition is constructed generic type.", type => type.IsConstructedGenericType);
+            Types.Enumeration.Bind(type => Enumeration(type).Map(value => (type, value)))
+                .Check("Enumeration(type) produces values of the same type.", pair => pair.type == pair.value.GetType());
             Types.Type.Bind(type => Types.Derived(type).Map(derived => (derived, type)))
                 .Check("Types.Derived is derived.", pair => pair.derived.Is(pair.type));
         }

@@ -1,10 +1,8 @@
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
 using System.Threading;
 using Entia.Core;
 using static Entia.Check.Formatting;
@@ -179,7 +177,7 @@ namespace Entia.Check
                     .Where(group => group.Length > 0)
                     .ToArray();
                 var generator = Generator.Range(groups).Any();
-                return make ? generator.Make().Attenuate(3) : generator;
+                return make ? generator.Make().Attenuate(2) : generator;
             }
         }
 
@@ -553,6 +551,8 @@ namespace Entia.Check
             });
         }
 
+        public static Generator<Type> Make(this Generator<Type> definition, Generator<Type> argument) =>
+            definition.Bind(definition => Types.Make(definition, argument)).With(nameof(Make).Format(definition, argument));
         public static Generator<Type> Make(this Generator<Type> definition) =>
             From(nameof(Make).Format(definition), state =>
             {
@@ -563,6 +563,9 @@ namespace Entia.Check
                         return generator.Generate(state);
                 }
             });
+
+        public static Generator<MethodInfo> Make(this Generator<MethodInfo> definition, Generator<Type> argument) =>
+            definition.Bind(definition => Types.Make(definition, argument)).With(nameof(Make).Format(definition, argument));
         public static Generator<MethodInfo> Make(this Generator<MethodInfo> definition) =>
             From(nameof(Make).Format(definition), state =>
             {
