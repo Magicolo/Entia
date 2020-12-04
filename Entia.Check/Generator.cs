@@ -221,11 +221,15 @@ namespace Entia.Check
 
         public static Generator<T> From<T>(string name, Generate<T> generate) => new Generator<T>(name, generate);
         public static Generator<T> From<T>(Generate<T> generate) => From(Format(generate.Method), generate);
+
         public static Generator<T> Constant<T>(T value) => From(nameof(Constant).Format(value), _ => (value, Shrinker.Empty<T>()));
+
         public static Generator<T[]> Empty<T>() => EmptyCache<T>.Empty;
         public static Option<Generator<Array>> Empty(Type type) => Option.Try(() => Array.CreateInstance(type, 0)).Map(value => Constant(value).With(nameof(Empty).Format(type)));
+
         public static Generator<T> Factory<T>(Func<T> create) => From(Name<T>.Factory, _ => (create(), Shrinker.Empty<T>()));
         public static Generator<T> Factory<T>() where T : new() => FactoryCache<T>.Factory;
+        public static Generator<object> Factory(this Generator<Type> type) => type.Choose(Factory).Flatten();
         public static Option<Generator<object>> Factory(Type type)
         {
             if (type.IsConcrete() &&
@@ -238,7 +242,6 @@ namespace Entia.Check
                 return Factory<object>(() => pair.constructor.Invoke(pair.parameters)).With(nameof(Factory).Format(type));
             return default;
         }
-        public static Generator<object> Factory(this Generator<Type> type) => type.Choose(Factory).Flatten();
 
         public static Generator<T> Lazy<T>(Func<T> provide) => Lazy(() => Constant(provide()));
         public static Generator<T> Lazy<T>(Func<Generator<T>> provide)
@@ -250,37 +253,43 @@ namespace Entia.Check
         public static Generator<T> Adapt<T>(this Generator<T> generator, Func<State, State> map) =>
             From(Name<T>.Adapt.Format(generator), state => generator.Generate(map(state)));
         public static Generator<T> Adapt<T>(this Generator<T> generator, State state) => generator.Adapt(_ => state);
+
         public static Generator<T> Size<T>(this Generator<T> generator, Func<double, double> map) =>
             generator.Adapt(state => state.With(map(state.Size))).With(Name<T>.Size.Format(generator));
         public static Generator<T> Size<T>(this Generator<T> generator, double size) =>
             generator.Size(_ => size).With(Name<T>.Size.Format(size));
         public static Generator<T> Size<T>(this Generator<T> generator, Generator<double> size) =>
             size.Bind(size => generator.Size(size)).With(Name<T>.Size.Format(size));
+
         public static Generator<T> Depth<T>(this Generator<T> generator, uint depth = 1) =>
             generator.Adapt(state => state.With(depth: state.Depth + depth))
                 .With(Name<T>.Depth.Format(generator, depth));
+
         public static Generator<T> Attenuate<T>(this Generator<T> generator, uint depth) =>
             generator.Adapt(state => state.With(state.Size * Math.Max(1.0 - (double)state.Depth / depth, 0.0), state.Depth + 1))
                 .With(Name<T>.Attenuate.Format(generator, depth));
         public static Generator<T> Attenuate<T>(this Generator<T> generator, Generator<uint> depth) =>
             depth.Bind(depth => generator.Attenuate(depth))
                 .With(Name<T>.Attenuate.Format(generator, depth));
+
+        public static Generator<T> Shrink<T>(this Generator<T> generator, Shrink<T> shrink) =>
+            generator.Shrink(Shrinker.From(Name<T>.Shrink, shrink));
         public static Generator<T> Shrink<T>(this Generator<T> generator, Shrinker<T> shrinker) =>
             From(Name<T>.Shrink.Format(generator), state =>
             {
                 var pair = generator.Generate(state);
                 return (pair.value, shrinker);
             });
-        public static Generator<T> Shrink<T>(this Generator<T> generator, Shrink<T> shrink) =>
-            generator.Shrink(Shrinker.From(Name<T>.Shrink, shrink));
 
         public static Generator<float> Inverse(this Generator<float> generator) => generator.Map(value => 1 / value).With(nameof(Inverse).Format(generator));
         public static Generator<double> Inverse(this Generator<double> generator) => generator.Map(value => 1 / value).With(nameof(Inverse).Format(generator));
         public static Generator<decimal> Inverse(this Generator<decimal> generator) => generator.Map(value => value == 0 ? 0 : 1 / value).With(nameof(Inverse).Format(generator));
+
         public static Generator<sbyte> Signed(this Generator<byte> generator) => generator.Map(value => (sbyte)value).With(nameof(Signed).Format(generator));
         public static Generator<short> Signed(this Generator<ushort> generator) => generator.Map(value => (short)value).With(nameof(Signed).Format(generator));
         public static Generator<int> Signed(this Generator<uint> generator) => generator.Map(value => (int)value).With(nameof(Signed).Format(generator));
         public static Generator<long> Signed(this Generator<ulong> generator) => generator.Map(value => (long)value).With(nameof(Signed).Format(generator));
+
         public static Generator<byte> Unsigned(this Generator<sbyte> generator) => generator.Map(value => (byte)value).With(nameof(Unsigned).Format(generator));
         public static Generator<ushort> Unsigned(this Generator<short> generator) => generator.Map(value => (ushort)value).With(nameof(Unsigned).Format(generator));
         public static Generator<uint> Unsigned(this Generator<int> generator) => generator.Map(value => (uint)value).With(nameof(Unsigned).Format(generator));
@@ -289,6 +298,7 @@ namespace Entia.Check
         public static Generator<Enum> Enumeration() => _enumeration;
         public static Generator<T> Enumeration<T>() where T : struct, Enum => EnumerationCache<T>.Enumeration;
         public static Generator<Enum> Enumeration(Type type) => Any(Enum.GetValues(type).OfType<Enum>().ToArray()).With(nameof(Enumeration).Format(type));
+
         public static Generator<Enum> Flags() => _flags;
         public static Generator<T> Flags<T>() where T : struct, Enum => FlagsCache<T>.Flags;
         public static Generator<Enum> Flags(Type type)
@@ -501,15 +511,24 @@ namespace Entia.Check
                 return (values, Shrinker.All(values, shrinkers));
             });
 
+        public static Generator<T[]> Repeat<T>(this Generator<T> generator, int count) =>
+            count <= 0 ? Empty<T>() :
+            From(Name<T>.Repeat.Format(generator, count), state =>
+            {
+                var values = new T[count];
+                var shrinkers = new Shrinker<T>[count];
+                for (int i = 0; i < count; i++) (values[i], shrinkers[i]) = generator.Generate(state);
+                return (values, Shrinker.Repeat(values, shrinkers));
+            });
         public static Generator<T[]> Repeat<T>(this Generator<T> generator, Generator<int> count) =>
             From(Name<T>.Repeat.Format(generator, count), state =>
             {
-                var length = count.Generate(state).value;
-                if (length == 0) return Empty<T>().Generate(state);
+                var pair = count.Generate(state);
+                if (pair.value <= 0) return Empty<T>().Generate(state);
 
-                var values = new T[length];
-                var shrinkers = new Shrinker<T>[length];
-                for (int i = 0; i < length; i++) (values[i], shrinkers[i]) = generator.Generate(state);
+                var values = new T[pair.value];
+                var shrinkers = new Shrinker<T>[pair.value];
+                for (int i = 0; i < pair.value; i++) (values[i], shrinkers[i]) = generator.Generate(state);
                 return (values, Shrinker.Repeat(values, shrinkers));
             });
 
@@ -598,7 +617,11 @@ namespace Entia.Check
                     .Select(pair.value.value, (mutation, value) => mutation.Mutate(value))
                     .Flatten();
                 var outcome = new Outcome<T>(pair.value.value, pair.mutations.value, properties);
-                return (outcome, Shrinker.Mutate((generator, pair.value.shrinker), pair.mutations));
+                return (outcome, Shrinker.Map(
+                    pair.value.shrinker,
+                    pair.mutations.shrinker,
+                    shrink => shrink.Mutate(mutations),
+                    shrink => generator.Mutate(shrink)));
             });
 
         static Generator<decimal> Number(decimal minimum, decimal maximum, decimal target)

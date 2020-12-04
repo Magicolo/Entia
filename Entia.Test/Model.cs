@@ -1,5 +1,4 @@
 ﻿using Entia.Modules.Component;
-using Entia.Modules.Group;
 using Entia.Core;
 using System;
 using System.Collections;

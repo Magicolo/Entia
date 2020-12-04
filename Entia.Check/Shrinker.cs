@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Entia.Core;
 using static Entia.Check.Formatting;
 
@@ -114,17 +113,6 @@ namespace Entia.Check
                         });
                     }
                 }
-            }
-        }
-
-        internal static Shrinker<Outcome<T>> Mutate<T>((Generator<T> generator, Shrinker<T> shrinker) value, (Generator<Mutation<T>[]> generator, Shrinker<Mutation<T>[]> shrinker) mutations)
-        {
-            return From(Name<T>.Mutate.Format(value.shrinker, mutations.shrinker), Shrink);
-
-            IEnumerable<Generator<Outcome<T>>> Shrink()
-            {
-                foreach (var generator in value.shrinker.Shrink()) yield return generator.Mutate(mutations.generator);
-                foreach (var generator in mutations.shrinker.Shrink()) yield return value.generator.Mutate(generator);
             }
         }
     }
