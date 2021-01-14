@@ -218,6 +218,7 @@ namespace Entia.Experiment.V2
             const int Mask = Size - 1;
 
             public int Capacity => _data.Length * Size;
+            public int Count => _last - _free.Count;
 
             readonly ConcurrentBag<int> _free = new ConcurrentBag<int>();
             Data[][] _data = { };
@@ -237,12 +238,6 @@ namespace Entia.Experiment.V2
                     if (_free.TryTake(out var index))
                     {
                         ref var slot = ref DataAt(index);
-                        // TODO: can this cause tearing when observed from the 'Enumerator'?
-                        // Do this instead?
-                        // var data = new Data { Generation = slot.Generation + 1, Alive = 1 };
-                        // Interlocked.Exchange(
-                        //     ref UnsafeUtility.As<Data, long>(ref slot),
-                        //     UnsafeUtility.As<Data, long>(ref data));
                         slot = new Data { Generation = slot.Generation + 1, Alive = 1 };
                         entities[created++] = new Entity(index, slot.Generation);
                     }

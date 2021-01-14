@@ -36,25 +36,13 @@ namespace Entia.Core
             return array[minimum.index];
         }
 
-        public static T FirstOrDefault<T>(this T[] array) =>
-            array.TryFirst(out var value) ? value : default;
-
+        public static T FirstOrDefault<T>(this T[] array) => array.TryFirst(out var value) ? value : default;
         public static T FirstOrDefault<T>(this T[] array, Func<T, bool> predicate) =>
             array.TryFirst(predicate, out var value) ? value : default;
 
         public static T LastOrDefault<T>(this T[] array) => array.TryLast(out var value) ? value : default;
 
-        public static bool TryFirst<T>(this T[] array, out T item)
-        {
-            if (array.Length > 0)
-            {
-                item = array[0];
-                return true;
-            }
-            item = default;
-            return false;
-        }
-
+        public static bool TryFirst<T>(this T[] array, out T item) => array.TryAt(0, out item);
         public static bool TryFirst<T>(this T[] array, Func<T, bool> predicate, out T item)
         {
             for (int i = 0; i < array.Length; i++)
@@ -66,20 +54,23 @@ namespace Entia.Core
             return false;
         }
 
-        public static bool TryLast<T>(this T[] array, out T item)
+        public static bool TryLast<T>(this T[] array, out T item) => array.TryAt(array.Length - 1, out item);
+        public static bool TryLast<T>(this T[] array, out T item, out int index) => array.TryAt(index = array.Length - 1, out item);
+
+        public static bool TryAt<T>(this T[] array, int index, out T item)
         {
-            if (array.Length > 0)
+            if (index >= 0 && index < array.Length)
             {
-                item = array[array.Length - 1];
+                item = array[index];
                 return true;
             }
             item = default;
             return false;
         }
 
-        public static bool TryAt<T>(this T[] array, int index, out T item)
+        public static bool TryAt<T>(this T[] array, uint index, out T item)
         {
-            if (index >= 0 && index < array.Length)
+            if (index < array.Length)
             {
                 item = array[index];
                 return true;
@@ -259,6 +250,18 @@ namespace Entia.Core
         public static bool All<T>(this T[] source, Func<T, int, bool> predicate)
         {
             for (int i = 0; i < source.Length; i++) if (!predicate(source[i], i)) return false;
+            return true;
+        }
+
+        public static bool All<T, TState>(this T[] source, TState state, Func<T, TState, bool> predicate)
+        {
+            for (int i = 0; i < source.Length; i++) if (!predicate(source[i], state)) return false;
+            return true;
+        }
+
+        public static bool All<T, TState>(this T[] source, TState state, Func<T, TState, int, bool> predicate)
+        {
+            for (int i = 0; i < source.Length; i++) if (!predicate(source[i], state, i)) return false;
             return true;
         }
 

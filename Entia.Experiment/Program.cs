@@ -13,6 +13,8 @@ using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using Entia.Json;
 using Entia.Core.Documentation;
+using System.Runtime.CompilerServices;
+using System.Diagnostics;
 
 //[TypeDiagnostic("Poulah '{type}'", WithAnyFilters = Filters.Types, HaveNoneFilters = Filters.Class)]
 [TypeDiagnostic("Type '{type}' must implement 'ISwanson'", WithAnyFilters = Filters.Class, HaveAllImplementations = new[] { typeof(ISwanson) })]
@@ -322,7 +324,7 @@ namespace Entia.Experiment
             var ancestors = families.Ancestors(child).ToArray();
         }
 
-        static void Main()
+        unsafe static void Main()
         {
             // LockTests.Test();
             // SuperDuperUnsafe();
@@ -331,6 +333,85 @@ namespace Entia.Experiment
             // Serializer();
             // TypeMapTest.Benchmark();
             // CompareSerializers();
+
+            // - Iterates once.
+            Babylon2.Run((in Time time) => { });
+            // Generated names in 'Inject<T>' and 'Query<T>' will use tuple names if any are provided, otherwise
+            // type names will be used. If conflict arise, generated name will try to specify the type by adding
+            // type argument names
+            // Babylon2.Inject((Inject<(Time, OnAdd<Position>)> inject) =>
+            //     Babylon2.Run((Query<Position> query) =>
+            //     {
+            //         // while (inject.OnAdd(out var message))
+            //         // {
+            //         //     ref var time = ref inject.Time;
+            //         //     query.Has(entity);
+            //         //     query.TryGet(message.Entity, out var item);
+            //         // }
+            //     }));
+            Babylon2.Run((
+                in Time time,
+                Query<(Entity, Position)> query0,
+                Query<(Entity, Position, Velocity)> query1,
+                Query<(Entity, Position, Velocity, Mass?)> query2) =>
+                {
+                    foreach (var item1 in query1)
+                    {
+                        item1.Position.X++;
+                        foreach (var item2 in query2)
+                        {
+                            ref var mass = ref item2.Mass(out var hasMass);
+                            if (hasMass)
+                            {
+                            }
+                        }
+                    }
+                }
+                //, Filter.Not<IsInvincible>()
+                );
+
+            // - Iterates on each entity.
+            // - May run on any thread if analyzed as safe.
+            Babylon2.Run(
+                (in Time time, Entity entity, ref Position a, in Velocity b) => { a.X += b.X * time.Delta; }
+            //(Entity<(Targetable, Not<IsInvincible>)> entity) => { } // Filtering with entity?
+            //, Filter.Not<IsInvincible>() // Additional filtering.
+            );
+            Babylon2.Run(
+                (in Time time, Entity entity, Position* a, Velocity* b) => { (a + 1)->X += b->X; } // Big problem...
+                                                                                                   //, Filter.Not<IsInvincible>()
+                );
+
+            // - Iterates on each chunks.
+            // - May run on any thread if analyzed as safe.
+            // - Allows for SIMD operations.
+            Babylon2.Run(
+                (in Time time, Span<Entity> entity, Span<Position> a, Span<Velocity> b) => { }
+                //, Filter.Not<IsInvincible>()
+                );
+            Babylon2.Run(
+                (in Time time, Entity entity, Position[] a, Velocity[] b) => { } // Probably a bad idea...
+                                                                                 //, Filter.Not<IsInvincible>()
+                );
+
+            // - Iterates on each message received.
+            // - Will skip frames where no message has been emitted.
+            Babylon2.Run(
+                (in Time time, in OnAdd<Position> onAdd, Components<Position> positions) => { }
+                //, Filter.Not<IsInvincible>()
+                );
+
+            // - Iterates on each entity for each message received.
+            Babylon2.Run(
+                (in Time time, in OnAdd<Position> onAdd, Entity entity, ref Position a, in Velocity b) => { }
+                //, Filter.Not<IsInvincible>()
+                );
+
+            // Babylon2.Run(default(Action));
+            // Babylon2.Run(default(Func<int>));
+            // Babylon2.RunAction(() => { });
+            // Babylon2.RunFunc(() => 123);
+            // Babylon2.RunPhase(default);
         }
 
         public readonly struct BobaData : ISystem
@@ -362,5 +443,92 @@ namespace Entia.Experiment
 
             public void Run() => throw new NotImplementedException();
         }
+    }
+
+    public struct Inject<T> { }
+    public struct Query<T> { }
+    public struct Not<T> { }
+    public sealed class Chunk { public int Count; }
+
+    public static class QueryExtensions
+    {
+        public ref struct Enumerator0
+        {
+            public Item0 Current => _item;
+
+            Item0 _item;
+            int _index;
+            int _count;
+            readonly (Chunk chunk, (Entity[], Position[], Velocity[], Mass[]) stores)[] _chunks;
+
+            public Enumerator0(int index, (Chunk, (Entity[], Position[], Velocity[], Mass[]))[] chunks)
+            {
+                _item = default;
+                _index = -1;
+                _count = 0;
+                _chunks = chunks;
+            }
+
+            public bool MoveNext()
+            {
+                while (true)
+                {
+                    if (++_item.Index < _count) return true;
+                    else if (++_index < _chunks.Length)
+                    {
+                        ref var chunk = ref _chunks[_index];
+                        _item = new Item0(chunk.stores);
+                        _count = chunk.chunk.Count;
+                    }
+                    else return false;
+                }
+            }
+        }
+
+        public ref struct Item0
+        {
+            public Entity Entity => _store0[Index];
+            public ref Position Position => ref _store1[Index];
+            public ref Velocity Velocity => ref _store2[Index];
+            public ref Mass Mass(out bool has) => ref (has = _has3) ? ref _store3[Index] : ref Dummy<Mass>.Value;
+            public bool TryMass(out Mass mass) { mass = Mass(out var has); return has; }
+
+            internal int Index;
+
+            readonly Entity[] _store0;
+            readonly Position[] _store1;
+            readonly Velocity[] _store2;
+            readonly Mass[] _store3;
+            readonly bool _has3;
+
+            internal Item0(in (Entity[], Position[], Velocity[], Mass[]) stores)
+            {
+                Index = -1;
+                (_store0, _store1, _store2, _store3) = stores;
+                _has3 = _store3 is not null;
+            }
+        }
+
+        public ref struct Enumerator1
+        {
+            public Item1 Current => throw null;
+            public bool MoveNext() => throw null;
+        }
+
+        public ref struct Item1
+        {
+            public Entity Entity => _entities[Index];
+            public ref Position Position => ref _store0[Index];
+            public ref Velocity Velocity => ref _store1[Index];
+
+            internal int Index;
+
+            readonly Entity[] _entities;
+            readonly Position[] _store0;
+            readonly Velocity[] _store1;
+        }
+
+        public static Enumerator0 GetEnumerator(this Query<(Entity, Position, Velocity, Mass?)> query) => throw null;
+        public static Enumerator1 GetEnumerator(this Query<(Entity, Position, Velocity)> query) => throw null;
     }
 }

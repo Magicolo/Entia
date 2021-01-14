@@ -5,7 +5,7 @@ Entia.Core.Checks.Run();
 Entia.Json.Checks.Run();
 Entia.Checks.Run();
 
-// Console.ReadLine();
+Console.ReadLine();
 
 // Entia.Json.Benches.Run();
-// Entia.Tests.Run();
+Entia.Tests.Run();

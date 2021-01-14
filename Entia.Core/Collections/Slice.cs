@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Entia.Core.Documentation;
 
 namespace Entia.Core
@@ -38,23 +37,23 @@ namespace Entia.Core
 
             public static implicit operator Read(T[] array) => new Read(array, 0, array.Length);
 
-            public ref readonly T this[int index] => ref _array[_offset + index];
+            public ref readonly T this[int index] => ref _array[_index + index];
 
             public readonly int Count;
             readonly T[] _array;
-            readonly int _offset;
+            readonly int _index;
 
             public Read(T[] array, int index, int count)
             {
                 _array = array;
-                _offset = index;
+                _index = index;
                 Count = count;
             }
 
             public T[] ToArray()
             {
                 var current = new T[Count];
-                Array.Copy(_array, _offset, current, 0, Count);
+                Array.Copy(_array, _index, current, 0, Count);
                 return current;
             }
 
@@ -91,25 +90,25 @@ namespace Entia.Core
         }
 
         public static implicit operator Slice<T>(T[] array) => new Slice<T>(array, 0, array.Length);
-        public static implicit operator Read(in Slice<T> slice) => new Read(slice._array, slice._offset, slice.Count);
+        public static implicit operator Read(in Slice<T> slice) => new Read(slice._array, slice._index, slice.Count);
 
-        public ref T this[int index] => ref _array[_offset + index];
+        public ref T this[int index] => ref _array[_index + index];
 
         public readonly int Count;
         readonly T[] _array;
-        readonly int _offset;
+        readonly int _index;
 
         public Slice(T[] array, int index, int count)
         {
             _array = array;
-            _offset = index;
+            _index = index;
             Count = count;
         }
 
         public T[] ToArray()
         {
             var current = new T[Count];
-            Array.Copy(_array, _offset, current, 0, Count);
+            Array.Copy(_array, _index, current, 0, Count);
             return current;
         }
 

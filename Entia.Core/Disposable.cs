@@ -21,7 +21,7 @@ namespace Entia.Core
         readonly T _state;
         readonly Action<T> _dispose;
 
-        public Disposable(in T state, Action<T> dispose)
+        public Disposable(T state, Action<T> dispose)
         {
             _state = state;
             _dispose = dispose;
