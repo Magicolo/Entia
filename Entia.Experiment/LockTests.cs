@@ -6,7 +6,7 @@ namespace Entia.Experiment
 {
     public static class LockTests
     {
-        class Slot
+        public class Slot
         {
             public int Value;
         }

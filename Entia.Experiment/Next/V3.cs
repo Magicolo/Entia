@@ -54,17 +54,18 @@ namespace Entia.Experiment.V3
     // is the check for life since the checks for component existence are unnecessary.
     public struct Entity<T>
     {
-        public static implicit operator Entity(Entity<T> entity) => throw null;
+        public static implicit operator Entity(Entity<T> entity) => entity._entity;
 
         readonly Entity _entity;
+        public Entity(Entity entity) { _entity = entity; }
     }
 
-    struct Or<T1, T2> { }
-    struct And<T1, T2> { }
-    struct Not<T> { }
-    struct Has<T> { }
+    public struct Or<T1, T2> { }
+    public struct And<T1, T2> { }
+    public struct Not<T> { }
+    public struct Has<T> { }
 
-    struct Target
+    public struct Target
     {
         // Express requirements explicitly.
         public Entity<(Has<Targetable>, Not<IsInvincible>)> Entity;
@@ -114,7 +115,7 @@ namespace Entia.Experiment.V3
             public Chunk(Array[] stores) => Stores = stores;
         }
 
-        struct Data
+        public struct Data
         {
             public uint Segment;
             public uint Chunk;
@@ -134,7 +135,7 @@ namespace Entia.Experiment.V3
         readonly int[] _indices;
         readonly ConcurrentBag<Chunk> _free = new();
         Chunk[] _chunks = { };
-        int _last;
+        // int _last;
 
         public Segment(uint index, Meta[] metas)
         {

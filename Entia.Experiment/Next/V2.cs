@@ -194,7 +194,6 @@ namespace Entia.Experiment.V2
         {
             public readonly Type Type;
             public readonly int Index;
-            public readonly bool Plain;
 
             public Meta(Type type, int index)
             {

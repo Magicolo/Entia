@@ -334,7 +334,7 @@ namespace Entia.Experiment
             // TypeMapTest.Benchmark();
             // CompareSerializers();
 
-            V4.Test.Run();
+            V4.Test.Do();
             // - Iterates once.
             Babylon2.Run((in Time time) => { });
             // Generated names in 'Inject<T>' and 'Query<T>' will use tuple names if any are provided, otherwise
@@ -518,6 +518,14 @@ namespace Entia.Experiment
             readonly Entity[] _entities;
             readonly Position[] _store0;
             readonly Velocity[] _store1;
+
+            public Item1(int index, Entity[] entities, Position[] store0, Velocity[] store1)
+            {
+                Index = index;
+                _entities = entities;
+                _store0 = store0;
+                _store1 = store1;
+            }
         }
 
         public static Enumerator0 GetEnumerator(this Query<(Entity, Position, Velocity, Mass?)> query) => throw null;

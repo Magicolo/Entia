@@ -61,6 +61,7 @@ namespace Entia.Experiment.V4
         directly from the message segment store.
     */
 
+    using static Entia.Experiment.V4.System;
     public static class Test
     {
         struct OnInitialize { }
@@ -69,16 +70,15 @@ namespace Entia.Experiment.V4
         struct Position { public Vector3 Value; }
         struct Velocity { public Vector3 Value; }
 
-        public static void Run()
+        public static void Do()
         {
             var template = Template.Create<Vector3>()
                 .With(state => new Position { Value = state })
                 .With(new Velocity { Value = new(1f, 2f, 3f) });
-            var system = System.Factory(template, factory =>
-                System.All(
-                    System.Run(() => factory.Create(new(1f, 2f, 3f))),
-                    System.Run((Entity entity, ref Position position) => position.Value.X++),
-                    System.Run((ref Position position, in Velocity velocity) => position.Value += velocity.Value)));
+            var system = Factory(template, factory => All(
+                Run(() => factory.Create(new(1f, 2f, 3f))),
+                Run((Entity entity, ref Position position) => position.Value.X++),
+                Run((ref Position position, in Velocity velocity) => position.Value += velocity.Value)));
 
             var world = new World();
             for (int i = 0; i < 5; i++) system.Schedule(world).Run();
