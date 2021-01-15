@@ -334,6 +334,7 @@ namespace Entia.Experiment
             // TypeMapTest.Benchmark();
             // CompareSerializers();
 
+            V4.Test.Run();
             // - Iterates once.
             Babylon2.Run((in Time time) => { });
             // Generated names in 'Inject<T>' and 'Query<T>' will use tuple names if any are provided, otherwise
@@ -373,26 +374,17 @@ namespace Entia.Experiment
             // - Iterates on each entity.
             // - May run on any thread if analyzed as safe.
             Babylon2.Run(
-                (in Time time, Entity entity, ref Position a, in Velocity b) => { a.X += b.X * time.Delta; }
-            //(Entity<(Targetable, Not<IsInvincible>)> entity) => { } // Filtering with entity?
-            //, Filter.Not<IsInvincible>() // Additional filtering.
+                // Filtering with entity?
+                (in Time time, V4.Entity<(Targetable, Not<IsInvincible>)> entity, ref Position a, in Velocity b) => { a.X += b.X * time.Delta; }
+                // Filter.Not<IsInvincible>() // Additional filtering.
             );
-            Babylon2.Run(
-                (in Time time, Entity entity, Position* a, Velocity* b) => { (a + 1)->X += b->X; } // Big problem...
-                                                                                                   //, Filter.Not<IsInvincible>()
-                );
 
             // - Iterates on each chunks.
             // - May run on any thread if analyzed as safe.
             // - Allows for SIMD operations.
-            Babylon2.Run(
-                (in Time time, Span<Entity> entity, Span<Position> a, Span<Velocity> b) => { }
-                //, Filter.Not<IsInvincible>()
-                );
-            Babylon2.Run(
-                (in Time time, Entity entity, Position[] a, Velocity[] b) => { } // Probably a bad idea...
-                                                                                 //, Filter.Not<IsInvincible>()
-                );
+            Babylon2.Run((in Time time, Span<V4.Entity<Not<IsInvincible>>> entity, Span<Position> a, Span<Velocity> b) => { });
+            // Probably a bad idea to give direct access to arrays?...
+            Babylon2.Run((in Time time, V4.Entity<Not<IsInvincible>> entity, Position[] a, Velocity[] b) => { });
 
             // - Iterates on each message received.
             // - Will skip frames where no message has been emitted.
