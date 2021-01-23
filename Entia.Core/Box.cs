@@ -104,7 +104,7 @@ namespace Entia.Core
     {
         public readonly struct Read : IBox, IEquatable<Box<T>>, IEquatable<Read>, IEquatable<T>
         {
-            public static implicit operator Read(in T value) => new Read(value);
+            public static implicit operator Read(T value) => new Read(value);
 
             public ref readonly T Value => ref _box[0];
             public bool IsValid => _box?.Length > 0;
@@ -113,7 +113,7 @@ namespace Entia.Core
 
             readonly T[] _box;
 
-            public Read(in T value) : this(new T[] { value }) { }
+            public Read(T value) : this(new T[] { value }) { }
             public Read(T[] box) { _box = box; }
 
             public bool TryValue(out T value)
@@ -140,7 +140,7 @@ namespace Entia.Core
 
         public static implicit operator Box.Read(Box<T> box) => new Box.Read(box._box);
         public static implicit operator Box(Box<T> box) => new Box(box._box);
-        public static implicit operator Box<T>(in T value) => new Box<T>(value);
+        public static implicit operator Box<T>(T value) => new Box<T>(value);
         public static implicit operator Read(Box<T> box) => new Read(box._box);
 
         public ref T Value => ref _box[0];
@@ -150,7 +150,7 @@ namespace Entia.Core
 
         readonly T[] _box;
 
-        public Box(in T value) : this(new T[] { value }) { }
+        public Box(T value) : this(new T[] { value }) { }
         public Box(T[] box) { _box = box; }
 
         public bool TryValue(out T value)
