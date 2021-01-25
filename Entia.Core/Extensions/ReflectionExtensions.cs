@@ -18,5 +18,6 @@ namespace Entia.Core
             property.GetMethod?.IsStatic ?? property.SetMethod.IsStatic;
         public static bool IsInstance(this FieldInfo field) => !field.IsStatic;
         public static bool IsInstance(this PropertyInfo property) => !property.IsStatic();
+        public static T Combine<T>(this T[] delegates) where T : Delegate => (T)Delegate.Combine(delegates);
     }
 }

@@ -351,6 +351,11 @@ namespace Entia.Core
         public static IEnumerable<T> OfType<T>(this IEnumerable<T> source, Type type) =>
             source.Where(item => item?.GetType().Is(type) is true);
 
+        public static IEnumerable<(T1, T2)> Pairs<T1, T2>(this IEnumerable<T1> source, IEnumerable<T2> other)
+        {
+            foreach (var left in source) foreach (var right in other) yield return (left, right);
+        }
+
         public static bool Same<T>(this IEnumerable<T> source, Func<T, T, bool> equals)
         {
             using var enumerator = source.GetEnumerator();

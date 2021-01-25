@@ -19,10 +19,11 @@ namespace Entia.Generate
             {
                 if (node is InvocationExpressionSyntax
                     {
-                        Expression:
-                            MemberAccessExpressionSyntax { 
-                                Expression: IdentifierNameSyntax { Identifier:{ValueText: Babylon2 } }, 
-                                Name: { Identifier: { ValueText: "Run" } } },
+                        Expression: MemberAccessExpressionSyntax
+                        {
+                            Expression: IdentifierNameSyntax { Identifier: { ValueText: Babylon2 } },
+                            Name: { Identifier: { ValueText: "Run" } }
+                        },
                         ArgumentList: { Arguments: { Count: 1 } }
                     } invocation)
                     Invocations.Add(invocation);
