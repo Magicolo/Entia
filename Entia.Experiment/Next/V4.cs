@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -44,21 +45,29 @@ namespace Entia.Experiment.V4
         - Give access to a deferred 'Destroy' operation through variants of the 'Defer' module.
 
         Resources should be implemented as an entity:
-        - All resources would be associated with a single special entity.
-        - The resource entity should be excluded from queries.
-        - The segment holding the entity should be sized for 1 entity.
+        - Each resource would be associated with an entity that would be stored in a segment of size 1.
+        - There must be 1 entity per resource type since dependencies are expressed in terms of segments
+        and to prevent improper detection of dependency conflicts, they must be separated.
+        - Resource entities should be excluded from queries.
 
         Messages should be implemented as temporary entities:
         - 'Emitter<T>' will create a new entity with a single 'T' message component on emit which will be destroyed
-        before the next execution of the emitting system (using 'Defer.Previous').
+        before the next execution of the emitting system.
         - 'Receiver<T>' will query entities with the 'T' message component and enqueue the component in a queue.
         - 'Emitter<T>' will have a 'Write' dependency on the message segment.
         - 'Receiver<T>' will have a 'Read' dependency on the message segment.
         - Therefore, messages can not be emitted and received concurrently which is desired since even if it was
         thread-safe, the order would not be deterministic; a property that Entia tries to preserve.
         - Message entities should be excluded from queries.
-        - For systems that consume all messages on each execution, the queue in not needed, the messages can read
-        directly from the message segment store.
+        - The implementation will use a 'Template<T>' to emit the message. This will force the
+        initialization of the segment before execution.
+            - It will destroy the entities using a query of 'T' and 'Defer.Previous'. Since the
+            creation/destruction segment is known, the dependency is just a 'Write<T>' rather than
+            an 'Unknown'.
+            - It will use a query of 'T' that does not exclude messages to retrieve them. This only
+            imposes a 'Read<T>' dependency that will include only 1 segment.
+        - For systems that consume all messages on each execution, the queue in not needed, the
+        messages can read directly from the message segment store.
     */
 
     public static class Test
@@ -76,18 +85,45 @@ namespace Entia.Experiment.V4
                 .Add(state => new Position { Value = state })
                 .Add(new Velocity { Value = new(1f, 2f, 3f) });
 
-            var system = Node.All(
-                Node.Inject(template, factory => Node.Run(() => factory.Create(new(1f, 2f, 3f)))),
-                Node.Run((Entity entity, ref Position position) => position.Value.X++)
+            var world = new World();
+            var populate = Node.All(
+                Node.Factory(Template.Create().Add(new OnInitialize()), factory => Node.Run(() => factory.Create(default))),
+                Node.Factory(Template.Create().Add(new OnFinalize()), factory => Node.Run(() => factory.Create(default))),
+                Node.Factory(Template.Create().Add(new Position()), factory => Node.Run(() => factory.Create(default))),
+                Node.Factory(Template.Create().Add(new Velocity()), factory => Node.Run(() => factory.Create(default))),
+                Node.Factory(Template.Create().Add(new Time()), factory => Node.Run(() => factory.Create(default))),
+                Node.Factory(template.Add(new Time()), factory => Node.Run(() => factory.Create(default))),
+                Node.Factory(template.Add(new OnInitialize()), factory => Node.Run(() => factory.Create(default))),
+                Node.Factory(template.Add(new OnFinalize()), factory => Node.Run(() => factory.Create(default))),
+                Node.Factory(template, factory => Node.Run(() => factory.Create(new(1f, 2f, 3f))))
+            ).Schedule(world);
+
+            var sum = 0;
+            void Sum(int count = 1000) { for (int i = 0; i < count; i++) sum += i; }
+
+            var increment = Node.All(
+                Node.Run((Entity entity, ref OnInitialize _) => Sum()),
+                Node.Run((Entity entity, ref Time _) => Sum()),
+                Node.Run((Entity entity, ref Position position) => position.Value.X++),
+                Node.Run((Entity entity, ref OnFinalize _) => Sum()),
+                Node.Run((Entity entity, ref Velocity velocity) => velocity.Value.X++)
             // Node.Run((ref Position position, in Velocity velocity) => position.Value += velocity.Value)
             // Run((in Time time, ref Position position, in Velocity velocity) =>
             //     position.Value += velocity.Value * time.Delta)
-            );
+            ).Schedule(world);
 
-            var world = new World();
             var entities = new Entities(world);
-            var run = system.Schedule(world);
-            for (int i = 0; i < 5; i++) run();
+            var watch = Stopwatch.StartNew();
+            for (int i = 0; i < 1000; i++)
+            {
+                if ((i % 100) == 0)
+                {
+                    Console.WriteLine($"Iteration {i}: {watch.Elapsed} | {world.Count}/{world.Capacity}");
+                    watch.Restart();
+                }
+                populate();
+                increment();
+            }
         }
     }
 
@@ -163,7 +199,7 @@ namespace Entia.Experiment.V4
         Dictionary<Type, Meta> _metas = new();
         int _last;
 
-        public World(int grow = 6)
+        public World(byte grow = 6)
         {
             _shift = grow;
             _size = 1 << _shift;
@@ -394,7 +430,7 @@ namespace Entia.Experiment.V4
         readonly uint[] _indices;
         readonly ConcurrentBag<int> _free = new ConcurrentBag<int>();
 
-        public Segment(Meta[] metas, byte size = 32)
+        public Segment(Meta[] metas, byte size = 64)
         {
             Metas = metas;
             _size = size;
@@ -408,11 +444,11 @@ namespace Entia.Experiment.V4
             Metas.TryAt(index, out var other) &&
             meta == other;
 
-        public bool TryIndex(Meta meta, out uint index) => _indices.TryAt(meta.Index, out index);
+        public bool TryIndex(Meta meta, out uint index) => _indices.TryAt(meta.Index, out index) && index < Metas.Length;
 
         public bool TryStore(Chunk chunk, Meta meta, out Array store)
         {
-            if (_indices.TryAt(meta.Index, out var index)) return chunk.Stores.TryAt(index, out store);
+            if (TryIndex(meta, out var index)) return chunk.Stores.TryAt(index, out store);
             store = default;
             return false;
         }
@@ -564,19 +600,99 @@ namespace Entia.Experiment.V4
 
         public static Action Schedule(this Nodes.INode node, World world)
         {
-            static bool[] Conflicts(Nodes.Runner[] runners)
+            var prepares = Prepare(node, world);
+            var runners = prepares.Select(prepare => prepare());
+            var groups = Groups(runners);
+            return () =>
             {
-                var dependencies = Array.Empty<Dependency>();
-                var conflicts = new bool[runners.Length];
-                for (int i = 0; i < runners.Length; i++)
+                var reschedule = false;
+                for (int i = 0; i < groups.Length; i++)
                 {
-                    var runner = runners[i];
-                    if (conflicts[i] = Has(dependencies, runner.Dependencies))
-                        dependencies = Array.Empty<Dependency>();
-                    else
-                        dependencies = dependencies.Append(runner.Dependencies);
+                    var (runner, begin, end) = groups[i];
+                    var changed = (runs: false, dependencies: false);
+                    for (int j = begin; j < end; j++)
+                    {
+                        ref var previous = ref runners[j];
+                        var current = prepares[j]();
+                        changed.runs |= previous.Runs != current.Runs;
+                        changed.dependencies |= previous.Dependencies != current.Dependencies;
+                        previous = current;
+                    }
+
+                    reschedule |= changed.dependencies;
+                    // Since dependencies have changed, it is not safe to run the group runners in
+                    // parallel until the reschedule happens.
+                    if (changed.dependencies) for (int j = begin; j < end; j++) Run(runners[j]);
+                    else if (changed.runs) Run(groups[i].runner = All(runners, begin, end));
+                    else Run(runner);
                 }
-                return conflicts;
+
+                if (reschedule) groups = Groups(runners);
+            };
+
+            static Nodes.Prepare[] Prepare(Nodes.INode node, World world)
+            {
+                return Interpret(Resolve(node));
+
+                Nodes.INode Resolve(Nodes.INode node) => node switch
+                {
+                    Nodes.Lazy lazy => Resolve(lazy.Provide(world)),
+                    Nodes.Map map => Resolve(map.Node) switch
+                    {
+                        Nodes.Map inner => inner.Node.Map(runner => map.Mapping(inner.Mapping(runner))),
+                        Nodes.INode outer => outer.Map(map.Mapping)
+                    },
+                    Nodes.All all => all.Nodes
+                        .Select(Resolve)
+                        .Select(static node => node is Nodes.All inner ? inner.Nodes : new[] { node })
+                        .Flatten()
+                        .All(),
+                    _ => node
+                };
+
+                Nodes.Prepare[] Interpret(Nodes.INode node) => node switch
+                {
+                    Nodes.Map map => Interpret(map.Node).Select(prepare => Map(prepare, map.Mapping)),
+                    Nodes.All all => all.Nodes.Select(Interpret).Flatten(),
+                    Nodes.System system => new[] { system.Schedule(world) },
+                    _ => Array.Empty<Nodes.Prepare>()
+                };
+
+                static Nodes.Prepare Map(Nodes.Prepare prepare, Func<Nodes.Runner, Nodes.Runner> map)
+                {
+                    var runner = default(Nodes.Runner);
+                    var cache = Nodes.Runner.Empty;
+                    return () => runner.Change(prepare()) ? cache = map(runner) : cache;
+                }
+            }
+
+            static (Nodes.Runner runner, int begin, int end)[] Groups(Nodes.Runner[] runners)
+            {
+                var groups = new List<(Nodes.Runner runner, int, int)>();
+                var conflicts = Conflicts(runners);
+                var last = 0;
+                // Groups must cover the full range of the runner array so empty groups must not
+                // be filtered or this may cause problems when executing them.
+                for (int i = 0; i < runners.Length; i++) if (conflicts[i]) Merge(last, last = i);
+                Merge(last, runners.Length);
+                return groups.ToArray();
+
+                void Merge(int begin, int end) => groups.Add((All(runners, begin, end), begin, end));
+
+                static bool[] Conflicts(Nodes.Runner[] runners)
+                {
+                    var dependencies = Array.Empty<Dependency>();
+                    var conflicts = new bool[runners.Length];
+                    for (int i = 0; i < runners.Length; i++)
+                    {
+                        var runner = runners[i];
+                        if (conflicts[i] = Has(dependencies, runner.Dependencies))
+                            dependencies = runner.Dependencies;
+                        else
+                            dependencies = dependencies.Append(runner.Dependencies);
+                    }
+                    return conflicts;
+                }
 
                 static bool Has(Dependency[] left, Dependency[] right)
                 {
@@ -585,92 +701,28 @@ namespace Entia.Experiment.V4
                         left.Any(dependency => dependency.Kind == Dependency.Kinds.Unknown) ||
                         right.Any(dependency => dependency.Kind == Dependency.Kinds.Unknown) ||
                         left.Pairs(right)
-                            .Where(pair => pair.Item1.Segment == pair.Item2.Segment)
+                            .Where(pair => pair.Item1.Type == pair.Item2.Type && pair.Item1.Segment == pair.Item2.Segment)
                             .Any(pair => pair.Item1.Kind == Dependency.Kinds.Write || pair.Item2.Kind == Dependency.Kinds.Write);
                 }
             }
 
-            static Nodes.Runner[] Reduce(Nodes.Runner[] runners, bool[] conflicts)
-            {
-                var reduced = new List<Nodes.Runner>(runners.Length);
-                var begin = 0;
-                // Allow runners that have only dependencies to allow for synchronization runners.
-                // Those synchronization runners will be filtered before returning such that they
-                // are only considered when reducing and not while executing.
-                for (int i = 0; i < runners.Length; i++) if (conflicts[i]) Merge(begin = i);
-                Merge(runners.Length);
-                return reduced.Where(runner => runner.Runs.Length > 0).ToArray();
+            static Nodes.Runner All(Nodes.Runner[] runners, int begin, int end) =>
+                Nodes.Runner.All(runners.Slice(begin, end - begin).ToArray());
 
-                void Merge(int end)
-                {
-                    var count = end - begin;
-                    if (count == 0) return;
-                    reduced.Add(Nodes.Runner.All(runners.Slice(begin, count).ToArray()));
-                }
+            static void Run(Nodes.Runner runner)
+            {
+                if (runner.Runs.Length <= 8) foreach (var run in runner.Runs) run();
+                else runner.Runs.Select(Task.Run).Iterate(task => task.Wait());
             }
-
-            static Nodes.Prepare Map(Nodes.Prepare prepare, Func<Nodes.Runner, Nodes.Runner> map)
-            {
-                var runner = default(Nodes.Runner);
-                var cache = Nodes.Runner.Empty;
-                return () => runner.Change(prepare()) ? cache = map(runner) : cache;
-            }
-
-            static Nodes.INode Resolve(Nodes.INode node, World world) => node switch
-            {
-                Nodes.Lazy lazy => Resolve(lazy.Provide(world), world),
-                Nodes.Map map => Resolve(map.Node, world) switch
-                {
-                    Nodes.Map inner => inner.Node.Map(runner => map.Mapping(inner.Mapping(runner))),
-                    Nodes.INode outer => outer.Map(map.Mapping)
-                },
-                Nodes.All all => all.Nodes
-                    .Select(world, Resolve)
-                    .Select(static node => node is Nodes.All inner ? inner.Nodes : new[] { node })
-                    .Flatten()
-                    .All(),
-                _ => node
-            };
-
-            static Nodes.Prepare[] Schedule(Nodes.INode node, World world) => node switch
-            {
-                Nodes.Map map => Schedule(map.Node, world).Select(prepare => Map(prepare, map.Mapping)),
-                Nodes.All all => all.Nodes.Select(world, Schedule).Flatten(),
-                Nodes.System system => new[] { system.Schedule(world) },
-                _ => Array.Empty<Nodes.Prepare>()
-            };
-
-            var resolved = Resolve(node, world);
-            var prepares = Schedule(resolved, world);
-            var runners = new Nodes.Runner[prepares.Length];
-            var conflicts = new bool[prepares.Length];
-            var reduced = Array.Empty<Nodes.Runner>();
-            return () =>
-            {
-                var changed = (runs: false, dependencies: false);
-                for (int i = 0; i < prepares.Length; i++)
-                {
-                    var runner = prepares[i]();
-                    changed.runs |= runners[i].Runs != runner.Runs;
-                    changed.dependencies |= runners[i].Dependencies != runner.Dependencies;
-                    runners[i] = runner;
-                }
-
-                if (changed.dependencies) conflicts = Conflicts(runners);
-                if (changed.runs || changed.dependencies) reduced = Reduce(runners, conflicts);
-
-                foreach (var runner in reduced)
-                {
-                    if (runner.Runs.Length <= 4) foreach (var run in runner.Runs) run();
-                    else Parallel.Invoke(runner.Runs);
-                }
-            };
         }
 
-        public static Nodes.INode Inject<T>(Template<T> template, Func<Factory<T>, Nodes.INode> provide) => Node.Lazy(world =>
+        public static Nodes.INode Factory<T>(Template<T> template, Func<Factory<T>, Nodes.INode> provide) => Node.Lazy(world =>
         {
             var factory = new Factory<T>(template, world);
-            return Node.Depend(provide(factory), new Dependency(Dependency.Kinds.Write, factory.Segment));
+            var dependencies = factory.Segment.Metas
+                .Select(meta => new Dependency(Dependency.Kinds.Write, meta.Type, factory.Segment))
+                .Prepend(new Dependency(Dependency.Kinds.Write, typeof(Entity), factory.Segment));
+            return provide(factory).Depend(dependencies);
         });
 
         public static Nodes.INode Run(params Action[] runs) =>
@@ -717,12 +769,12 @@ namespace Entia.Experiment.V4
 
         public static Nodes.INode Run<TComponent1>(RunEC1<TComponent1> run, Matcher? matcher = null) => Node.System(world =>
         {
-            var index = 0;
-            var segments = Array.Empty<(Segment segment, Action[] runs, uint store1)>();
             var meta1 = world.Meta(typeof(TComponent1));
+            var index = 0;
+            var states = Array.Empty<(Segment segment, Action[] runs, uint store1)>();
             var match = (matcher ?? Matcher.True).Match;
             var runner = Nodes.Runner.Empty;
-            return new(() =>
+            return () =>
             {
                 var changed = false;
                 while (index < world.Segments.Length)
@@ -731,34 +783,34 @@ namespace Entia.Experiment.V4
                     if (segment.TryIndex(meta1, out var store1) && match(segment, world))
                     {
                         changed = true;
-                        segments = segments.Append((segment, Array.Empty<Action>(), store1));
+                        states = states.Append((segment, Array.Empty<Action>(), store1));
                     }
                 }
 
-                for (int i = 0; i < segments.Length; i++)
+                for (int i = 0; i < states.Length; i++)
                 {
-                    ref var segment = ref segments[i];
-                    if (segment.runs.Length == segment.segment.Chunks.Length) continue;
+                    ref var state = ref states[i];
+                    if (state.runs.Length == state.segment.Chunks.Length) continue;
 
                     changed = true;
-                    var start = segment.runs.Length;
+                    var start = state.runs.Length;
                     // Ensures the 'runs' array is always of the proper size.
                     // If a segment is shrunk, excess runs will be thrown out.
-                    Array.Resize(ref segment.runs, segment.segment.Chunks.Length);
-                    for (int j = start; j < segment.runs.Length; j++)
+                    Array.Resize(ref state.runs, state.segment.Chunks.Length);
+                    for (int j = start; j < state.runs.Length; j++)
                     {
-                        var chunk = segment.segment.Chunks[j];
+                        var chunk = state.segment.Chunks[j];
                         var entities = chunk.Entities;
-                        var store1 = (TComponent1[])chunk.Stores[segment.store1];
-                        segment.runs[j] = () => { for (int i = 0; i < chunk.Count; i++) run(entities[i], ref store1[i]); };
+                        var store1 = (TComponent1[])chunk.Stores[state.store1];
+                        state.runs[j] = () => { for (int i = 0; i < chunk.Count; i++) run(entities[i], ref store1[i]); };
                     }
                 }
 
                 if (changed) runner = new(
-                    segments.Select(static segment => segment.runs).Flatten(),
-                    segments.Select(static segment => new Dependency(Dependency.Kinds.Write, segment.segment)));
+                    states.Select(static state => state.runs).Flatten(),
+                    states.Select(static state => new[] { new Dependency(Dependency.Kinds.Read, typeof(Entity), state.segment), new Dependency(Dependency.Kinds.Write, typeof(TComponent1), state.segment) }).Flatten());
                 return runner;
-            });
+            };
         });
     }
 
@@ -766,11 +818,13 @@ namespace Entia.Experiment.V4
     {
         public enum Kinds { Unknown, Read, Write }
         public readonly Kinds Kind;
+        public readonly Type Type;
         public readonly Segment Segment;
 
-        public Dependency(Kinds kind, Segment segment)
+        public Dependency(Kinds kind, Type type, Segment segment)
         {
             Kind = kind;
+            Type = type;
             Segment = segment;
         }
     }
