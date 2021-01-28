@@ -278,16 +278,21 @@ namespace Entia.Core
         }
 
         public static Option<ConstructorInfo> DefaultConstructor(this Type type) =>
-            type.DefaultConstructors().FirstOrNone(pair => pair.parameters.Length == 0).Map(pair => pair.constructor);
+            type.DefaultConstructors().TryFirst(out var pair) && pair.parameters.Length == 0 ? pair.constructor : Option.None();
 
         public static IEnumerable<(ConstructorInfo constructor, object[] parameters)> DefaultConstructors(this Type type)
         {
-            foreach (var constructor in type.Constructors(true, false))
+            return Get(type).OrderBy(pair => pair.parameters.Length);
+
+            static IEnumerable<(ConstructorInfo constructor, object[] parameters)> Get(Type type)
             {
-                if (constructor.IsAbstract) continue;
-                var parameters = constructor.GetParameters();
-                if (parameters.All(parameter => parameter.HasDefaultValue))
-                    yield return (constructor, parameters.Select(parameter => parameter.DefaultValue));
+                foreach (var constructor in type.Constructors(true, false))
+                {
+                    if (constructor.IsAbstract) continue;
+                    var parameters = constructor.GetParameters();
+                    if (parameters.All(parameter => parameter.HasDefaultValue))
+                        yield return (constructor, parameters.Select(parameter => parameter.DefaultValue));
+                }
             }
         }
 

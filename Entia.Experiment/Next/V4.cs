@@ -87,15 +87,15 @@ namespace Entia.Experiment.V4
 
             var world = new World();
             var populate = Node.All(
-                Node.Factory(Template.Create().Add(new OnInitialize()), factory => Node.Run(() => factory.Create(default))),
-                Node.Factory(Template.Create().Add(new OnFinalize()), factory => Node.Run(() => factory.Create(default))),
-                Node.Factory(Template.Create().Add(new Position()), factory => Node.Run(() => factory.Create(default))),
-                Node.Factory(Template.Create().Add(new Velocity()), factory => Node.Run(() => factory.Create(default))),
-                Node.Factory(Template.Create().Add(new Time()), factory => Node.Run(() => factory.Create(default))),
-                Node.Factory(template.Add(new Time()), factory => Node.Run(() => factory.Create(default))),
-                Node.Factory(template.Add(new OnInitialize()), factory => Node.Run(() => factory.Create(default))),
-                Node.Factory(template.Add(new OnFinalize()), factory => Node.Run(() => factory.Create(default))),
-                Node.Factory(template, factory => Node.Run(() => factory.Create(new(1f, 2f, 3f))))
+                Node.Create(Template.Create().Add(new OnInitialize()), creator => Node.Run(() => creator.Create(default))),
+                Node.Create(Template.Create().Add(new OnFinalize()), creator => Node.Run(() => creator.Create(default))),
+                Node.Create(Template.Create().Add(new Position()), creator => Node.Run(() => creator.Create(default))),
+                Node.Create(Template.Create().Add(new Velocity()), creator => Node.Run(() => creator.Create(default))),
+                Node.Create(Template.Create().Add(new Time()), creator => Node.Run(() => creator.Create(default))),
+                Node.Create(template.Add(new Time()), creator => Node.Run(() => creator.Create(default))),
+                Node.Create(template.Add(new OnInitialize()), creator => Node.Run(() => creator.Create(default))),
+                Node.Create(template.Add(new OnFinalize()), creator => Node.Run(() => creator.Create(default))),
+                Node.Create(template, creator => Node.Run(() => creator.Create(new(1f, 2f, 3f))))
             ).Schedule(world);
 
             var sum = 0;
@@ -114,7 +114,7 @@ namespace Entia.Experiment.V4
 
             var entities = new Entities(world);
             var watch = Stopwatch.StartNew();
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; i < 2500; i++)
             {
                 if ((i % 100) == 0)
                 {
@@ -181,7 +181,7 @@ namespace Entia.Experiment.V4
         public struct Datum
         {
             public uint Generation;
-            public int Index;
+            public byte Index;
             public Segment.Chunk Chunk;
             public Segment Segment;
         }
@@ -208,13 +208,13 @@ namespace Entia.Experiment.V4
             DataAt(0, 1)[0].Generation++;
         }
 
-        public Segment Segment(Meta[] metas)
+        public Segment Segment(Meta[] metas, byte? chunk = default)
         {
             if (TrySegment(metas, out var segment)) return segment;
             lock (_lock)
             {
                 if (TrySegment(metas, out segment)) return segment;
-                segment = new(metas);
+                segment = new((uint)Segments.Length, metas, chunk);
                 Segments = Segments.Append(segment);
                 return segment;
             }
@@ -225,7 +225,9 @@ namespace Entia.Experiment.V4
             for (int i = 0; i < Segments.Length; i++)
             {
                 segment = Segments[i];
-                if (metas.All(segment, (meta, state) => state.Has(meta))) return true;
+                if (metas.All(segment, (meta, state) => state.Has(meta)) &&
+                    segment.Metas.All(metas, (meta, state) => state.Contains(meta)))
+                    return true;
             }
             segment = default;
             return false;
@@ -244,14 +246,24 @@ namespace Entia.Experiment.V4
 
         public Meta Meta(Type type)
         {
-            if (_metas.TryGetValue(type, out var meta)) return meta;
+            if (TryMeta(type, out var meta)) return meta;
             lock (_lock)
             {
-                if (_metas.TryGetValue(type, out meta)) return meta;
+                if (TryMeta(type, out meta)) return meta;
                 meta = new(type, (uint)_metas.Count);
                 _metas = new Dictionary<Type, Meta>(_metas) { { meta.Type, meta } };
                 return meta;
             }
+        }
+
+        public bool TryMeta(Type type, out Meta meta) => _metas.TryGetValue(type, out meta);
+
+        public Entity Create(Segment segment) => Create(segment, default(Unit), (int _, int _, Segment.Chunk _, in Unit _) => { });
+        public Entity Create<TState>(Segment segment, in TState state, Initialize<TState> initialize)
+        {
+            Span<Entity> entities = stackalloc Entity[1];
+            Create(entities, segment, state, initialize);
+            return entities[0];
         }
 
         /* TODO:
@@ -268,6 +280,7 @@ namespace Entia.Experiment.V4
             Perhaps use the same kind of chunk design as in 'Segment'? This would mean that the indices in '_free' do not represent
             a specific chunk item but would tag a chunk as 'not full'.
         */
+        public void Create(Span<Entity> entities, Segment segment) => Create(entities, segment, default(Unit), (int _, int _, Segment.Chunk _, in Unit _) => { });
         public void Create<TState>(Span<Entity> entities, Segment segment, in TState state, Initialize<TState> initialize)
         {
             var created = 0;
@@ -295,13 +308,39 @@ namespace Entia.Experiment.V4
                         ref var datum = ref data[i];
                         datum.Segment = segment;
                         datum.Chunk = chunk;
-                        datum.Index = (index << 24) | chunk.Count;
+                        datum.Index = chunk.Count;
                         var entity = entities[created] = new(free, datum.Generation);
                         chunk.Entities[chunk.Count] = entity;
                     }
                     if (count > 0) initialize(start, count, chunk, state);
                 }
             }
+        }
+
+        public uint Destroy(Segment segment)
+        {
+            var destroyed = 0u;
+            for (int i = 0; i < segment.Chunks.Length; i++)
+            {
+                var chunk = segment.Chunks[i];
+                if (chunk.Count == 0) continue;
+
+                for (int j = 0; j < chunk.Count; j++)
+                {
+                    var entity = chunk.Entities[j];
+                    ref var datum = ref DatumAt(entity.Index);
+                    if (entity.Generation == datum.Generation && Interlocked.Exchange(ref datum.Segment, null) == segment)
+                    {
+                        destroyed++;
+                        datum.Generation++;
+                        _free.Add(datum.Index);
+                    }
+                }
+                foreach (var store in chunk.Stores) Array.Clear(store, 0, chunk.Count);
+                chunk.Count = 0;
+                segment.Put(i);
+            }
+            return destroyed;
         }
 
         public bool Destroy(Entity entity)
@@ -314,9 +353,8 @@ namespace Entia.Experiment.V4
                 var chunk = datum.Chunk;
                 lock (chunk)
                 {
-                    var index = datum.Index;
                     var source = --chunk.Count;
-                    var target = (byte)datum.Index;
+                    var target = datum.Index;
                     if (source != target)
                     {
                         chunk.Entities[target] = chunk.Entities[source];
@@ -325,10 +363,10 @@ namespace Entia.Experiment.V4
                             Array.Copy(store, source, store, target, 1);
                             Array.Clear(store, source, 1);
                         }
-                        DatumAt(target).Index = index;
+                        DatumAt(target).Index = datum.Index;
                     }
-                    segment.Put(index >> 24);
                 }
+                segment.Put(chunk.Index);
                 _free.Add(entity.Index);
                 return true;
             }
@@ -347,11 +385,18 @@ namespace Entia.Experiment.V4
         }
     }
 
-    public record Meta
+    public sealed record Meta : IComparable<Meta>
     {
         public readonly Type Type;
         public readonly uint Index;
         public Meta(Type type, uint index) { Type = type; Index = index; }
+
+        public int CompareTo(Meta other)
+        {
+            var comparison = Type.MetadataToken.CompareTo(other.Type.MetadataToken);
+            if (comparison == 0) comparison = Index.CompareTo(other.Index);
+            return comparison;
+        }
     }
 
     public static class Template
@@ -403,7 +448,7 @@ namespace Entia.Experiment.V4
 
     public delegate void Initialize<T>(int index, int count, Segment.Chunk chunk, in T state);
 
-    public sealed class Segment
+    public sealed class Segment : IComparable<Segment>
     {
         public sealed class Chunk
         {
@@ -411,80 +456,85 @@ namespace Entia.Experiment.V4
             // chunks, but this setup will be practical to dispatch threads with only a chunk.
             public readonly Entity[] Entities;
             public readonly Array[] Stores;
-            // Threads that iterate on this count should take a local copy of it such that they do not inconsistently
-            // iterate over entities created during the iteration. The inconsistency appears if other threads create
-            // entities which may complete before or after this thread has completed its iteration.
+            public readonly int Index;
             public byte Count;
 
-            public Chunk(Entity[] entities, Array[] stores)
+            public Chunk(int index, Entity[] entities, Array[] stores)
             {
+                Index = index;
                 Entities = entities;
                 Stores = stores;
             }
         }
 
+        public readonly uint Index;
         public readonly Meta[] Metas;
-        internal Chunk[] Chunks = { };
+        internal Chunk[] Chunks => _chunks;
 
         readonly int _size;
         readonly uint[] _indices;
         readonly ConcurrentBag<int> _free = new ConcurrentBag<int>();
+        Chunk[] _chunks = { };
 
-        public Segment(Meta[] metas, byte size = 64)
+        public Segment(uint index, Meta[] metas, byte? size = default)
         {
+            Index = index;
             Metas = metas;
-            _size = size;
+            _size = size ?? 64;
             _indices = new uint[metas.Length == 0 ? 0 : metas.Max(meta => meta.Index + 1)];
             _indices.Fill(uint.MaxValue);
             for (var i = 0u; i < metas.Length; i++) _indices[metas[i].Index] = i;
         }
 
-        public bool Has(Meta meta) =>
-            _indices.TryAt(meta.Index, out var index) &&
-            Metas.TryAt(index, out var other) &&
-            meta == other;
-
+        public bool Has(Meta meta) => TryIndex(meta, out var index) && Metas[index] == meta;
         public bool TryIndex(Meta meta, out uint index) => _indices.TryAt(meta.Index, out index) && index < Metas.Length;
 
         public bool TryStore(Chunk chunk, Meta meta, out Array store)
         {
-            if (TryIndex(meta, out var index)) return chunk.Stores.TryAt(index, out store);
+            if (TryIndex(meta, out var index))
+            {
+                store = chunk.Stores[index];
+                return true;
+            }
             store = default;
             return false;
         }
 
         public Chunk Take(out int index)
         {
-            if (_free.TryTake(out index)) return Chunks[index];
+            if (_free.TryTake(out index)) return _chunks[index];
 
-            var chunks = Chunks;
+            var chunks = _chunks;
             if (chunks.TryLast(out var chunk, out index) && chunk.Count < _size) return chunk;
 
             index = chunks.Length;
-            chunk = new Chunk(new Entity[_size], Metas.Select(meta => Array.CreateInstance(meta.Type, _size)));
+            chunk = new Chunk(index, new Entity[_size], Metas.Select(meta => Array.CreateInstance(meta.Type, _size)));
             // If the 'CompareExchange' fails, it means that another thread added a chunk before this one
             // finished. In this case, this thread's work will be discarded, which is fine.
-            Interlocked.CompareExchange(ref Chunks, chunks.Append(chunk), chunks);
+            Interlocked.CompareExchange(ref _chunks, chunks.Append(chunk), chunks);
             // Read from 'Chunks' in case 'CompareExchange' fails.
-            return Chunks[index];
+            return _chunks[index];
         }
 
         public void Put(int index) => _free.Add(index);
+
+        public int CompareTo(Segment other) => Index.CompareTo(other.Index);
     }
 
-    public readonly struct Factory<TState>
+    public readonly struct Creator<TState>
     {
         static readonly Initialize<TState> _default = (int _, int _, Segment.Chunk _, in TState _) => { };
 
-        internal readonly Segment Segment;
+        internal Segment Segment => _segment;
         readonly World _world;
+        readonly Segment _segment;
         readonly Initialize<TState> _initialize;
 
-        public Factory(Template<TState> template, World world)
+        public Creator(Template<TState> template, World world, byte? chunk = default)
         {
             var initializers = template.Initializers.Select(pair => (meta: world.Meta(pair.type), pair.initialize));
             var initialize = default(Initialize<TState>);
-            var segment = world.Segment(initializers.Select(pair => pair.meta));
+            var segment = world.Segment(initializers.Select(pair => pair.meta), chunk);
             foreach (var pair in initializers)
             {
                 if (segment.TryIndex(pair.meta, out var store))
@@ -494,19 +544,44 @@ namespace Entia.Experiment.V4
                 }
             }
 
-            Segment = segment;
             _world = world;
+            _segment = segment;
             _initialize = initialize ?? _default;
         }
 
-        public Entity Create(in TState state)
+        public Entity Create(in TState state) => _world.Create(_segment, state, _initialize);
+        public void Create(Span<Entity> entities, in TState state) => _world.Create(entities, _segment, state, _initialize);
+    }
+
+    public static class Creator
+    {
+        public static Entity Create(this Creator<Unit> creator) => creator.Create(default);
+    }
+
+    public readonly struct Destroyer
+    {
+        internal Segment[] Segments => _segments();
+
+        readonly World _world;
+        readonly Func<Segment[]> _segments;
+
+        public Destroyer(Matcher matcher, World world)
         {
-            Span<Entity> entities = stackalloc Entity[1];
-            _world.Create(entities, Segment, state, _initialize);
-            return entities[0];
+            _world = world;
+            _segments = world.Segments(matcher);
         }
 
-        public void Create(Span<Entity> entities, in TState state) => _world.Create(entities, Segment, state, _initialize);
+        public bool Destroy(Entity entity) =>
+            _world.TryDatum(entity, out var datum) &&
+            Array.BinarySearch(_segments(), datum.Segment) >= 0 &&
+            _world.Destroy(entity);
+
+        public uint Destroy()
+        {
+            var count = 0u;
+            foreach (var segment in _segments()) count += _world.Destroy(segment);
+            return count;
+        }
     }
 
     public readonly struct Entities : IEnumerable<Entity>
@@ -525,6 +600,68 @@ namespace Entia.Experiment.V4
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
+    public readonly struct Resource<T>
+    {
+        static readonly Template<Unit> _template = Template.Create().Add(_ => DefaultUtility.Default<T>());
+
+        public ref T Value => ref _store[0];
+        readonly T[] _store;
+
+        public Resource(World world)
+        {
+            var creator = new Creator<Unit>(_template, world, 1);
+            if (creator.Segment.Chunks.Length == 0) creator.Create();
+            _store = (T[])creator.Segment.Chunks[0].Stores[0];
+        }
+    }
+
+    public readonly struct State<T>
+    {
+        static readonly Template<T> _template = Template.Create<T>().Add(state => state);
+
+        public ref T Value => ref _store[_index];
+        readonly T[] _store;
+        readonly byte _index;
+
+        public State(T value, World world, byte chunk = 1)
+        {
+            var creator = new Creator<T>(_template, world, chunk);
+            var entity = creator.Create(value);
+            world.TryDatum(entity, out var datum);
+            _index = (byte)datum.Index;
+            _store = (T[])datum.Chunk.Stores[0];
+        }
+    }
+
+    struct Messages<T> { public ConcurrentQueue<T> Queue; public int Capacity; }
+
+    public readonly struct Emitter<T>
+    {
+        readonly Segment _segment;
+        public Emitter(World world) => _segment = world.Segment(new[] { world.Meta(typeof(Messages<T>)) }, 8);
+        public void Emit(in T message)
+        {
+            foreach (var chunk in _segment.Chunks)
+            {
+                var store = (Messages<T>[])chunk.Stores[0];
+                for (int i = 0; i < chunk.Count; i++)
+                {
+                    ref var messages = ref store[i];
+                    if (messages.Capacity != 0) messages.Queue.Enqueue(message);
+                    while (messages.Capacity >= 0 && messages.Queue.Count > messages.Capacity)
+                        messages.Queue.TryDequeue(out _);
+                }
+            }
+        }
+    }
+
+    public readonly struct Receiver<T>
+    {
+        readonly State<Messages<T>> _state;
+        public Receiver(World world, int capacity = -1) => _state = new(new() { Queue = new(), Capacity = capacity }, world, 8);
+        public bool TryReceive(out T message) => _state.Value.Queue.TryDequeue(out message);
+    }
+
     namespace Nodes
     {
         public delegate Runner Prepare();
@@ -533,6 +670,9 @@ namespace Entia.Experiment.V4
         public readonly struct Runner : IEquatable<Runner>
         {
             public static readonly Runner Empty = new Runner(Array.Empty<Action>(), Array.Empty<Dependency>());
+
+            public static bool operator ==(Runner left, Runner right) => left.Equals(right);
+            public static bool operator !=(Runner left, Runner right) => !(left == right);
 
             public static Runner All(params Runner[] runners) =>
                 runners.Length == 0 ? Empty :
@@ -550,6 +690,8 @@ namespace Entia.Experiment.V4
                 Dependencies = dependencies;
             }
 
+            public Runner With(Action[] runs) => new Runner(runs, Dependencies);
+            public Runner With(Dependency[] dependencies) => new Runner(Runs, dependencies);
             public bool Equals(Runner other) => Runs == other.Runs && Dependencies == other.Dependencies;
             public override bool Equals(object obj) => obj is Runner runner && Equals(runner);
             public override int GetHashCode() => HashCode.Combine(Runs, Dependencies);
@@ -564,17 +706,18 @@ namespace Entia.Experiment.V4
             public Lazy(Func<World, INode> provide) { Provide = provide; }
         }
 
-        readonly struct Map : INode
+        readonly struct Mapper : INode
         {
             public readonly INode Node;
-            public readonly Func<Runner, Runner> Mapping;
-            public Map(Nodes.INode node, Func<Runner, Runner> map) { Node = node; Mapping = map; }
+            public readonly Func<Runner, Runner> Map;
+            public readonly Func<bool> Change;
+            public Mapper(Nodes.INode node, Func<Runner, Runner> map, Func<bool> change) { Node = node; Map = map; Change = change; }
         }
 
-        readonly struct System : INode
+        readonly struct Scheduler : INode
         {
             public readonly Schedule Schedule;
-            public System(Schedule schedule) { Schedule = schedule; }
+            public Scheduler(Schedule schedule) { Schedule = schedule; }
         }
 
         readonly struct All : INode
@@ -586,13 +729,19 @@ namespace Entia.Experiment.V4
 
     public static class Node
     {
+        public static readonly Nodes.INode Empty = Schedule(_ => () => Nodes.Runner.Empty);
+
         public static Nodes.INode Lazy(Func<World, Nodes.INode> provide) => new Nodes.Lazy(provide);
-        public static Nodes.INode System(Nodes.Schedule schedule) => new Nodes.System(schedule);
+        public static Nodes.INode Schedule(Nodes.Schedule schedule) => new Nodes.Scheduler(schedule);
         public static Nodes.INode All(params Nodes.INode[] nodes) => new Nodes.All(nodes);
         public static Nodes.INode All(this IEnumerable<Nodes.INode> nodes) => All(nodes.ToArray());
-        public static Nodes.INode Map(this Nodes.INode node, Func<Nodes.Runner, Nodes.Runner> map) => new Nodes.Map(node, map);
-        public static Nodes.INode Depend(this Nodes.INode node, params Dependency[] dependencies) =>
-            node.Map(runner => new(runner.Runs, runner.Dependencies.Append(dependencies)));
+        public static Nodes.INode Map(this Nodes.INode node, Func<Nodes.Runner, Nodes.Runner> map, Func<bool> change = null) => new Nodes.Mapper(node, map, change ?? new(() => false));
+        public static Nodes.INode Depend(this Nodes.INode node, params Dependency[] dependencies) => node.Depend(() => dependencies);
+        public static Nodes.INode Depend(this Nodes.INode node, Func<Dependency[]> provide, Func<bool> change = null) =>
+            node.Map(runner => new(runner.Runs, runner.Dependencies.Append(provide())), change);
+        public static Nodes.INode Synchronize() => Empty.Synchronous();
+        public static Nodes.INode Synchronous(this Nodes.INode node) =>
+            node.Map(runner => new(new[] { runner.Runs.Combine().Or(() => { }) }, runner.Dependencies.Append(Dependency.Unknown)));
 
         public delegate void RunR1EC1<TResource1, TComponent1>(ref TResource1 resource1, Entity entity, ref TComponent1 component1);
         public delegate void RunEC2<TComponent1, TComponent2>(ref TComponent1 component1, in TComponent2 component2);
@@ -626,7 +775,6 @@ namespace Entia.Experiment.V4
                     else if (changed.runs) Run(groups[i].runner = All(runners, begin, end));
                     else Run(runner);
                 }
-
                 if (reschedule) groups = Groups(runners);
             };
 
@@ -637,10 +785,12 @@ namespace Entia.Experiment.V4
                 Nodes.INode Resolve(Nodes.INode node) => node switch
                 {
                     Nodes.Lazy lazy => Resolve(lazy.Provide(world)),
-                    Nodes.Map map => Resolve(map.Node) switch
+                    Nodes.Mapper map => Resolve(map.Node) switch
                     {
-                        Nodes.Map inner => inner.Node.Map(runner => map.Mapping(inner.Mapping(runner))),
-                        Nodes.INode outer => outer.Map(map.Mapping)
+                        Nodes.Mapper inner => inner.Node.Map(
+                            runner => map.Map(inner.Map(runner)),
+                            () => map.Change() || inner.Change()),
+                        Nodes.INode outer => outer.Map(map.Map, map.Change)
                     },
                     Nodes.All all => all.Nodes
                         .Select(Resolve)
@@ -652,17 +802,17 @@ namespace Entia.Experiment.V4
 
                 Nodes.Prepare[] Interpret(Nodes.INode node) => node switch
                 {
-                    Nodes.Map map => Interpret(map.Node).Select(prepare => Map(prepare, map.Mapping)),
+                    Nodes.Mapper map => Interpret(map.Node).Select(prepare => Map(prepare, map.Map, map.Change)),
                     Nodes.All all => all.Nodes.Select(Interpret).Flatten(),
-                    Nodes.System system => new[] { system.Schedule(world) },
+                    Nodes.Scheduler system => new[] { system.Schedule(world) },
                     _ => Array.Empty<Nodes.Prepare>()
                 };
 
-                static Nodes.Prepare Map(Nodes.Prepare prepare, Func<Nodes.Runner, Nodes.Runner> map)
+                Nodes.Prepare Map(Nodes.Prepare prepare, Func<Nodes.Runner, Nodes.Runner> map, Func<bool> force)
                 {
                     var runner = default(Nodes.Runner);
                     var cache = Nodes.Runner.Empty;
-                    return () => runner.Change(prepare()) ? cache = map(runner) : cache;
+                    return () => runner.Change(prepare()) || force() ? cache = map(runner) : cache;
                 }
             }
 
@@ -716,64 +866,45 @@ namespace Entia.Experiment.V4
             }
         }
 
-        public static Nodes.INode Factory<T>(Template<T> template, Func<Factory<T>, Nodes.INode> provide) => Node.Lazy(world =>
+        public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Node.Lazy(world =>
         {
-            var factory = new Factory<T>(template, world);
-            var dependencies = factory.Segment.Metas
-                .Select(meta => new Dependency(Dependency.Kinds.Write, meta.Type, factory.Segment))
-                .Prepend(new Dependency(Dependency.Kinds.Write, typeof(Entity), factory.Segment));
-            return provide(factory).Depend(dependencies);
+            var creator = new Creator<T>(template, world);
+            var dependencies = creator.Segment.Metas
+                .Select(meta => new Dependency(Dependency.Kinds.Write, meta.Type, creator.Segment))
+                .Prepend(new Dependency(Dependency.Kinds.Write, typeof(Entity), creator.Segment));
+            return provide(creator).Depend(dependencies);
         });
 
-        public static Nodes.INode Run(params Action[] runs) =>
-            Node.System(_ => () => new(runs, Array.Empty<Dependency>()));
+        public static Nodes.INode Destroy(Matcher matcher) => Node.Schedule(world =>
+        {
+            var provide = world.Segments(matcher);
+            var segments = provide();
+            var runner = Runner();
+            return () => segments == (segments = provide()) ? runner : runner = Runner();
 
-        // public static Nodes.INode Run<TComponent1, TComponent2>(RunEC2<TComponent1, TComponent2> run, Matcher? matcher = null) => Node.System(world =>
-        // {
-        //     var index = 0;
-        //     var segments = Array.Empty<(Segment segment, uint store1, uint store2)>();
-        //     var meta1 = world.Meta(typeof(TComponent1));
-        //     var meta2 = world.Meta(typeof(TComponent2));
-        //     var runs = Array.Empty<Action>();
-        //     var match = (matcher ?? Matcher.True).Match;
-        //     return new(() =>
-        //     {
-        //         while (index < world.Segments.Length)
-        //         {
-        //             var segment = world.Segments[index++];
-        //             if (segment.TryIndex(meta1, out var store1) && segment.TryIndex(meta2, out var store2) && match(segment, world))
-        //                 segments = segments.Append((segment, store1, store2));
-        //         }
+            Nodes.Runner Runner() => new(
+                segments.Select(world, static (segment, world) => new Action(() => world.Destroy(segment))),
+                segments.Select(static segment => new Dependency(Dependency.Kinds.Write, typeof(Entity), segment)));
+        });
 
-        //         for (int i = 0; i < segments.Length; i++)
-        //         {
-        //             var pair = segments[i];
-        //             if (runs.Length == pair.segment.Chunks.Length) continue;
+        public static Nodes.INode Destroy(Func<Destroyer, Nodes.INode> provide, Matcher? matcher = null) => Node.Lazy(world =>
+        {
+            var destroyer = new Destroyer(matcher ?? Matcher.True, world);
+            var segments = destroyer.Segments;
+            return provide(destroyer).Depend(() =>
+                (segments = destroyer.Segments).Select(segment => new Dependency(Dependency.Kinds.Write, typeof(Entity), segment)),
+                () => segments != destroyer.Segments);
+        });
 
-        //             var start = runs.Length;
-        //             // Ensures the 'runs' array is always of the proper size.
-        //             // If a segment is shrunk, excess runs will be thrown out.
-        //             Array.Resize(ref runs, pair.segment.Chunks.Length);
-        //             for (int j = start; j < runs.Length; j++)
-        //             {
-        //                 var chunk = pair.segment.Chunks[j];
-        //                 var store1 = (TComponent1[])chunk.Stores[pair.store1];
-        //                 var store2 = (TComponent2[])chunk.Stores[pair.store2];
-        //                 runs[j] = () => { for (int i = 0; i < chunk.Count; i++) run(ref store1[i], in store2[i]); };
-        //             }
-        //         }
+        public static Nodes.INode Run(params Action[] runs) => Node.Schedule(_ => () => new(runs, Array.Empty<Dependency>()));
 
-        //         return runs;
-        //     });
-        // });
-
-        public static Nodes.INode Run<TComponent1>(RunEC1<TComponent1> run, Matcher? matcher = null) => Node.System(world =>
+        public static Nodes.INode Run<TComponent1>(RunEC1<TComponent1> run, Matcher? matcher = null) => Node.Schedule(world =>
         {
             var meta1 = world.Meta(typeof(TComponent1));
-            var index = 0;
-            var states = Array.Empty<(Segment segment, Action[] runs, uint store1)>();
             var match = (matcher ?? Matcher.True).Match;
             var runner = Nodes.Runner.Empty;
+            var segments = Array.Empty<(Segment segment, Action[] runs, uint store1)>();
+            var index = 0u;
             return () =>
             {
                 var changed = false;
@@ -782,40 +913,57 @@ namespace Entia.Experiment.V4
                     var segment = world.Segments[index++];
                     if (segment.TryIndex(meta1, out var store1) && match(segment, world))
                     {
+                        segments = segments.Append((segment, Array.Empty<Action>(), store1));
                         changed = true;
-                        states = states.Append((segment, Array.Empty<Action>(), store1));
                     }
                 }
 
-                for (int i = 0; i < states.Length; i++)
+                foreach (ref var pair in segments.AsSpan())
                 {
-                    ref var state = ref states[i];
-                    if (state.runs.Length == state.segment.Chunks.Length) continue;
+                    if (pair.runs.Length == pair.segment.Chunks.Length) continue;
 
                     changed = true;
-                    var start = state.runs.Length;
+                    var start = pair.runs.Length;
                     // Ensures the 'runs' array is always of the proper size.
                     // If a segment is shrunk, excess runs will be thrown out.
-                    Array.Resize(ref state.runs, state.segment.Chunks.Length);
-                    for (int j = start; j < state.runs.Length; j++)
+                    Array.Resize(ref pair.runs, pair.segment.Chunks.Length);
+                    for (int j = start; j < pair.runs.Length; j++)
                     {
-                        var chunk = state.segment.Chunks[j];
+                        var chunk = pair.segment.Chunks[j];
                         var entities = chunk.Entities;
-                        var store1 = (TComponent1[])chunk.Stores[state.store1];
-                        state.runs[j] = () => { for (int i = 0; i < chunk.Count; i++) run(entities[i], ref store1[i]); };
+                        var store1 = (TComponent1[])chunk.Stores[pair.store1];
+                        pair.runs[j] = () => { for (int i = 0; i < chunk.Count; i++) run(entities[i], ref store1[i]); };
                     }
                 }
 
                 if (changed) runner = new(
-                    states.Select(static state => state.runs).Flatten(),
-                    states.Select(static state => new[] { new Dependency(Dependency.Kinds.Read, typeof(Entity), state.segment), new Dependency(Dependency.Kinds.Write, typeof(TComponent1), state.segment) }).Flatten());
+                    segments.Select(pair => pair.runs).Flatten(),
+                    segments.Select(pair => new[] { new Dependency(Dependency.Kinds.Read, typeof(Entity), pair.segment), new Dependency(Dependency.Kinds.Write, typeof(TComponent1), pair.segment) }).Flatten());
+
                 return runner;
             };
         });
+
+        internal static Func<Segment[]> Segments(this World world, Matcher matcher)
+        {
+            var index = 0u;
+            var segments = Array.Empty<Segment>();
+            return () =>
+            {
+                while (index < world.Segments.Length)
+                {
+                    var segment = world.Segments[index++];
+                    if (matcher.Match(segment, world)) segments = segments.Append(segment);
+                }
+                return segments;
+            };
+        }
     }
 
     public readonly struct Dependency
     {
+        public static readonly Dependency Unknown = new Dependency(Kinds.Unknown, default, default);
+
         public enum Kinds { Unknown, Read, Write }
         public readonly Kinds Kind;
         public readonly Type Type;
@@ -846,7 +994,10 @@ namespace Entia.Experiment.V4
         public static readonly Matcher True = new((_, _) => true);
         public static readonly Matcher False = new((_, _) => false);
 
-        public static Matcher Has<T>() => new((segment, world) => segment.Has(world.Meta(typeof(T))));
+        public static implicit operator Matcher(Type type) => Has(type);
+
+        public static Matcher Has(Type type) => new((segment, world) => world.TryMeta(type, out var meta) && segment.Has(meta));
+        public static Matcher Has<T>() => Has(typeof(T));
         public static Matcher Not(Matcher matcher) => new((segment, world) => !matcher.Match(segment, world));
 
         public static Matcher All(params Matcher[] matchers) =>

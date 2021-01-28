@@ -7,9 +7,9 @@ namespace Entia.Core
     public static class ReflectionExtensions
     {
         public static T CreateDelegate<T>(this MethodInfo method) where T : Delegate =>
-            Delegate.CreateDelegate(typeof(T), method) as T;
+            (T)Delegate.CreateDelegate(typeof(T), method);
         public static T CreateDelegate<T>(this MethodInfo method, object instance) where T : Delegate =>
-            Delegate.CreateDelegate(typeof(T), instance, method) as T;
+            (T)Delegate.CreateDelegate(typeof(T), instance, method);
 
         public static bool IsCompilerGenerated<T>(this T provider) where T : ICustomAttributeProvider =>
             provider.IsDefined(typeof(CompilerGeneratedAttribute), true);
@@ -18,6 +18,6 @@ namespace Entia.Core
             property.GetMethod?.IsStatic ?? property.SetMethod.IsStatic;
         public static bool IsInstance(this FieldInfo field) => !field.IsStatic;
         public static bool IsInstance(this PropertyInfo property) => !property.IsStatic();
-        public static T Combine<T>(this T[] delegates) where T : Delegate => (T)Delegate.Combine(delegates);
+        public static Option<T> Combine<T>(this T[] delegates) where T : Delegate => (T)Delegate.Combine(delegates);
     }
 }
