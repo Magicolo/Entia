@@ -70,6 +70,14 @@ namespace Entia.Experiment.V4
         messages can read directly from the message segment store.
     */
 
+    /*
+    FIX
+    - If a system has internally conflicting dependencies, there may be race condictions.
+        - Ex: A system may create an entity in a segment that is being iterated on.
+        - When conflicts are detected, the 'Runs' array of the sub runner can be combined in one
+        synchronous run.
+    */
+
     public static class Test
     {
         public struct OnInitialize { }
@@ -106,7 +114,8 @@ namespace Entia.Experiment.V4
                 Node.Run((Entity entity, ref Time _) => Sum()),
                 Node.Run((Entity entity, ref Position position) => position.Value.X++),
                 Node.Run((Entity entity, ref OnFinalize _) => Sum()),
-                Node.Run((Entity entity, ref Velocity velocity) => velocity.Value.X++)
+                Node.Run((Entity entity, ref Velocity velocity) => velocity.Value.X++),
+                Node.Destroy(Matcher.True)
             // Node.Run((ref Position position, in Velocity velocity) => position.Value += velocity.Value)
             // Run((in Time time, ref Position position, in Velocity velocity) =>
             //     position.Value += velocity.Value * time.Delta)
@@ -208,13 +217,13 @@ namespace Entia.Experiment.V4
             DataAt(0, 1)[0].Generation++;
         }
 
-        public Segment Segment(Meta[] metas, byte? chunk = default)
+        public Segment Segment(Meta[] metas, byte? size = default)
         {
             if (TrySegment(metas, out var segment)) return segment;
             lock (_lock)
             {
                 if (TrySegment(metas, out segment)) return segment;
-                segment = new((uint)Segments.Length, metas, chunk);
+                segment = new((uint)Segments.Length, metas, size);
                 Segments = Segments.Append(segment);
                 return segment;
             }
@@ -225,8 +234,8 @@ namespace Entia.Experiment.V4
             for (int i = 0; i < Segments.Length; i++)
             {
                 segment = Segments[i];
-                if (metas.All(segment, (meta, state) => state.Has(meta)) &&
-                    segment.Metas.All(metas, (meta, state) => state.Contains(meta)))
+                if (metas.All(segment, (meta, segment) => segment.TryIndex(meta, out _)) &&
+                    segment.Metas.All(metas, (meta, metas) => metas.Contains(meta)))
                     return true;
             }
             segment = default;
@@ -259,7 +268,7 @@ namespace Entia.Experiment.V4
         public bool TryMeta(Type type, out Meta meta) => _metas.TryGetValue(type, out meta);
 
         public Entity Create(Segment segment) => Create(segment, default(Unit), (int _, int _, Segment.Chunk _, in Unit _) => { });
-        public Entity Create<TState>(Segment segment, in TState state, Initialize<TState> initialize)
+        public Entity Create<T>(Segment segment, in T state, Initialize<T> initialize)
         {
             Span<Entity> entities = stackalloc Entity[1];
             Create(entities, segment, state, initialize);
@@ -281,7 +290,7 @@ namespace Entia.Experiment.V4
             a specific chunk item but would tag a chunk as 'not full'.
         */
         public void Create(Span<Entity> entities, Segment segment) => Create(entities, segment, default(Unit), (int _, int _, Segment.Chunk _, in Unit _) => { });
-        public void Create<TState>(Span<Entity> entities, Segment segment, in TState state, Initialize<TState> initialize)
+        public void Create<T>(Span<Entity> entities, Segment segment, in T state, Initialize<T> initialize)
         {
             var created = 0;
             while (created < entities.Length)
@@ -390,13 +399,7 @@ namespace Entia.Experiment.V4
         public readonly Type Type;
         public readonly uint Index;
         public Meta(Type type, uint index) { Type = type; Index = index; }
-
-        public int CompareTo(Meta other)
-        {
-            var comparison = Type.MetadataToken.CompareTo(other.Type.MetadataToken);
-            if (comparison == 0) comparison = Index.CompareTo(other.Index);
-            return comparison;
-        }
+        public int CompareTo(Meta other) => Index.CompareTo(other.Index);
     }
 
     public static class Template
@@ -436,14 +439,14 @@ namespace Entia.Experiment.V4
             new(template.Initializers.Where(pair => !types.Contains(pair.type)).ToArray());
     }
 
-    public readonly struct Template<TState>
+    public readonly struct Template<T>
     {
-        public delegate void Initialize(int index, int count, Array store, in TState state);
+        public delegate void Initialize(int index, int count, Array store, in T state);
 
         public readonly (Type type, Initialize initialize)[] Initializers;
         public Template(params (Type type, Initialize initialize)[] initializers) => Initializers = initializers;
-        public Template<TState> Add<TComponent>() => this.Add(default(TComponent));
-        public Template<TState> Remove<TComponent>() => this.Remove(typeof(TComponent));
+        public Template<T> Add<TComponent>() => this.Add(default(TComponent));
+        public Template<T> Remove<TComponent>() => this.Remove(typeof(TComponent));
     }
 
     public delegate void Initialize<T>(int index, int count, Segment.Chunk chunk, in T state);
@@ -472,22 +475,17 @@ namespace Entia.Experiment.V4
         internal Chunk[] Chunks => _chunks;
 
         readonly int _size;
-        readonly uint[] _indices;
         readonly ConcurrentBag<int> _free = new ConcurrentBag<int>();
         Chunk[] _chunks = { };
 
         public Segment(uint index, Meta[] metas, byte? size = default)
         {
             Index = index;
-            Metas = metas;
+            Metas = metas.Sorted();
             _size = size ?? 64;
-            _indices = new uint[metas.Length == 0 ? 0 : metas.Max(meta => meta.Index + 1)];
-            _indices.Fill(uint.MaxValue);
-            for (var i = 0u; i < metas.Length; i++) _indices[metas[i].Index] = i;
         }
 
-        public bool Has(Meta meta) => TryIndex(meta, out var index) && Metas[index] == meta;
-        public bool TryIndex(Meta meta, out uint index) => _indices.TryAt(meta.Index, out index) && index < Metas.Length;
+        public bool TryIndex(Meta meta, out int index) => (index = Array.BinarySearch(Metas, meta)) >= 0;
 
         public bool TryStore(Chunk chunk, Meta meta, out Array store)
         {
@@ -521,27 +519,25 @@ namespace Entia.Experiment.V4
         public int CompareTo(Segment other) => Index.CompareTo(other.Index);
     }
 
-    public readonly struct Creator<TState>
+    public readonly struct Creator<T>
     {
-        static readonly Initialize<TState> _default = (int _, int _, Segment.Chunk _, in TState _) => { };
+        static readonly Initialize<T> _default = (int _, int _, Segment.Chunk _, in T _) => { };
 
         internal Segment Segment => _segment;
         readonly World _world;
         readonly Segment _segment;
-        readonly Initialize<TState> _initialize;
+        readonly Initialize<T> _initialize;
 
-        public Creator(Template<TState> template, World world, byte? chunk = default)
+        public Creator(Template<T> template, World world, byte? size = default)
         {
             var initializers = template.Initializers.Select(pair => (meta: world.Meta(pair.type), pair.initialize));
-            var initialize = default(Initialize<TState>);
-            var segment = world.Segment(initializers.Select(pair => pair.meta), chunk);
+            var initialize = default(Initialize<T>);
+            var segment = world.Segment(initializers.Select(pair => pair.meta), size);
             foreach (var pair in initializers)
             {
-                if (segment.TryIndex(pair.meta, out var store))
-                {
-                    initialize += (int index, int count, Segment.Chunk chunk, in TState state) =>
-                        pair.initialize(index, count, chunk.Stores[store], state);
-                }
+                segment.TryIndex(pair.meta, out var store);
+                initialize += (int index, int count, Segment.Chunk chunk, in T state) =>
+                    pair.initialize(index, count, chunk.Stores[store], state);
             }
 
             _world = world;
@@ -549,8 +545,8 @@ namespace Entia.Experiment.V4
             _initialize = initialize ?? _default;
         }
 
-        public Entity Create(in TState state) => _world.Create(_segment, state, _initialize);
-        public void Create(Span<Entity> entities, in TState state) => _world.Create(entities, _segment, state, _initialize);
+        public Entity Create(in T state) => _world.Create(_segment, state, _initialize);
+        public void Create(Span<Entity> entities, in T state) => _world.Create(entities, _segment, state, _initialize);
     }
 
     public static class Creator
@@ -623,9 +619,9 @@ namespace Entia.Experiment.V4
         readonly T[] _store;
         readonly byte _index;
 
-        public State(T value, World world, byte chunk = 1)
+        public State(T value, World world, byte size = 1)
         {
-            var creator = new Creator<T>(_template, world, chunk);
+            var creator = new Creator<T>(_template, world, size);
             var entity = creator.Create(value);
             world.TryDatum(entity, out var datum);
             _index = (byte)datum.Index;
@@ -684,12 +680,7 @@ namespace Entia.Experiment.V4
             public readonly Action[] Runs;
             public readonly Dependency[] Dependencies;
 
-            public Runner(Action[] runs, Dependency[] dependencies)
-            {
-                Runs = runs;
-                Dependencies = dependencies;
-            }
-
+            public Runner(Action[] runs, Dependency[] dependencies) { Runs = runs; Dependencies = dependencies; }
             public Runner With(Action[] runs) => new Runner(runs, Dependencies);
             public Runner With(Dependency[] dependencies) => new Runner(Runs, dependencies);
             public bool Equals(Runner other) => Runs == other.Runs && Dependencies == other.Dependencies;
@@ -736,12 +727,11 @@ namespace Entia.Experiment.V4
         public static Nodes.INode All(params Nodes.INode[] nodes) => new Nodes.All(nodes);
         public static Nodes.INode All(this IEnumerable<Nodes.INode> nodes) => All(nodes.ToArray());
         public static Nodes.INode Map(this Nodes.INode node, Func<Nodes.Runner, Nodes.Runner> map, Func<bool> change = null) => new Nodes.Mapper(node, map, change ?? new(() => false));
-        public static Nodes.INode Depend(this Nodes.INode node, params Dependency[] dependencies) => node.Depend(() => dependencies);
-        public static Nodes.INode Depend(this Nodes.INode node, Func<Dependency[]> provide, Func<bool> change = null) =>
-            node.Map(runner => new(runner.Runs, runner.Dependencies.Append(provide())), change);
         public static Nodes.INode Synchronize() => Empty.Synchronous();
         public static Nodes.INode Synchronous(this Nodes.INode node) =>
             node.Map(runner => new(new[] { runner.Runs.Combine().Or(() => { }) }, runner.Dependencies.Append(Dependency.Unknown)));
+        public static Nodes.INode If(this Nodes.INode node, Func<bool> condition) =>
+            node.Map(runner => runner.With(runner.Runs.Select(run => new Action(() => { if (condition()) run(); }))));
 
         public delegate void RunR1EC1<TResource1, TComponent1>(ref TResource1 resource1, Entity entity, ref TComponent1 component1);
         public delegate void RunEC2<TComponent1, TComponent2>(ref TComponent1 component1, in TComponent2 component2);
@@ -836,23 +826,12 @@ namespace Entia.Experiment.V4
                     for (int i = 0; i < runners.Length; i++)
                     {
                         var runner = runners[i];
-                        if (conflicts[i] = Has(dependencies, runner.Dependencies))
+                        if (conflicts[i] = Dependency.Conflicts(dependencies, runner.Dependencies))
                             dependencies = runner.Dependencies;
                         else
                             dependencies = dependencies.Append(runner.Dependencies);
                     }
                     return conflicts;
-                }
-
-                static bool Has(Dependency[] left, Dependency[] right)
-                {
-                    if (left.Length == 0 || right.Length == 0) return false;
-                    return
-                        left.Any(dependency => dependency.Kind == Dependency.Kinds.Unknown) ||
-                        right.Any(dependency => dependency.Kind == Dependency.Kinds.Unknown) ||
-                        left.Pairs(right)
-                            .Where(pair => pair.Item1.Type == pair.Item2.Type && pair.Item1.Segment == pair.Item2.Segment)
-                            .Any(pair => pair.Item1.Kind == Dependency.Kinds.Write || pair.Item2.Kind == Dependency.Kinds.Write);
                 }
             }
 
@@ -869,18 +848,21 @@ namespace Entia.Experiment.V4
         public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Node.Lazy(world =>
         {
             var creator = new Creator<T>(template, world);
-            var dependencies = creator.Segment.Metas
-                .Select(meta => new Dependency(Dependency.Kinds.Write, meta.Type, creator.Segment))
-                .Prepend(new Dependency(Dependency.Kinds.Write, typeof(Entity), creator.Segment));
-            return provide(creator).Depend(dependencies);
+            var segment = creator.Segment;
+            var dependencies = segment.Metas
+                .Select(meta => new Dependency(Dependency.Kinds.Write, meta.Type, segment))
+                .Prepend(new Dependency(Dependency.Kinds.Write, typeof(Entity), segment));
+            return provide(creator).Map(runner => Dependency.Conflicts(runner.Dependencies, dependencies) ?
+                new(new[] { runner.Runs.Combine().Or(() => { }) }, runner.Dependencies.Append(dependencies)) :
+                new(runner.Runs, runner.Dependencies.Append(dependencies)));
         });
 
         public static Nodes.INode Destroy(Matcher matcher) => Node.Schedule(world =>
         {
-            var provide = world.Segments(matcher);
-            var segments = provide();
+            var destroyer = new Destroyer(matcher, world);
+            var segments = destroyer.Segments;
             var runner = Runner();
-            return () => segments == (segments = provide()) ? runner : runner = Runner();
+            return () => segments == (segments = destroyer.Segments) ? runner : runner = Runner();
 
             Nodes.Runner Runner() => new(
                 segments.Select(world, static (segment, world) => new Action(() => world.Destroy(segment))),
@@ -891,8 +873,15 @@ namespace Entia.Experiment.V4
         {
             var destroyer = new Destroyer(matcher ?? Matcher.True, world);
             var segments = destroyer.Segments;
-            return provide(destroyer).Depend(() =>
-                (segments = destroyer.Segments).Select(segment => new Dependency(Dependency.Kinds.Write, typeof(Entity), segment)),
+            return provide(destroyer).Map(
+                runner =>
+                {
+                    segments = destroyer.Segments;
+                    var dependencies = segments.Select(segment => new Dependency(Dependency.Kinds.Write, typeof(Entity), segment));
+                    return Dependency.Conflicts(runner.Dependencies, dependencies) ?
+                        new(new[] { runner.Runs.Combine().Or(() => { }) }, runner.Dependencies.Append(dependencies)) :
+                        new(runner.Runs, runner.Dependencies.Append(dependencies));
+                },
                 () => segments != destroyer.Segments);
         });
 
@@ -903,7 +892,7 @@ namespace Entia.Experiment.V4
             var meta1 = world.Meta(typeof(TComponent1));
             var match = (matcher ?? Matcher.True).Match;
             var runner = Nodes.Runner.Empty;
-            var segments = Array.Empty<(Segment segment, Action[] runs, uint store1)>();
+            var segments = Array.Empty<(Segment segment, Action[] runs, int store1)>();
             var index = 0u;
             return () =>
             {
@@ -964,6 +953,17 @@ namespace Entia.Experiment.V4
     {
         public static readonly Dependency Unknown = new Dependency(Kinds.Unknown, default, default);
 
+        public static bool Conflicts(Dependency[] left, Dependency[] right)
+        {
+            if (left.Length == 0 || right.Length == 0) return false;
+            return
+                left.Any(dependency => dependency.Kind == Dependency.Kinds.Unknown) ||
+                right.Any(dependency => dependency.Kind == Dependency.Kinds.Unknown) ||
+                left.Pairs(right)
+                    .Where(pair => pair.Item1.Type == pair.Item2.Type && pair.Item1.Segment == pair.Item2.Segment)
+                    .Any(pair => pair.Item1.Kind == Dependency.Kinds.Write || pair.Item2.Kind == Dependency.Kinds.Write);
+        }
+
         public enum Kinds { Unknown, Read, Write }
         public readonly Kinds Kind;
         public readonly Type Type;
@@ -977,18 +977,6 @@ namespace Entia.Experiment.V4
         }
     }
 
-    // public readonly struct Plan
-    // {
-    //     public static readonly Plan Empty = new Plan(() => (Array.Empty<Action>(), Array.Empty<Dependency>()));
-
-    //     public readonly Func<Action[]> Prepare;
-    //     public Plan(Func<(Action[] runs, Dependency[] dependencies)> prepare)
-    //     {
-    //         Prepare = prepare;
-    //     }
-    //     public Plan With(Dependency[] dependencies) => new Plan(Prepare, dependencies);
-    // }
-
     public readonly struct Matcher
     {
         public static readonly Matcher True = new((_, _) => true);
@@ -996,18 +984,22 @@ namespace Entia.Experiment.V4
 
         public static implicit operator Matcher(Type type) => Has(type);
 
-        public static Matcher Has(Type type) => new((segment, world) => world.TryMeta(type, out var meta) && segment.Has(meta));
         public static Matcher Has<T>() => Has(typeof(T));
+        public static Matcher Has(Type type) => new((segment, world) =>
+            world.TryMeta(type, out var meta) && segment.TryIndex(meta, out _));
+
         public static Matcher Not(Matcher matcher) => new((segment, world) => !matcher.Match(segment, world));
 
         public static Matcher All(params Matcher[] matchers) =>
             matchers.Length == 0 ? True :
             matchers.Length == 1 ? matchers[0] :
             new((segment, world) => matchers.All(matcher => matcher.Match(segment, world)));
+
         public static Matcher Any(params Matcher[] matchers) =>
             matchers.Length == 0 ? False :
             matchers.Length == 1 ? matchers[0] :
             new((segment, world) => matchers.Any(matcher => matcher.Match(segment, world)));
+
         public static Matcher None(params Matcher[] matchers) =>
             matchers.Length == 0 ? True :
             matchers.Length == 1 ? matchers[0] :
@@ -1019,17 +1011,26 @@ namespace Entia.Experiment.V4
 
     public static class Defer
     {
+        // Defers to the next synchronization point.
         public readonly struct Next
         {
             public bool Destroy(Entity entity) => throw null;
         }
 
+        // Defers to the previous synchronization point (of the next frame).
         public readonly struct Previous
         {
             public bool Destroy(Entity entity) => throw null;
         }
 
+        // Defers to the end of the frame.
         public readonly struct End
+        {
+            public bool Destroy(Entity entity) => throw null;
+        }
+
+        // Defers to the next emission of a message of type 'T'.
+        public readonly struct On<T>
         {
             public bool Destroy(Entity entity) => throw null;
         }

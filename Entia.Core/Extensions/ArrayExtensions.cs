@@ -199,6 +199,15 @@ namespace Entia.Core
             return target;
         }
 
+        public static void Sort<T>(this T[] source) where T : IComparable<T> => Array.Sort(source);
+
+        public static T[] Sorted<T>(this T[] source) where T : IComparable<T>
+        {
+            source = (T[])source.Clone();
+            source.Sort();
+            return source;
+        }
+
         public static T[] Prepend<T>(this T[] source, params T[] items)
         {
             ArrayUtility.Prepend(ref source, items);
