@@ -35,15 +35,16 @@ namespace Entia.Core
                 public void Reset() => _index = -1;
             }
 
-            public static implicit operator Read(T[] array) => new Read(array, 0, array.Length);
+            public static implicit operator Read(T[] array) => new Read(array, 0, (uint)array.Length);
 
-            public ref readonly T this[int index] => ref _array[_index + index];
+            public ref readonly T this[int index] => ref this[(uint)index];
+            public ref readonly T this[uint index] => ref _array[_index + index];
 
-            public readonly int Count;
+            public readonly uint Count;
             readonly T[] _array;
-            readonly int _index;
+            readonly uint _index;
 
-            public Read(T[] array, int index, int count)
+            public Read(T[] array, uint index, uint count)
             {
                 _array = array;
                 _index = index;
@@ -89,16 +90,17 @@ namespace Entia.Core
             public void Reset() => _index = -1;
         }
 
-        public static implicit operator Slice<T>(T[] array) => new Slice<T>(array, 0, array.Length);
+        public static implicit operator Slice<T>(T[] array) => new Slice<T>(array, 0, (uint)array.Length);
         public static implicit operator Read(in Slice<T> slice) => new Read(slice._array, slice._index, slice.Count);
 
-        public ref T this[int index] => ref _array[_index + index];
+        public ref T this[int index] => ref this[(uint)index];
+        public ref T this[uint index] => ref _array[_index + index];
 
-        public readonly int Count;
+        public readonly uint Count;
         readonly T[] _array;
-        readonly int _index;
+        readonly uint _index;
 
-        public Slice(T[] array, int index, int count)
+        public Slice(T[] array, uint index, uint count)
         {
             _array = array;
             _index = index;

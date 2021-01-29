@@ -116,7 +116,9 @@ namespace Entia.Core
             return false;
         }
 
-        public static Slice<T> Slice<T>(this T[] array, int index, int count) => new Slice<T>(array, index, count);
+        public static Slice<T> Slice<T>(this T[] array, uint index, uint count) => new(array, index, count);
+        public static Slice<T> Slice<T>(this T[] array, uint count) => array.Slice(0, count);
+        public static Slice<T> Slice<T>(this T[] array, int index, int count) => array.Slice((uint)index, (uint)count);
         public static Slice<T> Slice<T>(this T[] array, int count) => array.Slice(0, count);
         public static Slice<T> Slice<T>(this T[] array) => array.Slice(0, array.Length);
 
