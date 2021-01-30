@@ -13,7 +13,7 @@ namespace Entia.Experiment.V4
         readonly Segment _segment;
         readonly Initialize<T> _initialize;
 
-        public Creator(Template<T> template, World world, byte? size = default)
+        public Creator(Template<T> template, World world, int? size = default)
         {
             var initializers = template.Initializers.Select(pair => (meta: world.Meta(pair.type), pair.initialize));
             var initialize = default(Initialize<T>);
@@ -36,7 +36,7 @@ namespace Entia.Experiment.V4
 
     public static partial class Extensions
     {
-        public static Creator<T> Creator<T>(this World world, Template<T> template, byte? size = null) => new(template, world, size);
+        public static Creator<T> Creator<T>(this World world, Template<T> template, int? size = null) => new(template, world, size);
         public static Entity Create(this Creator<Unit> creator) => creator.Create(default);
     }
 }

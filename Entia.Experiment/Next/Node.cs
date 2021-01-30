@@ -205,7 +205,7 @@ namespace Entia.Experiment.V4
                 new(runner.Runs, runner.Dependencies.Append(dependencies)));
         });
 
-        public static Nodes.INode Destroy(Matcher matcher) => Node.Schedule(world =>
+        public static Nodes.INode Destroy(Matcher? matcher = null) => Node.Schedule(world =>
         {
             var destroyer = world.Destroyer(matcher);
             var segments = destroyer.Segments;

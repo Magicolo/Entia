@@ -56,6 +56,7 @@ namespace Entia.Core
 
         public static bool TryLast<T>(this T[] array, out T item) => array.TryAt(array.Length - 1, out item);
         public static bool TryLast<T>(this T[] array, out T item, out int index) => array.TryAt(index = array.Length - 1, out item);
+        public static bool TryLast<T>(this T[] array, out T item, out uint index) => array.TryAt(index = (uint)(array.Length - 1), out item);
 
         public static bool TryAt<T>(this T[] array, int index, out T item)
         {
@@ -288,6 +289,18 @@ namespace Entia.Core
         public static bool Any<T>(this T[] source, Func<T, int, bool> predicate)
         {
             for (int i = 0; i < source.Length; i++) if (predicate(source[i], i)) return true;
+            return false;
+        }
+
+        public static bool Any<T, TState>(this T[] source, TState state, Func<T, TState, bool> predicate)
+        {
+            for (int i = 0; i < source.Length; i++) if (predicate(source[i], state)) return true;
+            return false;
+        }
+
+        public static bool Any<T, TState>(this T[] source, TState state, Func<T, TState, int, bool> predicate)
+        {
+            for (int i = 0; i < source.Length; i++) if (predicate(source[i], state, i)) return true;
             return false;
         }
 

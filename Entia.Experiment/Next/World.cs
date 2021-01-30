@@ -23,7 +23,7 @@ namespace Entia.Experiment.V4
         public struct Datum
         {
             public uint Generation;
-            public byte Index;
+            public int Index;
             public Segment.Chunk Chunk;
             public Segment Segment;
         }
@@ -62,8 +62,8 @@ namespace Entia.Experiment.V4
         const int Size = 1 << Shift;
         const int Mask = Size - 1;
 
-        public uint Capacity => (uint)(_data.Length * Size);
-        public uint Count => (uint)(_last - _free.Count);
+        public int Capacity => _data.Length * Size;
+        public int Count => _last - _free.Count;
         internal Segment[] Segments => _segments;
 
         readonly ConcurrentBag<int> _free = new();
@@ -80,7 +80,7 @@ namespace Entia.Experiment.V4
             _data[0][0].Generation++;
         }
 
-        public Segment Segment(Meta[] metas, byte? size = default)
+        public Segment Segment(Meta[] metas, int? size = default)
         {
             if (TrySegment(metas, out var segment)) return segment;
             lock (_lock)
@@ -149,33 +149,40 @@ namespace Entia.Experiment.V4
             var created = 0;
             while (created < entities.Length)
             {
-                Span<Datum> data;
-                if (_free.TryTake(out var free)) data = DataAt(free, 1);
-                else
-                {
-                    var count = entities.Length - created;
-                    free = Interlocked.Add(ref _last, count) - count;
-                    data = DataAt(free, count);
-                    // If there was an overflow, add the missed indices to the '_free' bag. This can happen if the 'Data' chunk
-                    // was too small to fit the whole 'count'.
-                    for (int i = data.Length; i < count; i++) _free.Add(free + i);
-                }
+                var remaining = entities.Length - created;
+                // Favor using all of the allocated capacity before using free indices. There is a possibility of race
+                // condition on the read to '_last' and its increment in 'Reserve' but since worst outcome of the race
+                // is to simply pre-emptively allocated the next chunk of data, it is not worth trying to synchronize.
+                var data = Reserve(Math.Min(Capacity - _last, remaining), out var reserved);
+                if (data.Length == 0) data = _free.TryTake(out reserved) ? DataAt(reserved, 1) : Reserve(remaining, out reserved);
 
-                var chunk = segment.Take(out var index);
-                lock (chunk)
+                var end = created + data.Length;
+                while (created < end)
                 {
-                    var start = chunk.Count;
-                    var count = Math.Min(Math.Min(chunk.Entities.Length - chunk.Count, entities.Length - created), data.Length);
-                    for (int i = 0; i < count; i++, created++, chunk.Count++)
+                    var chunk = segment.Take();
+                    if (chunk.Count == segment.Size) continue;
+
+                    lock (chunk)
                     {
-                        ref var datum = ref data[i];
-                        datum.Segment = segment;
-                        datum.Chunk = chunk;
-                        datum.Index = chunk.Count;
-                        var entity = entities[created] = new(free, datum.Generation);
-                        chunk.Entities[chunk.Count] = entity;
+                        var index = chunk.Count;
+                        var count = Math.Min(segment.Size - index, end - created);
+                        if (count == 0) continue;
+
+                        for (int i = 0; i < count; i++)
+                        {
+                            ref var datum = ref data[i];
+                            var entity = new Entity(reserved + i, datum.Generation);
+                            datum.Segment = segment;
+                            datum.Chunk = chunk;
+                            datum.Index = index + i;
+                            chunk.Entities[index + i] = entity;
+                            entities[created + i] = entity;
+                        }
+                        chunk.Count += count;
+                        created += count;
+                        reserved += count;
+                        initialize(index, count, chunk, state);
                     }
-                    if (count > 0) initialize(start, count, chunk, state);
                 }
             }
         }
@@ -183,25 +190,23 @@ namespace Entia.Experiment.V4
         public uint Destroy(Segment segment)
         {
             var destroyed = 0u;
-            for (int i = 0; i < segment.Chunks.Length; i++)
+            foreach (var chunk in segment.Chunks)
             {
-                var chunk = segment.Chunks[i];
                 if (chunk.Count == 0) continue;
-
-                for (int j = 0; j < chunk.Count; j++)
+                for (int i = 0; i < chunk.Count; i++)
                 {
-                    var entity = chunk.Entities[j];
+                    var entity = chunk.Entities[i];
                     ref var datum = ref DatumAt(entity.Index);
-                    if (entity.Generation == datum.Generation && Interlocked.Exchange(ref datum.Segment, null) == segment)
+                    if (Interlocked.Exchange(ref datum.Segment, null) == segment)
                     {
                         destroyed++;
                         datum.Generation++;
-                        _free.Add(datum.Index);
+                        _free.Add(entity.Index);
                     }
                 }
                 foreach (var store in chunk.Stores) Array.Clear(store, 0, chunk.Count);
                 chunk.Count = 0;
-                segment.Put(i);
+                segment.Put(chunk.Index);
             }
             return destroyed;
         }
@@ -234,6 +239,18 @@ namespace Entia.Experiment.V4
                 return true;
             }
             return false;
+        }
+
+        Span<Datum> Reserve(int count, out int index)
+        {
+            if (count == 0) { index = default; return Span<Datum>.Empty; }
+
+            index = Interlocked.Add(ref _last, count) - count;
+            var data = DataAt(index, count);
+            // If there was an overflow, add the missed indices to the '_free' bag. This can happen if the 'Datum' chunk
+            // was too small to fit the whole 'count'.
+            for (int i = data.Length; i < count; i++) _free.Add(index + i);
+            return data;
         }
 
         ref Datum DatumAt(int index) => ref _data[index >> Shift][index & Mask];

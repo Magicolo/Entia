@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Numerics;
+using System.Threading;
 using Entia.Core;
 
 namespace Entia.Experiment.V4
@@ -101,21 +102,19 @@ namespace Entia.Experiment.V4
                 Node.Create(template.Add(new OnInitialize()), creator => Node.Run(() => creator.Create(default))),
                 Node.Create(template.Add(new OnFinalize()), creator => Node.Run(() => creator.Create(default))),
                 Node.Create(template, creator => Node.Run(() => creator.Create(new(1f, 2f, 3f))))
-            ).Schedule(world);
+            ).Synchronous().Schedule(world);
 
             var sum = 0;
             void Sum(int count = 1000) { for (int i = 0; i < count; i++) sum += i; }
 
+            var random = new ThreadLocal<Random>(() => new Random());
             var increment = Node.All(
                 Node.Run((Entity entity, ref OnInitialize _) => Sum()),
                 Node.Run((Entity entity, ref Time _) => Sum()),
                 Node.Run((Entity entity, ref Position position) => position.Value.X++),
                 Node.Run((Entity entity, ref OnFinalize _) => Sum()),
                 Node.Run((Entity entity, ref Velocity velocity) => velocity.Value.X++),
-                Node.Destroy(Matcher.True)
-            // Node.Run((ref Position position, in Velocity velocity) => position.Value += velocity.Value)
-            // Run((in Time time, ref Position position, in Velocity velocity) =>
-            //     position.Value += velocity.Value * time.Delta)
+                Node.Destroy().If(() => random.Value.NextDouble() < 0.001)
             ).Schedule(world);
 
             var watch = Stopwatch.StartNew();
@@ -164,14 +163,14 @@ namespace Entia.Experiment.V4
 
         public ref T Value => ref _store[_index];
         readonly T[] _store;
-        readonly byte _index;
+        readonly int _index;
 
         public State(T value, World world, byte size = 1)
         {
             var creator = world.Creator(_template, size);
             var entity = creator.Create(value);
             world.TryDatum(entity, out var datum);
-            _index = (byte)datum.Index;
+            _index = datum.Index;
             _store = (T[])datum.Chunk.Stores[0];
         }
     }

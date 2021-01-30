@@ -14,10 +14,10 @@ namespace Entia.Experiment.V4
             // chunks, but this setup will be practical to dispatch threads with only a chunk.
             public readonly Entity[] Entities;
             public readonly Array[] Stores;
-            public readonly int Index;
-            public byte Count;
+            public readonly uint Index;
+            public int Count;
 
-            public Chunk(int index, Entity[] entities, Array[] stores)
+            public Chunk(uint index, Entity[] entities, Array[] stores)
             {
                 Index = index;
                 Entities = entities;
@@ -27,17 +27,17 @@ namespace Entia.Experiment.V4
 
         public readonly uint Index;
         public readonly Meta[] Metas;
+        public readonly int Size;
         internal Chunk[] Chunks => _chunks;
 
-        readonly int _size;
-        readonly ConcurrentBag<int> _free = new ConcurrentBag<int>();
+        readonly ConcurrentBag<uint> _free = new();
         Chunk[] _chunks = { };
 
-        public Segment(uint index, Meta[] metas, byte? size = default)
+        public Segment(uint index, Meta[] metas, int? size = default)
         {
             Index = index;
             Metas = metas.Sorted();
-            _size = size ?? 64;
+            Size = size ?? 256;
         }
 
         public bool TryIndex(Meta meta, out int index) => (index = Array.BinarySearch(Metas, meta)) >= 0;
@@ -53,15 +53,15 @@ namespace Entia.Experiment.V4
             return false;
         }
 
-        public Chunk Take(out int index)
+        public Chunk Take()
         {
-            if (_free.TryTake(out index)) return _chunks[index];
+            if (_free.TryTake(out var index)) return _chunks[index];
 
             var chunks = _chunks;
-            if (chunks.TryLast(out var chunk, out index) && chunk.Count < _size) return chunk;
+            if (chunks.TryLast(out var chunk, out index) && chunk.Count < Size) return chunk;
 
-            index = chunks.Length;
-            chunk = new Chunk(index, new Entity[_size], Metas.Select(meta => Array.CreateInstance(meta.Type, _size)));
+            index = (uint)chunks.Length;
+            chunk = new(index, new Entity[Size], Metas.Select(meta => Array.CreateInstance(meta.Type, Size)));
             // If the 'CompareExchange' fails, it means that another thread added a chunk before this one
             // finished. In this case, this thread's work will be discarded, which is fine.
             Interlocked.CompareExchange(ref _chunks, chunks.Append(chunk), chunks);
@@ -69,7 +69,7 @@ namespace Entia.Experiment.V4
             return _chunks[index];
         }
 
-        public void Put(int index) => _free.Add(index);
+        public void Put(uint index) => _free.Add(index);
 
         public int CompareTo(Segment other) => Index.CompareTo(other.Index);
     }
