@@ -35,10 +35,7 @@ namespace Entia.Experiment.V4
         public static Template<TState> Add<TState, TComponent>(this Template<TState> template, TComponent component) =>
             new(template.Remove<TComponent>().Initializers.Append((typeof(TComponent),
                 new((int index, int count, Array store, in TState state) =>
-                {
-                    var casted = (TComponent[])store;
-                    for (int i = 0; i < count; i++) casted[i + index] = component;
-                }))));
+                    Array.Fill((TComponent[])store, component, index, count)))));
 
         public static Template<TState> Add<TState, TComponent>(this Template<TState> template, Func<TState, TComponent> provide) =>
             new(template.Remove<TComponent>().Initializers.Append((typeof(TComponent),

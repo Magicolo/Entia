@@ -56,7 +56,6 @@ namespace Entia.Core
 
         public static bool TryLast<T>(this T[] array, out T item) => array.TryAt(array.Length - 1, out item);
         public static bool TryLast<T>(this T[] array, out T item, out int index) => array.TryAt(index = array.Length - 1, out item);
-        public static bool TryLast<T>(this T[] array, out T item, out uint index) => array.TryAt(index = (uint)(array.Length - 1), out item);
 
         public static bool TryAt<T>(this T[] array, int index, out T item)
         {

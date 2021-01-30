@@ -67,7 +67,7 @@ namespace Entia.Experiment.V4
         internal Segment[] Segments => _segments;
 
         readonly ConcurrentBag<int> _free = new();
-        readonly object _lock = new();
+        readonly (object metas, object segments, object data) _locks = (new(), new(), new());
         Datum[][] _data;
         Segment[] _segments = { };
         Dictionary<Type, Meta> _metas = new();
@@ -83,7 +83,7 @@ namespace Entia.Experiment.V4
         public Segment Segment(Meta[] metas, int? size = default)
         {
             if (TrySegment(metas, out var segment)) return segment;
-            lock (_lock)
+            lock (_locks.segments)
             {
                 if (TrySegment(metas, out segment)) return segment;
                 segment = new((uint)_segments.Length, metas, size);
@@ -110,7 +110,7 @@ namespace Entia.Experiment.V4
         public Meta Meta(Type type)
         {
             if (TryMeta(type, out var meta)) return meta;
-            lock (_lock)
+            lock (_locks.metas)
             {
                 if (TryMeta(type, out meta)) return meta;
                 meta = new(type, (uint)_metas.Count);
@@ -129,20 +129,6 @@ namespace Entia.Experiment.V4
             return entities[0];
         }
 
-        /* TODO:
-            The way things are set up, the batch instantiation of 'Create' will only be used the first time that a chunk
-            is filled and will always go through the '_free' bag after. To remedy this, we should try to do some
-            defragmentation in a probably non thread-safe method.
-
-            Something like:
-                // Assumes that '_free' is some kind of concurrent set.
-                while (_free.Remove(_last)) _last--;
-
-            This implementation means that long living entities will limit batch instantiation. A more clever
-            solution is needed.
-            Perhaps use the same kind of chunk design as in 'Segment'? This would mean that the indices in '_free' do not represent
-            a specific chunk item but would tag a chunk as 'not full'.
-        */
         public void Create(Span<Entity> entities, Segment segment) => Create(entities, segment, default(Unit), (int _, int _, Segment.Chunk _, in Unit _) => { });
         public void Create<T>(Span<Entity> entities, Segment segment, in T state, Initialize<T> initialize)
         {
@@ -150,40 +136,28 @@ namespace Entia.Experiment.V4
             while (created < entities.Length)
             {
                 var remaining = entities.Length - created;
-                // Favor using all of the allocated capacity before using free indices. There is a possibility of race
-                // condition on the read to '_last' and its increment in 'Reserve' but since worst outcome of the race
-                // is to simply pre-emptively allocated the next chunk of data, it is not worth trying to synchronize.
-                var data = Reserve(Math.Min(Capacity - _last, remaining), out var reserved);
-                if (data.Length == 0) data = _free.TryTake(out reserved) ? DataAt(reserved, 1) : Reserve(remaining, out reserved);
+                var chunk = segment.Take();
+                if (chunk.Count == segment.Size) continue;
 
-                var end = created + data.Length;
-                while (created < end)
+                lock (chunk)
                 {
-                    var chunk = segment.Take();
-                    if (chunk.Count == segment.Size) continue;
-
-                    lock (chunk)
+                    var index = chunk.Count;
+                    var count = Math.Min(segment.Size - index, remaining);
+                    for (int i = 0; i < count; i++)
                     {
-                        var index = chunk.Count;
-                        var count = Math.Min(segment.Size - index, end - created);
-                        if (count == 0) continue;
-
-                        for (int i = 0; i < count; i++)
-                        {
-                            ref var datum = ref data[i];
-                            var entity = new Entity(reserved + i, datum.Generation);
-                            datum.Segment = segment;
-                            datum.Chunk = chunk;
-                            datum.Index = index + i;
-                            chunk.Entities[index + i] = entity;
-                            entities[created + i] = entity;
-                        }
-                        chunk.Count += count;
-                        created += count;
-                        reserved += count;
-                        initialize(index, count, chunk, state);
+                        ref var datum = ref Next(out var next);
+                        chunk.Entities[index + i] = entities[created + i] = new(next, datum.Generation);
+                        datum.Index = index + i;
+                        datum.Chunk = chunk;
+                        datum.Segment = segment;
                     }
+                    // Initialize before incrementing 'chunk.Count' to ensure that no reader can
+                    // observe a chunk item uninitialized.
+                    initialize(index, count, chunk, state);
+                    chunk.Count += count;
+                    created += count;
                 }
+                if (chunk.Count < segment.Size) segment.Put(chunk);
             }
         }
 
@@ -206,7 +180,7 @@ namespace Entia.Experiment.V4
                 }
                 foreach (var store in chunk.Stores) Array.Clear(store, 0, chunk.Count);
                 chunk.Count = 0;
-                segment.Put(chunk.Index);
+                segment.Put(chunk);
             }
             return destroyed;
         }
@@ -234,7 +208,7 @@ namespace Entia.Experiment.V4
                         DatumAt(target).Index = datum.Index;
                     }
                 }
-                segment.Put(chunk.Index);
+                segment.Put(chunk);
                 _free.Add(entity.Index);
                 return true;
             }
@@ -251,6 +225,18 @@ namespace Entia.Experiment.V4
             // was too small to fit the whole 'count'.
             for (int i = data.Length; i < count; i++) _free.Add(index + i);
             return data;
+        }
+
+        ref Datum Next(out int index)
+        {
+            // Favor using all of the allocated capacity before using free indices. There is a possibility of race
+            // condition on the read to '_last' and 'Increment' but since worst outcome of the race
+            // is to simply pre-emptively allocated the next chunk of data, it is not worth trying to synchronize.
+            index = _last >= Capacity && _free.TryTake(out var free) ? free : Interlocked.Increment(ref _last) - 1;
+            var chunk = index >> Shift;
+            var item = index & Mask;
+            while (chunk >= _data.Length) lock (_locks.data) _data = _data.Append(new Datum[Size]);
+            return ref _data[chunk][item];
         }
 
         ref Datum DatumAt(int index) => ref _data[index >> Shift][index & Mask];

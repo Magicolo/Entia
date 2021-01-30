@@ -19,13 +19,6 @@ namespace Entia.Experiment.V4
             _world.TryDatum(entity, out var datum) &&
             Array.BinarySearch(_segments(), datum.Segment) >= 0 &&
             _world.Destroy(entity);
-
-        public uint Destroy()
-        {
-            var count = 0u;
-            foreach (var segment in _segments()) count += _world.Destroy(segment);
-            return count;
-        }
     }
 
     public static partial class Extensions

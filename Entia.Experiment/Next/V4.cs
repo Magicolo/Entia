@@ -2,7 +2,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Numerics;
-using System.Threading;
 using Entia.Core;
 
 namespace Entia.Experiment.V4
@@ -92,41 +91,38 @@ namespace Entia.Experiment.V4
                 .Add(new Velocity { Value = new(1f, 2f, 3f) });
 
             var world = new World();
-            var populate = Node.All(
+            var entities = (new Entity[1], new Entity[10], new Entity[100], new Entity[1000]);
+            var create = Node.All(
                 Node.Create(Template.Create().Add(new OnInitialize()), creator => Node.Run(() => creator.Create(default))),
-                Node.Create(Template.Create().Add(new OnFinalize()), creator => Node.Run(() => creator.Create(default))),
-                Node.Create(Template.Create().Add(new Position()), creator => Node.Run(() => creator.Create(default))),
-                Node.Create(Template.Create().Add(new Velocity()), creator => Node.Run(() => creator.Create(default))),
-                Node.Create(Template.Create().Add(new Time()), creator => Node.Run(() => creator.Create(default))),
+                Node.Create(Template.Create().Add(new OnFinalize()), creator => Node.Run(() => creator.Create(entities.Item1, default))),
+                Node.Create(Template.Create().Add(new Position()), creator => Node.Run(() => creator.Create(entities.Item2, default))),
+                Node.Create(Template.Create().Add(new Velocity()), creator => Node.Run(() => creator.Create(entities.Item3, default))),
+                Node.Create(Template.Create().Add(new Time()), creator => Node.Run(() => creator.Create(entities.Item4, default))),
                 Node.Create(template.Add(new Time()), creator => Node.Run(() => creator.Create(default))),
                 Node.Create(template.Add(new OnInitialize()), creator => Node.Run(() => creator.Create(default))),
                 Node.Create(template.Add(new OnFinalize()), creator => Node.Run(() => creator.Create(default))),
                 Node.Create(template, creator => Node.Run(() => creator.Create(new(1f, 2f, 3f))))
             ).Synchronous().Schedule(world);
 
-            var sum = 0;
-            void Sum(int count = 1000) { for (int i = 0; i < count; i++) sum += i; }
-
-            var random = new ThreadLocal<Random>(() => new Random());
             var increment = Node.All(
-                Node.Run((Entity entity, ref OnInitialize _) => Sum()),
-                Node.Run((Entity entity, ref Time _) => Sum()),
-                Node.Run((Entity entity, ref Position position) => position.Value.X++),
-                Node.Run((Entity entity, ref OnFinalize _) => Sum()),
-                Node.Run((Entity entity, ref Velocity velocity) => velocity.Value.X++),
-                Node.Destroy().If(() => random.Value.NextDouble() < 0.001)
+            // Node.Run((Entity entity, ref OnInitialize _) => Sum()),
+            // Node.Run((Entity entity, ref Time _) => Sum()),
+            // Node.Run((Entity entity, ref Position position) => position.Value.X++),
+            // Node.Run((Entity entity, ref OnFinalize _) => Sum()),
+            // Node.Run((Entity entity, ref Velocity velocity) => velocity.Value.X++),
             ).Schedule(world);
-
+            var destroy = Node.Destroy().Schedule(world);
             var watch = Stopwatch.StartNew();
-            for (int i = 0; i < 2500; i++)
+            for (int i = 0; i < 100_000; i++)
             {
+                create();
                 if ((i % 100) == 0)
                 {
                     Console.WriteLine($"Iteration {i}: {watch.Elapsed} | {world.Count}/{world.Capacity}");
                     watch.Restart();
                 }
-                populate();
-                increment();
+                // increment();
+                destroy();
             }
         }
     }

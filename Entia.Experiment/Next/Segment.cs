@@ -55,13 +55,12 @@ namespace Entia.Experiment.V4
 
         public Chunk Take()
         {
-            if (_free.TryTake(out var index)) return _chunks[index];
-
             var chunks = _chunks;
-            if (chunks.TryLast(out var chunk, out index) && chunk.Count < Size) return chunk;
+            if (chunks.TryLast(out var chunk, out var index) && chunk.Count < Size) return chunk;
+            if (_free.TryTake(out var free)) return _chunks[free];
 
-            index = (uint)chunks.Length;
-            chunk = new(index, new Entity[Size], Metas.Select(meta => Array.CreateInstance(meta.Type, Size)));
+            index = chunks.Length;
+            chunk = new((uint)index, new Entity[Size], Metas.Select(meta => Array.CreateInstance(meta.Type, Size)));
             // If the 'CompareExchange' fails, it means that another thread added a chunk before this one
             // finished. In this case, this thread's work will be discarded, which is fine.
             Interlocked.CompareExchange(ref _chunks, chunks.Append(chunk), chunks);
@@ -69,8 +68,7 @@ namespace Entia.Experiment.V4
             return _chunks[index];
         }
 
-        public void Put(uint index) => _free.Add(index);
-
+        public void Put(Chunk chunk) => _free.Add(chunk.Index);
         public int CompareTo(Segment other) => Index.CompareTo(other.Index);
     }
 }
