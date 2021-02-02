@@ -34,9 +34,27 @@ namespace Entia.Experiment.V4
         public void Create(Span<Entity> entities, in T state) => _world.Create(entities, _segment, state, _initialize);
     }
 
+    public static partial class Node
+    {
+        public static Nodes.INode Create<T>(Template<T> template, Action<Creator<T>> run) =>
+            Create(template, creator => Run(() => run(creator)));
+        public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Node.Lazy(world =>
+        {
+            var creator = world.Creator(template);
+            var segment = creator.Segment;
+            var dependencies = segment.Metas
+                .Select(meta => new Dependency(Dependency.Kinds.Write, meta.Type, segment))
+                .Prepend(new Dependency(Dependency.Kinds.Write, typeof(Entity), segment));
+            return provide(creator).Map(runner => Dependency.Conflicts(runner.Dependencies, dependencies) ?
+                new(new[] { runner.Runs.Combine().Or(() => { }) }, runner.Dependencies.Append(dependencies)) :
+                new(runner.Runs, runner.Dependencies.Append(dependencies)));
+        });
+    }
+
     public static partial class Extensions
     {
         public static Creator<T> Creator<T>(this World world, Template<T> template, int? size = null) => new(template, world, size);
         public static Entity Create(this Creator<Unit> creator) => creator.Create(default);
+        public static void Create(this Creator<Unit> creator, Span<Entity> entities) => creator.Create(entities, default);
     }
 }

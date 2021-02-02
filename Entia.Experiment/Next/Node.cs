@@ -66,7 +66,7 @@ namespace Entia.Experiment.V4
         }
     }
 
-    public static class Node
+    public static partial class Node
     {
         public static readonly Nodes.INode Empty = Schedule(_ => () => Nodes.Runner.Empty);
 
@@ -192,46 +192,6 @@ namespace Entia.Experiment.V4
                 else runner.Runs.Select(Task.Run).Iterate(task => task.Wait());
             }
         }
-
-        public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Node.Lazy(world =>
-        {
-            var creator = world.Creator(template);
-            var segment = creator.Segment;
-            var dependencies = segment.Metas
-                .Select(meta => new Dependency(Dependency.Kinds.Write, meta.Type, segment))
-                .Prepend(new Dependency(Dependency.Kinds.Write, typeof(Entity), segment));
-            return provide(creator).Map(runner => Dependency.Conflicts(runner.Dependencies, dependencies) ?
-                new(new[] { runner.Runs.Combine().Or(() => { }) }, runner.Dependencies.Append(dependencies)) :
-                new(runner.Runs, runner.Dependencies.Append(dependencies)));
-        });
-
-        public static Nodes.INode Destroy(Matcher? matcher = null) => Node.Schedule(world =>
-        {
-            var destroyer = world.Destroyer(matcher);
-            var segments = destroyer.Segments;
-            var runner = Runner();
-            return () => segments == (segments = destroyer.Segments) ? runner : runner = Runner();
-
-            Nodes.Runner Runner() => new(
-                segments.Select(world, static (segment, world) => new Action(() => world.Destroy(segment))),
-                segments.Select(static segment => new Dependency(Dependency.Kinds.Write, typeof(Entity), segment)));
-        });
-
-        public static Nodes.INode Destroy(Func<Destroyer, Nodes.INode> provide, Matcher? matcher = null) => Node.Lazy(world =>
-        {
-            var destroyer = world.Destroyer(matcher);
-            var segments = destroyer.Segments;
-            return provide(destroyer).Map(
-                runner =>
-                {
-                    segments = destroyer.Segments;
-                    var dependencies = segments.Select(segment => new Dependency(Dependency.Kinds.Write, typeof(Entity), segment));
-                    return Dependency.Conflicts(runner.Dependencies, dependencies) ?
-                        new(new[] { runner.Runs.Combine().Or(() => { }) }, runner.Dependencies.Append(dependencies)) :
-                        new(runner.Runs, runner.Dependencies.Append(dependencies));
-                },
-                () => segments != destroyer.Segments);
-        });
 
         public static Nodes.INode Run(params Action[] runs) => Node.Schedule(_ => () => new(runs, Array.Empty<Dependency>()));
 

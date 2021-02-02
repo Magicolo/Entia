@@ -352,26 +352,6 @@ namespace Entia.Core
         public static Array Append(this Array source, Type element, params object[] items) => Prepend((Array)items, element, source);
         public static Array Append(this Array source, Type element, Array items) => Prepend(items, element, source);
 
-        public static T[] Take<T>(this T[] source, int count)
-        {
-            if (count >= source.Length) return source;
-            if (count <= 0) return Array.Empty<T>();
-
-            var results = new T[count];
-            Array.Copy(source, 0, results, 0, results.Length);
-            return results;
-        }
-
-        public static T[] TakeLast<T>(this T[] source, int count)
-        {
-            if (count >= source.Length) return source;
-            if (count <= 0) return Array.Empty<T>();
-
-            var results = new T[count];
-            Array.Copy(source, source.Length - count, results, 0, results.Length);
-            return results;
-        }
-
         public static void Shuffle<T>(this T[] source, Random random = null)
         {
             random ??= new Random();
@@ -394,6 +374,26 @@ namespace Entia.Core
                 Array.Copy(source, count, target, 0, target.Length);
                 return target;
             }
+        }
+
+        public static T[] Take<T>(this T[] source, int count)
+        {
+            if (count >= source.Length) return source;
+            if (count <= 0) return Array.Empty<T>();
+
+            var results = new T[count];
+            Array.Copy(source, 0, results, 0, results.Length);
+            return results;
+        }
+
+        public static T[] TakeLast<T>(this T[] source, int count)
+        {
+            if (count >= source.Length) return source;
+            if (count <= 0) return Array.Empty<T>();
+
+            var results = new T[count];
+            Array.Copy(source, source.Length - count, results, 0, results.Length);
+            return results;
         }
 
         public static (TSource1, TSource2)[] Zip<TSource1, TSource2>(this TSource1[] source1, TSource2[] source2)

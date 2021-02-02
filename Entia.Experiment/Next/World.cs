@@ -20,9 +20,9 @@ namespace Entia.Experiment.V4
 
     public sealed class World : IEnumerable<World.Enumerator, Entity>
     {
+        // TODO: Replace with 2 indices?
         public struct Datum
         {
-            public uint Generation;
             public int Index;
             public Segment.Chunk Chunk;
             public Segment Segment;
@@ -30,31 +30,42 @@ namespace Entia.Experiment.V4
 
         public struct Enumerator : IEnumerator<Entity>
         {
-            public Entity Current { get; private set; }
+            public Entity Current => _chunk.Entities[_indices.entity];
             object IEnumerator.Current => Current;
 
             readonly World _world;
-            int _index;
+            (int segment, int chunk, int entity) _indices;
+            Segment _segment;
+            Segment.Chunk _chunk;
 
             public Enumerator(World world)
             {
                 _world = world;
-                _index = -1;
-                Current = default;
+                _indices = (-1, -1, -1);
+                _segment = default;
+                _chunk = default;
             }
 
             public bool MoveNext()
             {
-                while (_world.TryDatumAt(++_index, out var datum))
+                while (true)
                 {
-                    if (datum.Segment == null) continue;
-                    Current = new(_index, datum.Generation);
-                    return true;
+                    if (_segment == null && !_world._segments.TryAt(++_indices.segment, out _segment)) return false;
+                    else if (_chunk == null && !_segment.Chunks.TryAt(++_indices.chunk, out _chunk))
+                    {
+                        _indices.chunk = -1;
+                        _segment = null;
+                    }
+                    else if (++_indices.entity < _chunk.Count) return true;
+                    else
+                    {
+                        _indices.entity = -1;
+                        _chunk = null;
+                    }
                 }
-                return false;
             }
 
-            public void Reset() => _index = -1;
+            public void Reset() { _indices = (-1, -1, -1); _segment = default; _chunk = default; }
             public void Dispose() => this = default;
         }
 
@@ -66,56 +77,45 @@ namespace Entia.Experiment.V4
         public int Count => _last - _free.Count;
         internal Segment[] Segments => _segments;
 
-        readonly ConcurrentBag<int> _free = new();
-        readonly (object metas, object segments, object data) _locks = (new(), new(), new());
-        Datum[][] _data;
-        Segment[] _segments = { };
+        readonly ConcurrentStack<Entity> _free = new(new[] { Entity.Zero });
         Dictionary<Type, Meta> _metas = new();
-        int _last;
-
-        public World()
-        {
-            _data = new[] { new Datum[Size] };
-            // Skip 'Entity(0, 0)' to prevent bugs when mistakenly using 'default(Entity)' or 'Entity.Zero'.
-            _data[0][0].Generation++;
-        }
+        Datum[][] _data = { new Datum[Size] };
+        Segment[] _segments = { };
+        int _last = 1; // Skip 'Entity(0, 0)' to prevent bugs when mistakenly using 'default(Entity)' or 'Entity.Zero'.
 
         public Segment Segment(Meta[] metas, int? size = default)
         {
-            if (TrySegment(metas, out var segment)) return segment;
-            lock (_locks.segments)
+            var segments = _segments;
+            metas.Sort();
+            while (true)
             {
-                if (TrySegment(metas, out segment)) return segment;
+                if (Find(segments, metas, out var segment)) return segment;
                 segment = new((uint)_segments.Length, metas, size);
-                _segments = _segments.Append(segment);
-                return segment;
+                if (Interlocked.CompareExchange(ref _segments, segments.Append(segment), segments) == segments) return segment;
+                segments = _segments;
             }
-        }
 
-        public bool TrySegment(Meta[] metas, out Segment segment)
-        {
-            for (int i = 0; i < _segments.Length; i++)
+            static bool Find(Segment[] segments, Meta[] metas, out Segment segment)
             {
-                segment = _segments[i];
-                if (metas.All(segment, (meta, segment) => segment.TryIndex(meta, out _)) &&
-                    segment.Metas.All(metas, (meta, metas) => metas.Contains(meta)))
-                    return true;
+                for (int i = 0; i < segments.Length; i++)
+                    if (ArrayUtility.Equals((segment = segments[i]).Metas, metas)) return true;
+                segment = default;
+                return false;
             }
-            segment = default;
-            return false;
         }
 
-        public bool TryDatum(Entity entity, out Datum datum) => TryDatumAt(entity.Index, out datum) && datum.Generation == entity.Generation;
+        public bool TryDatum(Entity entity, out Datum datum) =>
+            TryDatumAt(entity.Index, out datum) && datum.Chunk?.Entities[datum.Index] == entity;
 
         public Meta Meta(Type type)
         {
-            if (TryMeta(type, out var meta)) return meta;
-            lock (_locks.metas)
+            var metas = _metas;
+            while (true)
             {
-                if (TryMeta(type, out meta)) return meta;
-                meta = new(type, (uint)_metas.Count);
-                _metas = new Dictionary<Type, Meta>(_metas) { { meta.Type, meta } };
-                return meta;
+                if (metas.TryGetValue(type, out var meta)) return meta;
+                meta = new(type, (uint)metas.Count);
+                if (Interlocked.CompareExchange(ref _metas, new(_metas) { { meta.Type, meta } }, metas) == metas) return meta;
+                metas = _metas;
             }
         }
 
@@ -132,24 +132,24 @@ namespace Entia.Experiment.V4
         public void Create(Span<Entity> entities, Segment segment) => Create(entities, segment, default(Unit), (int _, int _, Segment.Chunk _, in Unit _) => { });
         public void Create<T>(Span<Entity> entities, Segment segment, in T state, Initialize<T> initialize)
         {
+            Reserve(entities);
             var created = 0;
             while (created < entities.Length)
             {
                 var remaining = entities.Length - created;
-                var chunk = segment.Take();
+                var chunk = segment.Next();
                 if (chunk.Count == segment.Size) continue;
 
                 lock (chunk)
                 {
+                    if (chunk.Count == segment.Size) continue;
                     var index = chunk.Count;
                     var count = Math.Min(segment.Size - index, remaining);
+
                     for (int i = 0; i < count; i++)
                     {
-                        ref var datum = ref Next(out var next);
-                        chunk.Entities[index + i] = entities[created + i] = new(next, datum.Generation);
-                        datum.Index = index + i;
-                        datum.Chunk = chunk;
-                        datum.Segment = segment;
+                        var entity = chunk.Entities[index + i] = entities[created + i];
+                        DatumAt(entity.Index) = new() { Index = index + 1, Chunk = chunk, Segment = segment };
                     }
                     // Initialize before incrementing 'chunk.Count' to ensure that no reader can
                     // observe a chunk item uninitialized.
@@ -157,41 +157,37 @@ namespace Entia.Experiment.V4
                     chunk.Count += count;
                     created += count;
                 }
-                if (chunk.Count < segment.Size) segment.Put(chunk);
+
+                if (chunk.Count == segment.Size) continue;
+                segment.Free.Push(chunk);
             }
         }
 
-        public uint Destroy(Segment segment)
+        public int Destroy(Segment segment)
         {
-            var destroyed = 0u;
+            var destroyed = 0;
             foreach (var chunk in segment.Chunks)
             {
                 if (chunk.Count == 0) continue;
-                for (int i = 0; i < chunk.Count; i++)
-                {
-                    var entity = chunk.Entities[i];
-                    ref var datum = ref DatumAt(entity.Index);
-                    if (Interlocked.Exchange(ref datum.Segment, null) == segment)
-                    {
-                        destroyed++;
-                        datum.Generation++;
-                        _free.Add(entity.Index);
-                    }
-                }
+                for (int i = 0; i < chunk.Count; i++) DatumAt(chunk.Entities[i].Index).Segment = null;
                 foreach (var store in chunk.Stores) Array.Clear(store, 0, chunk.Count);
+                _free.PushRange(chunk.Entities, 0, chunk.Count);
+                destroyed += chunk.Count;
                 chunk.Count = 0;
-                segment.Put(chunk);
             }
+            segment.Free.Clear();
+            segment.Free.PushRange(segment.Chunks);
             return destroyed;
         }
 
         public bool Destroy(Entity entity)
         {
             if (entity.Index >= _last) return false;
+
             ref var datum = ref DatumAt(entity.Index);
-            if (entity.Generation == datum.Generation && Interlocked.Exchange(ref datum.Segment, null) is Segment segment)
+            if (Interlocked.Exchange(ref datum.Segment, null) is Segment segment &&
+                entity == datum.Chunk.Entities[datum.Index])
             {
-                datum.Generation++;
                 var chunk = datum.Chunk;
                 lock (chunk)
                 {
@@ -208,35 +204,39 @@ namespace Entia.Experiment.V4
                         DatumAt(target).Index = datum.Index;
                     }
                 }
-                segment.Put(chunk);
-                _free.Add(entity.Index);
+                segment.Free.Push(chunk);
+                _free.Push(entity);
                 return true;
             }
             return false;
         }
 
-        Span<Datum> Reserve(int count, out int index)
-        {
-            if (count == 0) { index = default; return Span<Datum>.Empty; }
-
-            index = Interlocked.Add(ref _last, count) - count;
-            var data = DataAt(index, count);
-            // If there was an overflow, add the missed indices to the '_free' bag. This can happen if the 'Datum' chunk
-            // was too small to fit the whole 'count'.
-            for (int i = data.Length; i < count; i++) _free.Add(index + i);
-            return data;
-        }
-
-        ref Datum Next(out int index)
+        [ThreadStatic] static Entity[] _popped;
+        void Reserve(Span<Entity> entities)
         {
             // Favor using all of the allocated capacity before using free indices. There is a possibility of race
-            // condition on the read to '_last' and 'Increment' but since worst outcome of the race
-            // is to simply pre-emptively allocated the next chunk of data, it is not worth trying to synchronize.
-            index = _last >= Capacity && _free.TryTake(out var free) ? free : Interlocked.Increment(ref _last) - 1;
-            var chunk = index >> Shift;
-            var item = index & Mask;
-            while (chunk >= _data.Length) lock (_locks.data) _data = _data.Append(new Datum[Size]);
-            return ref _data[chunk][item];
+            // condition on the read to '_last' and 'Add' but since worst outcome of the race is to simply
+            // pre-emptively allocated the next chunk of data, it is not worth trying to synchronize.
+            var reserved = 0;
+            if (_last + entities.Length > Capacity)
+            {
+                if (_popped == null || _popped.Length < entities.Length) _popped = new Entity[entities.Length];
+                var popped = _free.TryPopRange(_popped, 0, entities.Length);
+                for (int i = 0; i < popped; i++) entities[i] = new(_popped[i].Index, _popped[i].Generation + 1);
+                reserved += popped;
+            }
+
+            if (reserved == entities.Length) return;
+            var count = entities.Length - reserved;
+            var last = Interlocked.Add(ref _last, count);
+            var chunk = (last - 1) >> Shift;
+            var data = _data;
+            while (chunk >= data.Length)
+            {
+                Interlocked.CompareExchange(ref _data, data.Append(new Datum[Size]), data);
+                data = _data;
+            }
+            for (int i = last - count; i < last; i++) entities[reserved++] = new(i, 0);
         }
 
         ref Datum DatumAt(int index) => ref _data[index >> Shift][index & Mask];
@@ -250,15 +250,6 @@ namespace Entia.Experiment.V4
             }
             datum = default;
             return false;
-        }
-
-        Span<Datum> DataAt(int index, int count)
-        {
-            var chunk = index >> Shift;
-            var item = index & Mask;
-            // Use a lock rather than 'CompareExchange' to prevent thread fighting.
-            while (chunk >= _data.Length) lock (_data) _data = _data.Append(new Datum[Size]);
-            return _data[chunk].AsSpan(item, count);
         }
 
         public Enumerator GetEnumerator() => new(this);

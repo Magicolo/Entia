@@ -188,8 +188,7 @@ namespace Entia.Core
         public static bool Equals<T>(T[] source, T[] other, Func<T, T, bool> equal = null)
         {
             if (source == other) return true;
-            if (source == null || other == null) return false;
-            if (source.Length != other.Length) return false;
+            if (source == null || other == null || source.Length != other.Length) return false;
 
             equal ??= Cache<T>.Equal;
             for (int i = 0; i < source.Length; i++)

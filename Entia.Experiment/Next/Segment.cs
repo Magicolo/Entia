@@ -28,15 +28,13 @@ namespace Entia.Experiment.V4
         public readonly uint Index;
         public readonly Meta[] Metas;
         public readonly int Size;
-        internal Chunk[] Chunks => _chunks;
-
-        readonly ConcurrentBag<uint> _free = new();
-        Chunk[] _chunks = { };
+        internal Chunk[] Chunks = { };
+        internal readonly ConcurrentStack<Chunk> Free = new();
 
         public Segment(uint index, Meta[] metas, int? size = default)
         {
             Index = index;
-            Metas = metas.Sorted();
+            Metas = metas;
             Size = size ?? 256;
         }
 
@@ -53,22 +51,21 @@ namespace Entia.Experiment.V4
             return false;
         }
 
-        public Chunk Take()
+        public Chunk Next()
         {
-            var chunks = _chunks;
+            var chunks = Chunks;
             if (chunks.TryLast(out var chunk, out var index) && chunk.Count < Size) return chunk;
-            if (_free.TryTake(out var free)) return _chunks[free];
+            while (Free.TryPop(out var free)) if (free.Count < Size) return free;
 
             index = chunks.Length;
             chunk = new((uint)index, new Entity[Size], Metas.Select(meta => Array.CreateInstance(meta.Type, Size)));
             // If the 'CompareExchange' fails, it means that another thread added a chunk before this one
             // finished. In this case, this thread's work will be discarded, which is fine.
-            Interlocked.CompareExchange(ref _chunks, chunks.Append(chunk), chunks);
+            Interlocked.CompareExchange(ref Chunks, chunks.Append(chunk), chunks);
             // Read from 'Chunks' in case 'CompareExchange' fails.
-            return _chunks[index];
+            return Chunks[index];
         }
 
-        public void Put(Chunk chunk) => _free.Add(chunk.Index);
         public int CompareTo(Segment other) => Index.CompareTo(other.Index);
     }
 }
