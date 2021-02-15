@@ -121,7 +121,7 @@ namespace Entia.Experiment.V4
 
         public bool TryMeta(Type type, out Meta meta) => _metas.TryGetValue(type, out meta);
 
-        public Entity Create(Segment segment) => Create(segment, default(Unit), (int _, int _, Segment.Chunk _, in Unit _) => { });
+        public Entity Create(Segment segment) => Create(segment, default, (int _, int _, Segment.Chunk _, in Unit _) => { });
         public Entity Create<T>(Segment segment, in T state, Initialize<T> initialize)
         {
             Span<Entity> entities = stackalloc Entity[1];
@@ -129,7 +129,7 @@ namespace Entia.Experiment.V4
             return entities[0];
         }
 
-        public void Create(Span<Entity> entities, Segment segment) => Create(entities, segment, default(Unit), (int _, int _, Segment.Chunk _, in Unit _) => { });
+        public void Create(Span<Entity> entities, Segment segment) => Create(entities, segment, default, (int _, int _, Segment.Chunk _, in Unit _) => { });
         public void Create<T>(Span<Entity> entities, Segment segment, in T state, Initialize<T> initialize)
         {
             Reserve(entities);
@@ -211,7 +211,7 @@ namespace Entia.Experiment.V4
             return false;
         }
 
-        [ThreadStatic] static Entity[] _popped;
+        [ThreadStatic] static Entity[] _popped; // 'ThreadStatic' makes this thread-safe.
         void Reserve(Span<Entity> entities)
         {
             // Favor using all of the allocated capacity before using free indices. There is a possibility of race

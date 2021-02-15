@@ -12,7 +12,7 @@ namespace Entia.Experiment.V4
         public static implicit operator Template<T>(Template<Unit> template) => template.Adapt<T>();
 
         public readonly (Type type, Initialize initialize)[] Initializers;
-        public Template(params (Type type, Initialize initialize)[] initializers) => Initializers = initializers;
+        public Template(params (Type type, Initialize initialize)[] initializers) { Initializers = initializers; }
         public Template<T> Add<TComponent>() => this.Add(typeof(TComponent));
         public Template<T> Remove<TComponent>() => this.Remove(typeof(TComponent));
         public Template<TTarget> Adapt<TTarget>(Func<TTarget, T> adapt) => this.Adapt<T, TTarget>(adapt);

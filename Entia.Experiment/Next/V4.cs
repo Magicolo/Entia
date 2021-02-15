@@ -1,10 +1,8 @@
 using System;
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
-using System.Threading;
 using Entia.Core;
 
 namespace Entia.Experiment.V4
@@ -69,10 +67,21 @@ namespace Entia.Experiment.V4
         Static analysis of systems:
         - It should be possible to produce a warning whenever a component from a given segment is never read/written.
             - This could mean that a template has useless data associated with it.
+
+        System state:
+        - It would be pretty useful to allow systems to hold state.
+        - The problem is the mapping between a system and its state in such a way that the mapping can be restored.
+        - System state would allow the implementation of 'Receiver<T>/Emitter<T>'.
+        - System state would allow nodes that execute once every 'n' frames.
+        - The mapping will require some kind of system identifier.
+            - Maybe a name path? Ex: "root
     */
 
     /*
-    FIX
+    TODO:
+    - Add the 'On<T>' node which executes a wrapped node conditionally to the reception of a message of type 'T'.
+
+    FIX:
     - If a system has internally conflicting dependencies, there may be race condictions.
         - Ex: A system may create an entity in a segment that is being iterated on.
         - When conflicts are detected, the 'Runs' array of the sub runner can be combined in one
@@ -82,10 +91,8 @@ namespace Entia.Experiment.V4
     iterated on.
         - Create could visit or not the newly created entity.
         - Destroy could cause an entity to not be visited since it has been moved.
-    -
 
-    - When running test and breaking after 'populate', entities don't seem to be created properly, or is
-    it a bug with the enumerator?
+    - The 'If' node must not evaluate the condition for each 'run', but rather once per 'Runner'.
     */
 
     public static class Test
@@ -93,6 +100,7 @@ namespace Entia.Experiment.V4
         public struct OnInitialize { }
         public struct OnFinalize { }
 
+        public struct Game { public bool Quit; }
         public struct Position { public Vector2 Value; }
         public struct Velocity { public Vector2 Value; }
         public struct Scale { public Vector2 Value; }
@@ -162,6 +170,7 @@ namespace Entia.Experiment.V4
         public static void Do()
         {
             var world = new World();
+            var game = world.Resource<Game>();
             var entities = (new Entity[1], new Entity[10], new Entity[100], new Entity[1000]);
             var create = Node.All(
                 Enumerable.Range(0, 10).Select(index => Node.Create(Random(64321 + index), creator => creator.Create())).All(),
@@ -196,21 +205,6 @@ namespace Entia.Experiment.V4
         public Entity<(Targetable, Not<IsInvincible>)> Entity;
     }
 
-    public readonly struct Resource<T>
-    {
-        static readonly Template<Unit> _template = Template.Empty().Add(_ => DefaultUtility.Default<T>());
-
-        public ref T Value => ref _store[0];
-        readonly T[] _store;
-
-        public Resource(World world)
-        {
-            var creator = world.Creator(_template, 1);
-            if (creator.Segment.Chunks.Length == 0) creator.Create();
-            _store = (T[])creator.Segment.Chunks[0].Stores[0];
-        }
-    }
-
     public readonly struct State<T>
     {
         static readonly Template<T> _template = Template.Empty<T>().Add(state => state);
@@ -227,35 +221,6 @@ namespace Entia.Experiment.V4
             _index = datum.Index;
             _store = (T[])datum.Chunk.Stores[0];
         }
-    }
-
-    struct Messages<T> { public ConcurrentQueue<T> Queue; public int Capacity; }
-
-    public readonly struct Emitter<T>
-    {
-        readonly Segment _segment;
-        public Emitter(World world) => _segment = world.Segment(new[] { world.Meta(typeof(Messages<T>)) }, 8);
-        public void Emit(in T message)
-        {
-            foreach (var chunk in _segment.Chunks)
-            {
-                var store = (Messages<T>[])chunk.Stores[0];
-                for (int i = 0; i < chunk.Count; i++)
-                {
-                    ref var messages = ref store[i];
-                    if (messages.Capacity != 0) messages.Queue.Enqueue(message);
-                    while (messages.Capacity >= 0 && messages.Queue.Count > messages.Capacity)
-                        messages.Queue.TryDequeue(out _);
-                }
-            }
-        }
-    }
-
-    public readonly struct Receiver<T>
-    {
-        readonly State<Messages<T>> _state;
-        public Receiver(World world, int capacity = -1) => _state = new(new() { Queue = new(), Capacity = capacity }, world, 8);
-        public bool TryReceive(out T message) => _state.Value.Queue.TryDequeue(out message);
     }
 
     public static class Defer

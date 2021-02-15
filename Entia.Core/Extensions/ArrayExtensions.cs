@@ -169,6 +169,12 @@ namespace Entia.Core
 
         public static bool Contains<T>(this T[] array, T item) => Array.IndexOf(array, item, 0, array.Length) >= 0;
 
+        public static T[] Resized<T>(this T[] source, int size)
+        {
+            Array.Resize(ref source, size);
+            return source;
+        }
+
         public static TResult[] Select<TSource, TResult>(this TSource[] source, Func<TSource, TResult> selector)
         {
             if (source.Length == 0) return Array.Empty<TResult>();

@@ -38,16 +38,18 @@ namespace Entia.Experiment.V4
     {
         public static Nodes.INode Create<T>(Template<T> template, Action<Creator<T>> run) =>
             Create(template, creator => Run(() => run(creator)));
-        public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Node.Lazy(world =>
+        public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Lazy(world =>
         {
             var creator = world.Creator(template);
             var segment = creator.Segment;
-            var dependencies = segment.Metas
-                .Select(meta => new Dependency(Dependency.Kinds.Write, meta.Type, segment))
-                .Prepend(new Dependency(Dependency.Kinds.Write, typeof(Entity), segment));
-            return provide(creator).Map(runner => Dependency.Conflicts(runner.Dependencies, dependencies) ?
-                new(new[] { runner.Runs.Combine().Or(() => { }) }, runner.Dependencies.Append(dependencies)) :
-                new(runner.Runs, runner.Dependencies.Append(dependencies)));
+            return provide(creator).Map(plan =>
+            {
+                var dependencies = plan.Dependencies.Change().Map(dependencies =>
+                    dependencies.Append(segment.Write<Entity>()).Append(segment.Metas.Select(meta => segment.Write(meta.Type))));
+                var runs = plan.Runs.Or(dependencies).Change().Map(pair =>
+                    pair.Item2.Conflicts() ? new[] { pair.Item1.Combine().Or(() => { }) } : pair.Item1);
+                return new(runs, dependencies);
+            });
         });
     }
 

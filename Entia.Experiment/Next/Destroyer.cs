@@ -6,20 +6,13 @@ namespace Entia.Experiment.V4
 {
     public readonly struct Destroyer
     {
-        internal Segment[] Segments => _segments();
-
+        public readonly Cache<Segment[]> Segments;
         readonly World _world;
-        readonly Func<Segment[]> _segments;
-
-        public Destroyer(Matcher matcher, World world)
-        {
-            _world = world;
-            _segments = world.Segments(matcher);
-        }
+        public Destroyer(Matcher matcher, World world) { Segments = world.Segments(matcher); _world = world; }
 
         public bool Destroy(Entity entity) =>
             _world.TryDatum(entity, out var datum) &&
-            Array.BinarySearch(_segments(), datum.Segment) >= 0 &&
+            Array.BinarySearch(Segments.Get(), datum.Segment) >= 0 &&
             _world.Destroy(entity);
     }
 
@@ -27,32 +20,25 @@ namespace Entia.Experiment.V4
     {
         public static Nodes.INode Destroy(Matcher? matcher = null) => Node.Schedule(world =>
         {
-            var destroyer = world.Destroyer(matcher);
-            var segments = destroyer.Segments;
-            var runner = Runner();
-            return () => segments == (segments = destroyer.Segments) ? runner : runner = Runner();
-
-            Nodes.Runner Runner() => new(
-                segments.Select(world, static (segment, world) => new Action(() => world.Destroy(segment))),
-                segments.Select(static segment => new Dependency(Dependency.Kinds.Write, typeof(Entity), segment)));
+            var segments = world.Segments(matcher ?? Matcher.True);
+            return new Plan(
+                segments.Change(segments => segments.Select(segment => new Action(() => world.Destroy(segment)))),
+                segments.Change(segments => segments.Select(segment => segment.Write<Entity>())));
         });
 
         public static Nodes.INode Destroy(Action<Destroyer> run, Matcher? matcher = null) =>
-            Destroy(destroyer => Run(() => run(destroyer)));
-        public static Nodes.INode Destroy(Func<Destroyer, Nodes.INode> provide, Matcher? matcher = null) => Node.Lazy(world =>
+            Destroy(destroyer => Run(() => run(destroyer)), matcher);
+        public static Nodes.INode Destroy(Func<Destroyer, Nodes.INode> provide, Matcher? matcher = null) => Lazy(world =>
         {
             var destroyer = world.Destroyer(matcher);
-            var segments = destroyer.Segments;
-            return provide(destroyer).Map(
-                runner =>
-                {
-                    segments = destroyer.Segments;
-                    var dependencies = segments.Select(segment => new Dependency(Dependency.Kinds.Write, typeof(Entity), segment));
-                    return Dependency.Conflicts(runner.Dependencies, dependencies) ?
-                        new(new[] { runner.Runs.Combine().Or(() => { }) }, runner.Dependencies.Append(dependencies)) :
-                        new(runner.Runs, runner.Dependencies.Append(dependencies));
-                },
-                () => segments != destroyer.Segments);
+            return provide(destroyer).Map(plan =>
+            {
+                var dependencies = plan.Dependencies.Or(destroyer.Segments).Change().Map(pair =>
+                    pair.Item1.Append(pair.Item2.Select(segment => segment.Write<Entity>())));
+                var runs = plan.Runs.Or(dependencies).Change().Map(pair =>
+                    pair.Item2.Conflicts() ? new[] { pair.Item1.Combine().Or(() => { }) } : pair.Item1);
+                return new(runs, dependencies);
+            });
         });
     }
 
