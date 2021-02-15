@@ -56,7 +56,7 @@ namespace Entia.Experiment.V4
             new(map(cache.Get()), _ => cache.TryGet().Map(map));
 
         public static Cache<T[]> Any<T>(this IEnumerable<Cache<T>> caches) => caches.ToArray().Any();
-        public static Cache<T[]> Any<T>(this Cache<T>[] caches) =>
+        public static Cache<T[]> Any<T>(params Cache<T>[] caches) =>
             Change(caches.Select(cache => cache.Get()), values =>
             {
                 var changed = false;

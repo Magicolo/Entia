@@ -8,8 +8,6 @@ using Entia.Core;
 
 namespace Entia.Experiment.V4
 {
-    public delegate void Initialize<T>(int index, int count, Segment.Chunk chunk, in T state);
-
     public sealed record Meta : IComparable<Meta>
     {
         public readonly Type Type;
@@ -20,13 +18,31 @@ namespace Entia.Experiment.V4
 
     public sealed class World : IEnumerable<World.Enumerator, Entity>
     {
-        // TODO: Replace with 2 indices?
         public struct Datum
         {
             public int Index;
+            public Entity Parent;
             public Segment.Chunk Chunk;
             public Segment Segment;
         }
+
+        public readonly ref struct Context
+        {
+            public readonly int Index;
+            public readonly int Count;
+            public readonly Segment.Chunk Chunk;
+            public readonly ReadOnlySpan<Entity> Parents;
+
+            public Context(int index, int count, Segment.Chunk chunk, ReadOnlySpan<Entity> parents)
+            {
+                Index = index;
+                Count = count;
+                Chunk = chunk;
+                Parents = parents;
+            }
+        }
+
+        public delegate void Initializer<T>(in Context context, in T state);
 
         public struct Enumerator : IEnumerator<Entity>
         {
@@ -121,22 +137,39 @@ namespace Entia.Experiment.V4
 
         public bool TryMeta(Type type, out Meta meta) => _metas.TryGetValue(type, out meta);
 
-        public Entity Create(Segment segment) => Create(segment, default, (int _, int _, Segment.Chunk _, in Unit _) => { });
-        public Entity Create<T>(Segment segment, in T state, Initialize<T> initialize)
+        public void Reserve(Span<Entity> entities)
         {
-            Span<Entity> entities = stackalloc Entity[1];
-            Create(entities, segment, state, initialize);
-            return entities[0];
+            // Favor using all of the allocated capacity before using free indices. There is a possibility of race
+            // condition on the read to '_last' and 'Add' but since worst outcome of the race is to simply
+            // pre-emptively allocated the next chunk of data, it is not worth trying to synchronize.
+            var reserved = 0;
+            if (_last + entities.Length > Capacity)
+            {
+                var buffer = Buffer<World, Entity>.Get(entities.Length);
+                var popped = _free.TryPopRange(buffer, 0, entities.Length);
+                for (int i = 0; i < popped; i++) entities[i] = new(buffer[i].Index, buffer[i].Generation + 1);
+                reserved += popped;
+            }
+
+            if (reserved == entities.Length) return;
+            var count = entities.Length - reserved;
+            var last = Interlocked.Add(ref _last, count);
+            var chunk = (last - 1) >> Shift;
+            var data = _data;
+            while (chunk >= data.Length)
+            {
+                Interlocked.CompareExchange(ref _data, data.Append(new Datum[Size]), data);
+                data = _data;
+            }
+            for (int i = last - count; i < last; i++) entities[reserved++] = new(i, 0);
         }
 
-        public void Create(Span<Entity> entities, Segment segment) => Create(entities, segment, default, (int _, int _, Segment.Chunk _, in Unit _) => { });
-        public void Create<T>(Span<Entity> entities, Segment segment, in T state, Initialize<T> initialize)
+        public void Initialize<T>(Span<Entity> entities, Span<Entity> parents, Segment segment, in T state, Initializer<T> initialize)
         {
-            Reserve(entities);
-            var created = 0;
-            while (created < entities.Length)
+            var initialized = 0;
+            while (initialized < entities.Length)
             {
-                var remaining = entities.Length - created;
+                var remaining = entities.Length - initialized;
                 var chunk = segment.Next();
                 if (chunk.Count == segment.Size) continue;
 
@@ -148,14 +181,24 @@ namespace Entia.Experiment.V4
 
                     for (int i = 0; i < count; i++)
                     {
-                        var entity = chunk.Entities[index + i] = entities[created + i];
-                        DatumAt(entity.Index) = new() { Index = index + 1, Chunk = chunk, Segment = segment };
+                        var source = initialized + i;
+                        var target = index + i;
+                        var entity = chunk.Entities[target] = entities[source];
+                        var parent = source < parents.Length ? parents[source] : Entity.Zero;
+                        DatumAt(entity.Index) = new()
+                        {
+                            Index = target,
+                            Parent = parent,
+                            Chunk = chunk,
+                            Segment = segment,
+                        };
                     }
                     // Initialize before incrementing 'chunk.Count' to ensure that no reader can
                     // observe a chunk item uninitialized.
-                    initialize(index, count, chunk, state);
+                    var context = new Context(index, count, chunk, parents.Slice(initialized, count));
+                    initialize(context, state);
                     chunk.Count += count;
-                    created += count;
+                    initialized += count;
                 }
 
                 if (chunk.Count == segment.Size) continue;
@@ -163,7 +206,7 @@ namespace Entia.Experiment.V4
             }
         }
 
-        public int Destroy(Segment segment)
+        public int Release(Segment segment)
         {
             var destroyed = 0;
             foreach (var chunk in segment.Chunks)
@@ -180,7 +223,7 @@ namespace Entia.Experiment.V4
             return destroyed;
         }
 
-        public bool Destroy(Entity entity)
+        public bool Release(Entity entity)
         {
             if (entity.Index >= _last) return false;
 
@@ -209,34 +252,6 @@ namespace Entia.Experiment.V4
                 return true;
             }
             return false;
-        }
-
-        [ThreadStatic] static Entity[] _popped; // 'ThreadStatic' makes this thread-safe.
-        void Reserve(Span<Entity> entities)
-        {
-            // Favor using all of the allocated capacity before using free indices. There is a possibility of race
-            // condition on the read to '_last' and 'Add' but since worst outcome of the race is to simply
-            // pre-emptively allocated the next chunk of data, it is not worth trying to synchronize.
-            var reserved = 0;
-            if (_last + entities.Length > Capacity)
-            {
-                if (_popped == null || _popped.Length < entities.Length) _popped = new Entity[entities.Length];
-                var popped = _free.TryPopRange(_popped, 0, entities.Length);
-                for (int i = 0; i < popped; i++) entities[i] = new(_popped[i].Index, _popped[i].Generation + 1);
-                reserved += popped;
-            }
-
-            if (reserved == entities.Length) return;
-            var count = entities.Length - reserved;
-            var last = Interlocked.Add(ref _last, count);
-            var chunk = (last - 1) >> Shift;
-            var data = _data;
-            while (chunk >= data.Length)
-            {
-                Interlocked.CompareExchange(ref _data, data.Append(new Datum[Size]), data);
-                data = _data;
-            }
-            for (int i = last - count; i < last; i++) entities[reserved++] = new(i, 0);
         }
 
         ref Datum DatumAt(int index) => ref _data[index >> Shift][index & Mask];

@@ -22,7 +22,6 @@ namespace Entia.Core
         public static bool Ensure<T>(ref T[] source, int size, T initial)
         {
             if (size <= source.Length) return false;
-
             var old = source.Length;
             var @new = MathUtility.NextPowerOfTwo(size);
             Array.Resize(ref source, @new);
@@ -33,7 +32,6 @@ namespace Entia.Core
         public static bool Ensure<T>(ref T[] source, int size, Func<T> initial)
         {
             if (size <= source.Length) return false;
-
             var old = source.Length;
             var @new = MathUtility.NextPowerOfTwo(size);
             Array.Resize(ref source, @new);

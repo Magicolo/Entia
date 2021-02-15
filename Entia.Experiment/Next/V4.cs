@@ -74,12 +74,45 @@ namespace Entia.Experiment.V4
         - System state would allow the implementation of 'Receiver<T>/Emitter<T>'.
         - System state would allow nodes that execute once every 'n' frames.
         - The mapping will require some kind of system identifier.
-            - Maybe a name path? Ex: "root
     */
 
     /*
     TODO:
     - Add the 'On<T>' node which executes a wrapped node conditionally to the reception of a message of type 'T'.
+    - Allow segments to defragment and resize their chunks.
+        - When a segment has many chunks, it may resize the size of the chunks and move entities to make it more
+        compact and/or contiguous.
+        - This could be automatically scheduled such that it happens in parallel to other systems, or it can be
+        scheduled at the start/end of a frame.
+        - The operation could be cancelled if the other parallel tasks are completed before it, and then it could
+        be continued on the next frame. This would require the task to frequently check a cancellation token.
+        - Increasing the size of chunks could be triggered when 'chunkCount / chunkSize > processors'.
+        - This operation will have a 'Write' dependency on everything in the segment.
+    - Allow 'world.Create' to create a hierarchy of entities in a batch.
+        - Ex: A template describes a hierarchy of 13 entities and we would want to instantiate 8 of these. Then
+        the world could reserve 8 * 13 entities in a single operation and then initialize them.
+        - If some entities of the hierarchy would be allocated in the same segment, they should be grouped and
+        initialized together; possibly under the same lock.
+
+    - Static entity hierarchies:
+        - Entities in a segment would all have a parent that belongs to the same segment.
+        - This means that the parent segment can be directly stored in each segment.
+        - Allows matchers such as:
+            - 'Matcher.Root()' -> matches segments that do not have a parent.
+            - 'Matcher.Parent(...)' -> matches segments that have a parent that matcher the inner matcher.
+            - 'Matcher.Ancestor(...)' -> matches segments that do not have a parent.
+        - Note that segments will be more fragmented because of the parent constraint.
+        - Note that in order to retrieve the component of a parent, a dynamic fetch must be done for each entity.
+        even if the fetch is garanteed to succeed.
+            if (world.TryData(entity, out var data) &&
+                world.TryData(data.Parent, out data))
+                return ref ((T[])store)[data.Index];
+    - Dynamic entity hierarchies:
+        - 'Segment.TryStore' will become a very frequent operation. May require to reintroduce the 'indices' array in segments.
+            if (world.TryData(entity, out var data) &&
+                world.TryData(data.Parent, out data) &&
+                data.Segment.TryStore(meta, out var store))
+                return ref ((T[])store)[data.Index];
 
     FIX:
     - If a system has internally conflicting dependencies, there may be race condictions.
@@ -101,6 +134,8 @@ namespace Entia.Experiment.V4
         public struct OnFinalize { }
 
         public struct Game { public bool Quit; }
+        public struct Body { public Entity Head, Torso, Abdomen; }
+        public struct Target { public Entity Value; }
         public struct Position { public Vector2 Value; }
         public struct Velocity { public Vector2 Value; }
         public struct Scale { public Vector2 Value; }
@@ -118,33 +153,44 @@ namespace Entia.Experiment.V4
         public struct IsObservable { }
         public enum DamageKinds { None = 0, Body = 1 << 0, Bullet = 1 << 1 }
 
-        public static readonly Template<(Vector2 position, double angle)> Player = Create(nameof(Player))
-            .Add(Physical(default, 0.25))
-            .Add(new Sprite { Path = "Shapes/Triangle", Color = Color.Cyan })
-            .Add(new Health { Current = 1.0, Maximum = 1.0, Damageable = DamageKinds.Body })
-            .Add(new Motion { MoveSpeed = 0.0, RotateSpeed = 2.0 })
-            .Add<Controller>();
+        public static readonly Template<Unit> Head;
+        public static readonly Template<Unit> Torso;
+        public static readonly Template<Unit> Abdomen;
+        public static readonly Template<Unit> Insect =
+            Insect.Create(nameof(Insect))
+                // .Adopt(new[] { Head, Torso, Abdomen }, (Entity parent, ReadOnlySpan<Entity> children, T state) => new Body { Head = children[0], Torso = children[1], Abdomen = children[2] })
+                // .Add((Entity parent, ReadOnlySpan<Entity> children, T state) => new )
+                ;
 
-        public static readonly Template<(Vector2 position, double angle, double lifetime, double speed, double health)> Enemy = Create(nameof(Enemy))
-            .Add(Physical(new(3f, 3f), 1.5))
-            .Adapt<(Vector2 position, double angle, double lifetime, double speed, double health)>(state => (state.position, state.angle))
-            .Add(state => new Sprite { Path = "Shapes/Square", Color = Color.FromArgb(255, 255, (int)(255 - state.health * 75), 0) })
-            .Add(state => new Health { Current = state.health, Maximum = state.health, Damageable = DamageKinds.Bullet })
-            .Add(state => new Lifetime { Duration = state.lifetime })
-            .Add(state => new ForwardMotion { Speed = state.speed })
-            .Add(new Weapon { Kind = DamageKinds.Body, Amount = 1.0 })
-            .Add<IsObservable>();
+        public static readonly Template<(Vector2 position, double angle)> Player =
+            Player.Create(nameof(Player))
+                .Add(Physical(default, 0.25))
+                .Add(new Sprite { Path = "Shapes/Triangle", Color = Color.Cyan })
+                .Add(new Health { Current = 1.0, Maximum = 1.0, Damageable = DamageKinds.Body })
+                .Add(new Motion { MoveSpeed = 0.0, RotateSpeed = 2.0 })
+                .Add<Controller>();
 
-        public static readonly Template<(Vector2 position, double angle, double speed)> Bullet = Create(nameof(Bullet))
-            .Add(Physical(new(0.5f, 0.5f), 0.1))
-            .Adapt<(Vector2 position, double angle, double speed)>(state => (state.position, state.angle))
-            .Add(new Sprite { Path = "Shapes/Circle", Color = Color.Yellow })
-            .Add(new Health { Current = 1.0, Maximum = 1.0, Damageable = DamageKinds.Body })
-            .Add(new Lifetime { Duration = 3.0 })
-            .Add(state => new ForwardMotion { Speed = state.speed })
-            .Add(new Weapon { Kind = DamageKinds.Bullet, Amount = 1.0 });
+        public static readonly Template<(Vector2 position, double angle, double lifetime, double speed, double health)> Enemy =
+            Enemy.Create(nameof(Enemy))
+                .Add(Physical(new(3f, 3f), 1.5), state => (state.position, state.angle))
+                .Add(state => new Sprite { Path = "Shapes/Square", Color = Color.FromArgb(255, 255, (int)(255 - state.health * 75), 0) })
+                .Add(state => new Health { Current = state.health, Maximum = state.health, Damageable = DamageKinds.Bullet })
+                .Add(state => new Lifetime { Duration = state.lifetime })
+                .Add(state => new ForwardMotion { Speed = state.speed })
+                .Add(new Weapon { Kind = DamageKinds.Body, Amount = 1.0 })
+                .Add<IsObservable>();
 
-        static Template<Unit> Create(string name) => Template.Empty().Add(new Debug { Name = name });
+        public static readonly Template<(Vector2 position, double angle, double speed)> Bullet =
+            Bullet.Create(nameof(Bullet))
+                .Add(Physical(new(0.5f, 0.5f), 0.1), state => (state.position, state.angle))
+                .Add(new Sprite { Path = "Shapes/Circle", Color = Color.Yellow })
+                .Add(new Health { Current = 1.0, Maximum = 1.0, Damageable = DamageKinds.Body })
+                .Add(new Lifetime { Duration = 3.0 })
+                .Add(state => new ForwardMotion { Speed = state.speed })
+                .Add(new Weapon { Kind = DamageKinds.Bullet, Amount = 1.0 });
+
+        static Template<T> Create<T>(this Template<T> _, string name) => Create<T>(name);
+        static Template<T> Create<T>(string name) => Template.Empty().Add(new Debug { Name = name });
 
         static Template<(Vector2 position, double angle)> Physical(Vector2? scale = default, double? radius = default)
         {
@@ -191,6 +237,86 @@ namespace Entia.Experiment.V4
                     watch.Restart();
                 }
             }
+
+            /*
+            Node.Run(
+                // Iterates over all entities that have a 'Position', a 'Velocity' and a parent with a 'Motion'.
+                (ref Position position, in Velocity velocity, in Parent<Motion> motion) =>
+                {
+                    if (motion.Value.Enabled) position.Value += velocity.Value;
+                },
+                // Matches entities that have a parent with a component 'CanMove'.
+                Matcher.Parent(Matcher.Has<CanMove>()));
+
+            static void Run(ref Position position, in Velocity velocity, [Matcher.Parent] in Motion motion)
+            {
+                if (motion.Value.Enabled) position.Value += velocity.Value;
+            }
+            Node.Run(Run, Matcher.Parent(Matcher.Has<CanMove>()));
+
+            Node.Run(
+                // Iterates over all entities that have a 'Velocity' and at least 1 child with a 'Position'.
+                (in Velocity velocity, ref Children<Position> children) =>
+                {
+                    foreach (ref var position in children)
+                        position.Value += velocity.Value
+                },
+                // Matches entities that have no parent.
+                Matcher.Root());
+
+            // Has type 'Query<And<Read<Velocity>, Write<Position>>>'.
+            Node.Query(Query.And(Query.Entity, Query.Read<Velocity>(), Query.Write<Position>()), query1 =>
+            // Has type 'Query<Write<Target>>'.
+            Node.Query(Query.Write<Target>(), query2 =>
+                Node.Run(() =>
+                {
+                    // 'item1' has a generated type.
+                    foreach (var item1 in query1)
+                        // 'item1.Entity' has type 'Entity<(Velocity, Position)>'
+                        // 'item2' has a generated type.
+                        if (query2.TryGet(item1.Entity, out var item2))
+                            item2.Target.Value = item1.Entity;
+                })));
+
+            // Shorter version of a query.
+            Node.Run(
+                Query.And(Query.Read<Velocity>(), Query.Write<Position>()),
+                item => item.Position.Value += item.Velocity.Value);
+
+            // Shortest version of a query.
+            Node.Run((in Velocity velocity, ref Position position) => position.Value += velocity.Value);
+
+            Node.Run(
+                // Bottom up query.
+                Query.And(Query.Parent(Query.Read<Velocity>()), Query.Write<Position>()),
+                // Add the velocity of the parent to its immediate children.
+                item => item.Position.Value += item.Velocity.Value);
+            Node.Run(
+                // Top down query.
+                Query.And(Query.Read<Velocity>(), Query.Children(Query.Write<Position>())),
+                // 'item.Positions' has a generated 'ref struct IEnumerable<...>' type.
+                item =>
+                {
+                    foreach (var child in item.Positions)
+                        child.Position.Value += item.Velocity.Value;
+                });
+
+            Node.Run(
+                // The 'bool' in 'Ancestors' and 'Descendants' specifies to include 'self' or not.
+                Query.And(
+                    Query.Root(Query.Has<Motion>()),
+                    Query.Ancestors(Query.Read<Velocity>(), false),
+                    Query.Descendants(Query.Write<Position>(), true)),
+                // 'item.Velocities' and 'item.Positions' have a generated 'ref struct IEnumerable<...>' type.
+                item =>
+                {
+                    // Each ancestor that has a 'Velocity'.
+                    foreach (var ancestor in item.Velocities)
+                        // Each descendant that has a 'Position'.
+                        foreach (var descendant in item.Positions)
+                            descendant.Position.Value += ancestor.Value;
+                });
+            */
         }
     }
 
@@ -213,9 +339,9 @@ namespace Entia.Experiment.V4
         readonly T[] _store;
         readonly int _index;
 
-        public State(T value, World world, byte size = 1)
+        public State(T value, World world, int size = 1)
         {
-            var creator = world.Creator(_template, size);
+            var creator = world.Creator(_template.Size(size));
             var entity = creator.Create(value);
             world.TryDatum(entity, out var datum);
             _index = datum.Index;

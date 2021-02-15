@@ -47,10 +47,13 @@ namespace Entia.Experiment.V4
         public static bool IsUnknown(this Dependency dependency) => dependency.Is(Dependency.Kinds.Unknown);
         public static bool IsWrite(this Dependency dependency) => dependency.Is(Dependency.Kinds.Write);
         public static bool IsRead(this Dependency dependency) => dependency.Is(Dependency.Kinds.Read);
+        public static Dependency[] Write(this Segment segment) => segment.Depend(Dependency.Kinds.Write);
         public static Dependency Write<T>(this Segment segment) => segment.Depend<T>(Dependency.Kinds.Write);
         public static Dependency Write(this Segment segment, Type type) => segment.Depend(Dependency.Kinds.Write, type);
+        public static Dependency[] Read(this Segment segment) => segment.Depend(Dependency.Kinds.Read);
         public static Dependency Read<T>(this Segment segment) => segment.Depend<T>(Dependency.Kinds.Read);
         public static Dependency Read(this Segment segment, Type type) => segment.Depend(Dependency.Kinds.Read, type);
+        public static Dependency[] Depend(this Segment segment, Dependency.Kinds kind) => segment.Metas.Select(meta => segment.Depend(kind, meta.Type)).Prepend(segment.Depend<Entity>(kind));
         public static Dependency Depend<T>(this Segment segment, Dependency.Kinds kind) => segment.Depend(kind, typeof(T));
         public static Dependency Depend(this Segment segment, Dependency.Kinds kind, Type type) => new(kind, type, segment);
     }

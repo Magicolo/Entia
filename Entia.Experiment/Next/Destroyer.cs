@@ -13,16 +13,16 @@ namespace Entia.Experiment.V4
         public bool Destroy(Entity entity) =>
             _world.TryDatum(entity, out var datum) &&
             Array.BinarySearch(Segments.Get(), datum.Segment) >= 0 &&
-            _world.Destroy(entity);
+            _world.Release(entity);
     }
 
     public static partial class Node
     {
-        public static Nodes.INode Destroy(Matcher? matcher = null) => Node.Schedule(world =>
+        public static Nodes.INode Destroy(Matcher? matcher = null) => Schedule(world =>
         {
             var segments = world.Segments(matcher ?? Matcher.True);
             return new Plan(
-                segments.Change(segments => segments.Select(segment => new Action(() => world.Destroy(segment)))),
+                segments.Change(segments => segments.Select(segment => new Action(() => world.Release(segment)))),
                 segments.Change(segments => segments.Select(segment => segment.Write<Entity>())));
         });
 
