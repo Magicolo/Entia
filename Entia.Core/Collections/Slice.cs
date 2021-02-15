@@ -35,7 +35,7 @@ namespace Entia.Core
                 public void Reset() => _index = -1;
             }
 
-            public static implicit operator Read(T[] array) => new Read(array, 0, (uint)array.Length);
+            public static implicit operator Read(T[] array) => new(array, 0, (uint)array.Length);
 
             public ref readonly T this[int index] => ref this[(uint)index];
             public ref readonly T this[uint index] => ref _array[_index + index];
@@ -59,14 +59,14 @@ namespace Entia.Core
             }
 
             /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
-            public Enumerator GetEnumerator() => new Enumerator(this);
+            public Enumerator GetEnumerator() => new(this);
             IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
             IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
         }
 
         public struct Enumerator : IEnumerator<T>
         {
-            public static implicit operator Read.Enumerator(in Enumerator enumerator) => new Read.Enumerator(enumerator._slice, enumerator._index);
+            public static implicit operator Read.Enumerator(in Enumerator enumerator) => new(enumerator._slice, enumerator._index);
 
             /// <inheritdoc cref="IEnumerator{T}.Current"/>
             public ref T Current => ref _slice[_index];
@@ -90,8 +90,8 @@ namespace Entia.Core
             public void Reset() => _index = -1;
         }
 
-        public static implicit operator Slice<T>(T[] array) => new Slice<T>(array, 0, (uint)array.Length);
-        public static implicit operator Read(in Slice<T> slice) => new Read(slice._array, slice._index, slice.Count);
+        public static implicit operator Slice<T>(T[] array) => new(array, 0, (uint)array.Length);
+        public static implicit operator Read(in Slice<T> slice) => new(slice._array, slice._index, slice.Count);
 
         public ref T this[int index] => ref this[(uint)index];
         public ref T this[uint index] => ref _array[_index + index];
@@ -115,7 +115,7 @@ namespace Entia.Core
         }
 
         /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
-        public Enumerator GetEnumerator() => new Enumerator(this);
+        public Enumerator GetEnumerator() => new(this);
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }

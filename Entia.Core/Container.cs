@@ -111,12 +111,12 @@ namespace Entia.Core
                 _defaults = defaults;
             }
 
-            public Enumerator GetEnumerator() => new Enumerator(_implementations, _defaults);
+            public Enumerator GetEnumerator() => new(_implementations, _defaults);
             IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
             IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
         }
 
-        static readonly TypeMap<object, TypeMap<ITrait, ITrait[]>> _defaults = new TypeMap<object, TypeMap<ITrait, ITrait[]>>();
+        static readonly TypeMap<object, TypeMap<ITrait, ITrait[]>> _defaults = new();
 
         [ThreadSafe]
         public static bool TryDefault<T, TTrait>(out TTrait implementation) where TTrait : ITrait
@@ -299,16 +299,16 @@ namespace Entia.Core
         static Option<ITrait> GetInstance(Type type, params object[] arguments) =>
             Option.Cast<ITrait>(Activator.CreateInstance(type, arguments));
 
-        readonly TypeMap<object, TypeMap<ITrait, ITrait[]>> _implementations = new TypeMap<object, TypeMap<ITrait, ITrait[]>>();
+        readonly TypeMap<object, TypeMap<ITrait, ITrait[]>> _implementations = new();
 
         public Container() { }
 
         public Implementations<ITrait> Get(Type type, Type trait) =>
-            new Implementations<ITrait>(GetImplementations(type, trait), Defaults(type, trait));
+            new(GetImplementations(type, trait), Defaults(type, trait));
         public Implementations<TTrait> Get<TTrait>(Type type) where TTrait : ITrait =>
-            new Implementations<TTrait>(GetImplementations<TTrait>(type), Defaults<TTrait>(type));
+            new(GetImplementations<TTrait>(type), Defaults<TTrait>(type));
         public Implementations<TTrait> Get<T, TTrait>() where TTrait : ITrait =>
-            new Implementations<TTrait>(GetImplementations<T, TTrait>(), Defaults<T, TTrait>());
+            new(GetImplementations<T, TTrait>(), Defaults<T, TTrait>());
 
         [ThreadSafe]
         public bool TryGet(Type type, Type trait, out ITrait implementation)

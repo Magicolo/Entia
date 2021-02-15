@@ -12,7 +12,7 @@ namespace Entia.Check
         public readonly string Name;
         public readonly Shrink<T> Shrink;
         public Shrinker(string name, Shrink<T> shrink) { Name = name; Shrink = shrink; }
-        public Shrinker<T> With(string? name = null, Shrink<T>? shrink = null) => new Shrinker<T>(name ?? Name, shrink ?? Shrink);
+        public Shrinker<T> With(string? name = null, Shrink<T>? shrink = null) => new(name ?? Name, shrink ?? Shrink);
         public override string ToString() => Name;
     }
 
@@ -23,7 +23,7 @@ namespace Entia.Check
             public static Shrinker<T> Empty = From(Name<T>.Empty, () => Array.Empty<Generator<T>>());
         }
 
-        public static Shrinker<T> From<T>(string name, Shrink<T> shrink) => new Shrinker<T>(name, shrink);
+        public static Shrinker<T> From<T>(string name, Shrink<T> shrink) => new(name, shrink);
         public static Shrinker<T> From<T>(Shrink<T> shrink) => From(shrink.Method.Format(), shrink);
         public static Shrinker<T> Empty<T>() => Cache<T>.Empty;
 

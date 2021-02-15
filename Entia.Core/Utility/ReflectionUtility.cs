@@ -25,11 +25,11 @@ namespace Entia.Core
         public static ICollection<Assembly> AllAssemblies => _assemblies.Values;
         public static ICollection<Type> AllTypes => _types.Values;
 
-        static readonly ConcurrentDictionary<string, Assembly> _assemblies = new ConcurrentDictionary<string, Assembly>();
-        static readonly ConcurrentDictionary<(Assembly, string), Type> _types = new ConcurrentDictionary<(Assembly, string), Type>();
-        static readonly ConcurrentDictionary<MemberInfo, IMemberData> _memberToData = new ConcurrentDictionary<MemberInfo, IMemberData>();
-        static readonly ConcurrentDictionary<Guid, Type> _guidToType = new ConcurrentDictionary<Guid, Type>();
-        static readonly Func<Type, bool> _isByRefLike = Option.Try(() => typeof(Type).GetProperty("IsByRefLike").GetMethod.CreateDelegate<Func<Type, bool>>()).Or(_ => false);
+        static readonly ConcurrentDictionary<string, Assembly> _assemblies = new();
+        static readonly ConcurrentDictionary<(Assembly, string), Type> _types = new();
+        static readonly ConcurrentDictionary<MemberInfo, IMemberData> _memberToData = new();
+        static readonly ConcurrentDictionary<Guid, Type> _guidToType = new();
+        static readonly Func<Type, bool> _isByRefLike = Option.Try(() => typeof(Type).GetProperty("IsByRefLike").GetMethod.CreateDelegate<Func<Type, bool>>()).Or(new Func<Type, bool>(_ => false));
 
         static ReflectionUtility()
         {

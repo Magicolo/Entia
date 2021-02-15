@@ -119,8 +119,8 @@ namespace Entia.Json.Converters
             public static readonly IConverter Default = Converter.Default(typeof(T));
         }
 
-        static readonly ConcurrentDictionary<Type, IConverter> _converters = new ConcurrentDictionary<Type, IConverter>();
-        static readonly ConcurrentDictionary<Type, IConverter> _defaults = new ConcurrentDictionary<Type, IConverter>();
+        static readonly ConcurrentDictionary<Type, IConverter> _converters = new();
+        static readonly ConcurrentDictionary<Type, IConverter> _defaults = new();
 
         /// <summary>
         /// Provides a default <see cref="IConverter"/> instance for the provided type.
@@ -404,7 +404,7 @@ namespace Entia.Json.Converters
             // This may fail for targets that do not support JIT compilation.
             Option.Try(argument, state => Activator.CreateInstance(typeof(ConcreteNullable<>).MakeGenericType(state)))
                 .Cast<IConverter>()
-                .Or(() => new AbstractNullable(type, argument));
+                .Or(() => (IConverter)new AbstractNullable(type, argument));
 
         static IConverter CreateArray(Type type, Type element)
         {
@@ -412,27 +412,27 @@ namespace Entia.Json.Converters
                 // This may fail for targets that do not support JIT compilation.
                 Option.Try(() => Activator.CreateInstance(typeof(ConcreteArray<>).MakeGenericType(element)))
                     .Cast<IConverter>()
-                    .Or(() => new AbstractArray(element));
+                    .Or(() => (IConverter)new AbstractArray(element));
 
             if (element.IsEnum) return Default();
-            switch (Type.GetTypeCode(element))
+            return (Type.GetTypeCode(element)) switch
             {
-                case TypeCode.Char: return new PrimitiveArray<char>(_ => _, node => node.AsChar());
-                case TypeCode.Byte: return new PrimitiveArray<byte>(_ => _, node => node.AsByte());
-                case TypeCode.SByte: return new PrimitiveArray<sbyte>(_ => _, node => node.AsSByte());
-                case TypeCode.Int16: return new PrimitiveArray<short>(_ => _, node => node.AsShort());
-                case TypeCode.Int32: return new PrimitiveArray<int>(_ => _, node => node.AsInt());
-                case TypeCode.Int64: return new PrimitiveArray<long>(_ => _, node => node.AsLong());
-                case TypeCode.UInt16: return new PrimitiveArray<ushort>(_ => _, node => node.AsUShort());
-                case TypeCode.UInt32: return new PrimitiveArray<uint>(_ => _, node => node.AsUInt());
-                case TypeCode.UInt64: return new PrimitiveArray<ulong>(_ => _, node => node.AsULong());
-                case TypeCode.Single: return new PrimitiveArray<float>(_ => _, node => node.AsFloat());
-                case TypeCode.Double: return new PrimitiveArray<double>(_ => _, node => node.AsDouble());
-                case TypeCode.Decimal: return new PrimitiveArray<decimal>(_ => _, node => node.AsDecimal());
-                case TypeCode.Boolean: return new PrimitiveArray<bool>(_ => _, node => node.AsBool());
-                case TypeCode.String: return new PrimitiveArray<string>(_ => _, node => node.AsString());
-                default: return Default();
-            }
+                TypeCode.Char => new PrimitiveArray<char>(_ => _, node => node.AsChar()),
+                TypeCode.Byte => new PrimitiveArray<byte>(_ => _, node => node.AsByte()),
+                TypeCode.SByte => new PrimitiveArray<sbyte>(_ => _, node => node.AsSByte()),
+                TypeCode.Int16 => new PrimitiveArray<short>(_ => _, node => node.AsShort()),
+                TypeCode.Int32 => new PrimitiveArray<int>(_ => _, node => node.AsInt()),
+                TypeCode.Int64 => new PrimitiveArray<long>(_ => _, node => node.AsLong()),
+                TypeCode.UInt16 => new PrimitiveArray<ushort>(_ => _, node => node.AsUShort()),
+                TypeCode.UInt32 => new PrimitiveArray<uint>(_ => _, node => node.AsUInt()),
+                TypeCode.UInt64 => new PrimitiveArray<ulong>(_ => _, node => node.AsULong()),
+                TypeCode.Single => new PrimitiveArray<float>(_ => _, node => node.AsFloat()),
+                TypeCode.Double => new PrimitiveArray<double>(_ => _, node => node.AsDouble()),
+                TypeCode.Decimal => new PrimitiveArray<decimal>(_ => _, node => node.AsDecimal()),
+                TypeCode.Boolean => new PrimitiveArray<bool>(_ => _, node => node.AsBool()),
+                TypeCode.String => new PrimitiveArray<string>(_ => _, node => node.AsString()),
+                _ => Default(),
+            };
         }
 
         static IConverter CreateList(Type type, Type argument)
@@ -444,24 +444,24 @@ namespace Entia.Json.Converters
                     .Or(() => CreateIList(type));
 
             if (argument.IsEnum) return Default();
-            switch (Type.GetTypeCode(argument))
+            return (Type.GetTypeCode(argument)) switch
             {
-                case TypeCode.Char: return new PrimitiveList<char>(_ => _, node => node.AsChar());
-                case TypeCode.Byte: return new PrimitiveList<byte>(_ => _, node => node.AsByte());
-                case TypeCode.SByte: return new PrimitiveList<sbyte>(_ => _, node => node.AsSByte());
-                case TypeCode.Int16: return new PrimitiveList<short>(_ => _, node => node.AsShort());
-                case TypeCode.Int32: return new PrimitiveList<int>(_ => _, node => node.AsInt());
-                case TypeCode.Int64: return new PrimitiveList<long>(_ => _, node => node.AsLong());
-                case TypeCode.UInt16: return new PrimitiveList<ushort>(_ => _, node => node.AsUShort());
-                case TypeCode.UInt32: return new PrimitiveList<uint>(_ => _, node => node.AsUInt());
-                case TypeCode.UInt64: return new PrimitiveList<ulong>(_ => _, node => node.AsULong());
-                case TypeCode.Single: return new PrimitiveList<float>(_ => _, node => node.AsFloat());
-                case TypeCode.Double: return new PrimitiveList<double>(_ => _, node => node.AsDouble());
-                case TypeCode.Decimal: return new PrimitiveList<decimal>(_ => _, node => node.AsDecimal());
-                case TypeCode.Boolean: return new PrimitiveList<bool>(_ => _, node => node.AsBool());
-                case TypeCode.String: return new PrimitiveList<string>(_ => _, node => node.AsString());
-                default: return Default();
-            }
+                TypeCode.Char => new PrimitiveList<char>(_ => _, node => node.AsChar()),
+                TypeCode.Byte => new PrimitiveList<byte>(_ => _, node => node.AsByte()),
+                TypeCode.SByte => new PrimitiveList<sbyte>(_ => _, node => node.AsSByte()),
+                TypeCode.Int16 => new PrimitiveList<short>(_ => _, node => node.AsShort()),
+                TypeCode.Int32 => new PrimitiveList<int>(_ => _, node => node.AsInt()),
+                TypeCode.Int64 => new PrimitiveList<long>(_ => _, node => node.AsLong()),
+                TypeCode.UInt16 => new PrimitiveList<ushort>(_ => _, node => node.AsUShort()),
+                TypeCode.UInt32 => new PrimitiveList<uint>(_ => _, node => node.AsUInt()),
+                TypeCode.UInt64 => new PrimitiveList<ulong>(_ => _, node => node.AsULong()),
+                TypeCode.Single => new PrimitiveList<float>(_ => _, node => node.AsFloat()),
+                TypeCode.Double => new PrimitiveList<double>(_ => _, node => node.AsDouble()),
+                TypeCode.Decimal => new PrimitiveList<decimal>(_ => _, node => node.AsDecimal()),
+                TypeCode.Boolean => new PrimitiveList<bool>(_ => _, node => node.AsBool()),
+                TypeCode.String => new PrimitiveList<string>(_ => _, node => node.AsString()),
+                _ => Default(),
+            };
         }
 
         static IConverter CreateIList(Type type) => CreateIEnumerable(type);
@@ -475,33 +475,33 @@ namespace Entia.Json.Converters
                     // This may fail for targets that do not support JIT compilation.
                     Option.Try(() => Activator.CreateInstance(typeof(AbstractEnumerable<>).MakeGenericType(argument), constructor))
                         .Cast<IConverter>()
-                        .Or(() => new AbstractEnumerable(argument, constructor));
+                        .Or(() => (IConverter)new AbstractEnumerable(argument, constructor));
 
                 if (argument.IsEnum) return Default();
-                switch (Type.GetTypeCode(argument))
+                return (Type.GetTypeCode(argument)) switch
                 {
-                    case TypeCode.Char: return new PrimitiveEnumerable<char>(_ => _, node => node.AsChar(), constructor);
-                    case TypeCode.Byte: return new PrimitiveEnumerable<byte>(_ => _, node => node.AsByte(), constructor);
-                    case TypeCode.SByte: return new PrimitiveEnumerable<sbyte>(_ => _, node => node.AsSByte(), constructor);
-                    case TypeCode.Int16: return new PrimitiveEnumerable<short>(_ => _, node => node.AsShort(), constructor);
-                    case TypeCode.Int32: return new PrimitiveEnumerable<int>(_ => _, node => node.AsInt(), constructor);
-                    case TypeCode.Int64: return new PrimitiveEnumerable<long>(_ => _, node => node.AsLong(), constructor);
-                    case TypeCode.UInt16: return new PrimitiveEnumerable<ushort>(_ => _, node => node.AsUShort(), constructor);
-                    case TypeCode.UInt32: return new PrimitiveEnumerable<uint>(_ => _, node => node.AsUInt(), constructor);
-                    case TypeCode.UInt64: return new PrimitiveEnumerable<ulong>(_ => _, node => node.AsULong(), constructor);
-                    case TypeCode.Single: return new PrimitiveEnumerable<float>(_ => _, node => node.AsFloat(), constructor);
-                    case TypeCode.Double: return new PrimitiveEnumerable<double>(_ => _, node => node.AsDouble(), constructor);
-                    case TypeCode.Decimal: return new PrimitiveEnumerable<decimal>(_ => _, node => node.AsDecimal(), constructor);
-                    case TypeCode.Boolean: return new PrimitiveEnumerable<bool>(_ => _, node => node.AsBool(), constructor);
-                    case TypeCode.String: return new PrimitiveEnumerable<string>(_ => _, node => node.AsString(), constructor);
-                    default: return Default();
-                }
+                    TypeCode.Char => new PrimitiveEnumerable<char>(_ => _, node => node.AsChar(), constructor),
+                    TypeCode.Byte => new PrimitiveEnumerable<byte>(_ => _, node => node.AsByte(), constructor),
+                    TypeCode.SByte => new PrimitiveEnumerable<sbyte>(_ => _, node => node.AsSByte(), constructor),
+                    TypeCode.Int16 => new PrimitiveEnumerable<short>(_ => _, node => node.AsShort(), constructor),
+                    TypeCode.Int32 => new PrimitiveEnumerable<int>(_ => _, node => node.AsInt(), constructor),
+                    TypeCode.Int64 => new PrimitiveEnumerable<long>(_ => _, node => node.AsLong(), constructor),
+                    TypeCode.UInt16 => new PrimitiveEnumerable<ushort>(_ => _, node => node.AsUShort(), constructor),
+                    TypeCode.UInt32 => new PrimitiveEnumerable<uint>(_ => _, node => node.AsUInt(), constructor),
+                    TypeCode.UInt64 => new PrimitiveEnumerable<ulong>(_ => _, node => node.AsULong(), constructor),
+                    TypeCode.Single => new PrimitiveEnumerable<float>(_ => _, node => node.AsFloat(), constructor),
+                    TypeCode.Double => new PrimitiveEnumerable<double>(_ => _, node => node.AsDouble(), constructor),
+                    TypeCode.Decimal => new PrimitiveEnumerable<decimal>(_ => _, node => node.AsDecimal(), constructor),
+                    TypeCode.Boolean => new PrimitiveEnumerable<bool>(_ => _, node => node.AsBool(), constructor),
+                    TypeCode.String => new PrimitiveEnumerable<string>(_ => _, node => node.AsString(), constructor),
+                    _ => Default(),
+                };
             }
 
             return Option.And(type.EnumerableArgument(false), type.EnumerableConstructor(false))
                 .Map(pair => new AbstractEnumerable(pair.Item1, pair.Item2))
                 .Cast<IConverter>()
-                .Or(() => new DefaultObject(type));
+                .Or(() => (IConverter)new DefaultObject(type));
         }
 
         static IConverter CreateDictionary(Type type, Type key, Type value) =>
@@ -519,7 +519,7 @@ namespace Entia.Json.Converters
                     // This may fail for targets that do not support JIT compilation.
                     return Option.Try(() => Activator.CreateInstance(typeof(AbstractDictionary<,>).MakeGenericType(types.key, types.value)))
                         .Cast<IConverter>()
-                        .Or(() => new AbstractDictionary(types.key, types.value, constructor));
+                        .Or(() => (IConverter)new AbstractDictionary(types.key, types.value, constructor));
                 }
 
                 if (type.DictionaryArguments(false).TryValue(out types))
@@ -532,6 +532,6 @@ namespace Entia.Json.Converters
         static IConverter CreateISerializable(Type type) => type.SerializableConstructor()
             .Map(constructor => new AbstractSerializable(constructor))
             .Cast<IConverter>()
-            .Or(() => new DefaultObject(type));
+            .Or(() => (IConverter)new DefaultObject(type));
     }
 }

@@ -93,7 +93,7 @@ namespace Entia.Core
 
             public KeyEnumerable(TypeMap<TKey, TValue> map) { _map = map; }
             /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
-            public KeyEnumerator GetEnumerator() => new KeyEnumerator(_map);
+            public KeyEnumerator GetEnumerator() => new(_map);
             IEnumerator<Type> IEnumerable<Type>.GetEnumerator() => GetEnumerator();
             IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
         }
@@ -135,7 +135,7 @@ namespace Entia.Core
 
             public ValueEnumerable(TypeMap<TKey, TValue> map) { _map = map; }
             /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
-            public ValueEnumerator GetEnumerator() => new ValueEnumerator(_map);
+            public ValueEnumerator GetEnumerator() => new(_map);
             IEnumerator<TValue> IEnumerable<TValue>.GetEnumerator() => GetEnumerator();
             IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
         }
@@ -159,7 +159,7 @@ namespace Entia.Core
         /// </summary>
         sealed class Entry
         {
-            public static readonly Entry Invalid = new Entry(typeof(void), int.MaxValue, Array.Empty<Entry>(), Array.Empty<Entry>());
+            public static readonly Entry Invalid = new(typeof(void), int.MaxValue, Array.Empty<Entry>(), Array.Empty<Entry>());
 
             public readonly Type Type;
             public readonly int Index;
@@ -175,7 +175,7 @@ namespace Entia.Core
             }
         }
 
-        static object _lock = new();
+        static readonly object _lock = new();
         static Entry[] _entries = { };
         static Dictionary<Type, Entry> _typeToEntry = new();
 
@@ -358,7 +358,7 @@ namespace Entia.Core
         {
             if (entry.Index < _values.Length)
             {
-                var allocated = false;
+                bool allocated;
                 (value, allocated) = _values[entry.Index];
                 return allocated;
             }

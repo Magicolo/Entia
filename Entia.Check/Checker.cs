@@ -31,7 +31,7 @@ namespace Entia.Check
         }
 
         public Checker<T> With(Generator<T>? generator = null, Prover<T>? prover = null, int? iterations = null, int? parallel = null, Action? onPre = null, Action<Failure<T>[]>? onPost = null, Action<TimeSpan, double>? onProgress = null) =>
-            new Checker<T>(generator ?? Generator, prover ?? Prover, iterations ?? Iterations, parallel ?? Parallel, OnPre + onPre, OnPost + onPost, OnProgress + onProgress);
+            new(generator ?? Generator, prover ?? Prover, iterations ?? Iterations, parallel ?? Parallel, OnPre + onPre, OnPost + onPost, OnProgress + onProgress);
     }
 
     public static class Checker
@@ -43,7 +43,7 @@ namespace Entia.Check
         public static Checker<T> Prove<T>(this Generator<T> generator, Prove<T> prove) =>
             generator.Prove(new Prover<T>(prove));
         public static Checker<T> Prove<T>(this Generator<T> generator, Prover<T> prover) =>
-            new Checker<T>(generator, prover);
+            new(generator, prover);
 
         public static Checker<T> Log<T>(this Checker<T> checker, string name) => checker.With(
             onPre: () =>

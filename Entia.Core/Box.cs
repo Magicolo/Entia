@@ -56,7 +56,7 @@ namespace Entia.Core
             public override string ToString() => TryValue(out var value) ? value?.ToString() : "";
         }
 
-        public static implicit operator Read(Box box) => new Read(box._box);
+        public static implicit operator Read(Box box) => new(box._box);
 
         public object Value { get => _box.GetValue(0); set => _box.SetValue(value, 0); }
         public Type Type => _box.GetType().GetElementType();
@@ -104,7 +104,7 @@ namespace Entia.Core
     {
         public readonly struct Read : IBox, IEquatable<Box<T>>, IEquatable<Read>, IEquatable<T>
         {
-            public static implicit operator Read(T value) => new Read(value);
+            public static implicit operator Read(T value) => new(value);
 
             public ref readonly T Value => ref _box[0];
             public bool IsValid => _box?.Length > 0;
@@ -138,10 +138,10 @@ namespace Entia.Core
             public override string ToString() => TryValue(out var value) ? value?.ToString() : "";
         }
 
-        public static implicit operator Box.Read(Box<T> box) => new Box.Read(box._box);
-        public static implicit operator Box(Box<T> box) => new Box(box._box);
-        public static implicit operator Box<T>(T value) => new Box<T>(value);
-        public static implicit operator Read(Box<T> box) => new Read(box._box);
+        public static implicit operator Box.Read(Box<T> box) => new(box._box);
+        public static implicit operator Box(Box<T> box) => new(box._box);
+        public static implicit operator Box<T>(T value) => new(value);
+        public static implicit operator Read(Box<T> box) => new(box._box);
 
         public ref T Value => ref _box[0];
         public bool IsValid => _box?.Length > 0;

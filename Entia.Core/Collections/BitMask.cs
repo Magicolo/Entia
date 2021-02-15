@@ -20,7 +20,7 @@ namespace Entia.Core
 
             int IComparable<Bucket>.CompareTo(Bucket other) => Index.CompareTo(other.Index);
 
-            public static Bucket OfIndex(int index) => new Bucket(index / Size, 1uL << (index % Size));
+            public static Bucket OfIndex(int index) => new(index / Size, 1uL << (index % Size));
         }
 
         public bool IsEmpty => _buckets.count == 0;

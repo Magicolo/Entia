@@ -18,7 +18,7 @@ namespace Entia.Check
         public readonly string Name;
         public readonly Generate<T> Generate;
         public Generator(string name, Generate<T> generate) { Name = name; Generate = generate; }
-        public Generator<T> With(string? name = null, Generate<T>? generate = null) => new Generator<T>(name ?? Name, generate ?? Generate);
+        public Generator<T> With(string? name = null, Generate<T>? generate = null) => new(name ?? Name, generate ?? Generate);
         public override string ToString() => Name;
     }
 
@@ -38,7 +38,7 @@ namespace Entia.Check
             }
 
             public State With(double? size = null, uint? depth = null) =>
-                new State(size ?? Size, depth ?? Depth, Random);
+                new(size ?? Size, depth ?? Depth, Random);
         }
 
         public static class Types
@@ -219,7 +219,7 @@ namespace Entia.Check
         public static readonly Generator<float> Infinity = Any(float.NegativeInfinity, float.PositiveInfinity).With(nameof(Infinity));
         public static readonly Generator<Assembly> Assembly = ReflectionUtility.AllAssemblies.Select(Constant).Any().With(nameof(Assembly));
 
-        public static Generator<T> From<T>(string name, Generate<T> generate) => new Generator<T>(name, generate);
+        public static Generator<T> From<T>(string name, Generate<T> generate) => new(name, generate);
         public static Generator<T> From<T>(Generate<T> generate) => From(Format(generate.Method), generate);
 
         public static Generator<T> Constant<T>(T value) => From(nameof(Constant).Format(value), _ => (value, Shrinker.Empty<T>()));

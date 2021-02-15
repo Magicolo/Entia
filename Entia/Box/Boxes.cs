@@ -38,7 +38,7 @@ namespace Entia.Modules
 
         readonly Concurrent<TypeMap<object, Data>> _boxes = new TypeMap<object, Data>();
 
-        public bool TryGet<T>(out Box<T> box) => TryGet<T>(null, out box);
+        public bool TryGet<T>(out Box<T> box) => TryGet(null, out box);
         public bool TryGet<T>(object key, out Box<T> box)
         {
             using var read = _boxes.Read();

@@ -29,14 +29,14 @@ namespace Entia.Check
 
     public static class Mutation
     {
-        public static Mutation<T> From<T>(string name, Mutate<T> mutate) => new Mutation<T>(name, mutate);
+        public static Mutation<T> From<T>(string name, Mutate<T> mutate) => new(name, mutate);
         public static Mutation<T> From<T>(Mutate<T> mutate) => From(mutate.Method.Format(), mutate);
 
         public static Outcome<object?> Box<T>(this Outcome<T> outcome) =>
-            new Outcome<object?>(outcome.Value, outcome.Mutations.Select(mutation => mutation.Box()), outcome.Properties);
+            new(outcome.Value, outcome.Mutations.Select(mutation => mutation.Box()), outcome.Properties);
         public static Mutation<object?> Box<T>(this Mutation<T> mutation) =>
-            new Mutation<object?>(mutation.Name, value => mutation.Mutate((T)value!));
+            new(mutation.Name, value => mutation.Mutate((T)value!));
         public static Outcome<T> Add<T>(this Outcome<T> outcome, params Property[] properties) =>
-            new Outcome<T>(outcome.Value, outcome.Mutations, outcome.Properties.Append(properties));
+            new(outcome.Value, outcome.Mutations, outcome.Properties.Append(properties));
     }
 }

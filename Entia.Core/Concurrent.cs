@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Entia.Core
@@ -93,7 +92,7 @@ namespace Entia.Core
             public void Dispose() => _dispose(_concurrent);
         }
 
-        public static implicit operator Concurrent<T>(T value) => new Concurrent<T>(value);
+        public static implicit operator Concurrent<T>(T value) => new(value);
 
         T _value;
         readonly ReaderWriterLockSlim _lock;
@@ -126,57 +125,68 @@ namespace Entia.Core
 
         public TValue Read<TValue>(InFunc<T, TValue> read)
         {
-            using (var value = Read()) return read(value.Value);
+            using var value = Read();
+            return read(value.Value);
         }
 
         public TValue Read<TValue>(Func<T, TValue> read)
         {
-            using (var value = Read()) return read(value.Value);
+            using var value = Read();
+            return read(value.Value);
         }
 
         public TValue Read<TValue, TState>(in TState state, InFunc<T, TState, TValue> read)
         {
-            using (var value = Read()) return read(value.Value, state);
+            using var value = Read();
+            return read(value.Value, state);
         }
 
         public TValue Read<TValue, TState>(in TState state, Func<T, TState, TValue> read)
         {
-            using (var value = Read()) return read(value.Value, state);
+            using var value = Read();
+            return read(value.Value, state);
         }
 
         public void Write(Action<T> write)
         {
-            using (var value = Write()) write(value.Value);
+            using var value = Write();
+            write(value.Value);
         }
 
         public void Write(RefAction<T> write)
         {
-            using (var value = Write()) write(ref value.Value);
+            using var value = Write();
+            write(ref value.Value);
         }
 
         public void Write<TState>(in TState state, RefInAction<T, TState> write)
         {
-            using (var value = Write()) write(ref value.Value, state);
+            using var value = Write();
+            write(ref value.Value, state);
         }
 
         public void Write<TState>(in TState state, Action<T, TState> write)
         {
-            using (var value = Write()) write(value.Value, state);
+            using var value = Write();
+            write(value.Value, state);
         }
 
         public TValue Write<TValue>(Func<T, TValue> write)
         {
-            using (var value = Write()) return write(value.Value);
+            using var value = Write();
+            return write(value.Value);
         }
 
         public TValue Write<TValue, TState>(in TState state, RefInFunc<T, TState, TValue> write)
         {
-            using (var value = Write()) return write(ref value.Value, state);
+            using var value = Write();
+            return write(ref value.Value, state);
         }
 
         public TValue Write<TValue, TState>(in TState state, Func<T, TState, TValue> write)
         {
-            using (var value = Write()) return write(value.Value, state);
+            using var value = Write();
+            return write(value.Value, state);
         }
 
         Concurrent.IRead IConcurrent.Read(bool upgradeable) => Read();

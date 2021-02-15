@@ -10,12 +10,14 @@ namespace Entia.Core
     {
         public static int ReadCount<T>(this Concurrent<T> concurrent) where T : ICollection
         {
-            using (var read = concurrent.Read()) return read.Value.Count;
+            using var read = concurrent.Read();
+            return read.Value.Count;
         }
 
         public static T ReadAt<T>(this Concurrent<List<T>> concurrent, int index)
         {
-            using (var read = concurrent.Read()) return read.Value[index];
+            using var read = concurrent.Read();
+            return read.Value[index];
         }
 
         public static bool TryReadAt<T>(this Concurrent<List<T>> concurrent, int index, out T value)
@@ -33,12 +35,14 @@ namespace Entia.Core
 
         public static T[] ReadToArray<T>(this Concurrent<List<T>> concurrent)
         {
-            using (var read = concurrent.Read()) return read.Value.ToArray();
+            using var read = concurrent.Read();
+            return read.Value.ToArray();
         }
 
         public static T ReadAt<T>(this Concurrent<T[]> concurrent, int index)
         {
-            using (var read = concurrent.Read()) return read.Value[index];
+            using var read = concurrent.Read();
+            return read.Value[index];
         }
 
         public static bool TryReadAt<T>(this Concurrent<T[]> concurrent, int index, out T value)
@@ -56,17 +60,20 @@ namespace Entia.Core
 
         public static int ReadCount<T>(this Concurrent<(T[] items, int count)> concurrent)
         {
-            using (var read = concurrent.Read()) return read.Value.count;
+            using var read = concurrent.Read();
+            return read.Value.count;
         }
 
         public static T[] ReadToArray<T>(this Concurrent<(T[] items, int count)> concurrent)
         {
-            using (var read = concurrent.Read()) return read.Value.ToArray();
+            using var read = concurrent.Read();
+            return read.Value.ToArray();
         }
 
         public static ref readonly T ReadAt<T>(this Concurrent<(T[] items, int count)> concurrent, int index)
         {
-            using (var read = concurrent.Read()) return ref read.Value.items[index];
+            using var read = concurrent.Read();
+            return ref read.Value.items[index];
         }
 
         public static bool TryReadAt<T>(this Concurrent<(T[] items, int count)> concurrent, int index, out T value)
@@ -84,12 +91,14 @@ namespace Entia.Core
 
         public static TValue ReadValue<TKey, TValue>(this Concurrent<Dictionary<TKey, TValue>> concurrent, TKey key)
         {
-            using (var read = concurrent.Read()) return read.Value[key];
+            using var read = concurrent.Read();
+            return read.Value[key];
         }
 
         public static bool TryReadValue<TKey, TValue>(this Concurrent<Dictionary<TKey, TValue>> concurrent, TKey key, out TValue value)
         {
-            using (var read = concurrent.Read()) return read.Value.TryGetValue(key, out value);
+            using var read = concurrent.Read();
+            return read.Value.TryGetValue(key, out value);
         }
 
         public static TValue ReadValueOrWrite<TKey, TValue, TState>(this Concurrent<Dictionary<TKey, TValue>> concurrent, TKey key, TState state, Func<TState, (TKey key, TValue value)> provide)

@@ -4,7 +4,7 @@ namespace Entia.Core
 {
     public readonly struct Disposable : IDisposable
     {
-        public static readonly Disposable Empty = new Disposable(() => { });
+        public static readonly Disposable Empty = new(() => { });
 
         readonly Action _dispose;
 
@@ -16,7 +16,7 @@ namespace Entia.Core
 
     public readonly struct Disposable<T> : IDisposable
     {
-        public static readonly Disposable<T> Empty = new Disposable<T>(default, _ => { });
+        public static readonly Disposable<T> Empty = new(default, _ => { });
 
         readonly T _state;
         readonly Action<T> _dispose;

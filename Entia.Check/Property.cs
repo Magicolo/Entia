@@ -9,11 +9,11 @@ namespace Entia.Check
 
     public readonly struct Property
     {
-        public static implicit operator Property((string name, bool proof) pair) => new Property(pair.name, pair.proof);
+        public static implicit operator Property((string name, bool proof) pair) => new(pair.name, pair.proof);
         public readonly string Name;
         public readonly bool Proof;
         public Property(string name, bool proof) { Name = name; Proof = proof; }
-        public Property With(string? name = null, bool? proof = null) => new Property(name ?? Name, proof ?? Proof);
+        public Property With(string? name = null, bool? proof = null) => new(name ?? Name, proof ?? Proof);
         public override string ToString() => Name;
     }
 }

@@ -44,6 +44,6 @@ namespace Entia.Core
             _items.Push(instance);
         }
 
-        public Disposable Use() => new Disposable(this);
+        public Disposable Use() => new(this);
     }
 }

@@ -2,7 +2,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using Entia.Components;
 using Entia.Core;
 using Entia.Core.Documentation;
@@ -17,12 +16,9 @@ namespace Entia.Modules.Component
         [ThreadSafe]
         public static class Concrete<T> where T : struct, IComponent
         {
-            [Preserve]
-            public static readonly Metadata Data = GetMetadata(typeof(T));
-            [Preserve]
-            public static readonly Lazy<Metadata> Disabled = new Lazy<Metadata>(() => Concrete<IsDisabled<T>>.Data);
-            [Preserve]
-            public static readonly Pointer<T> Pointer = new Pointer<T>();
+            [Preserve] public static readonly Metadata Data = GetMetadata(typeof(T));
+            [Preserve] public static readonly Lazy<Metadata> Disabled = new(() => Concrete<IsDisabled<T>>.Data);
+            [Preserve] public static readonly Pointer<T> Pointer = new();
         }
 
         [ThreadSafe]
@@ -48,13 +44,13 @@ namespace Entia.Modules.Component
 
         public static int Count => _state.Read((in State state) => state.Concretes.count);
 
-        static readonly ConcurrentDictionary<BitMask, Metadata[]> _maskToMetadata = new ConcurrentDictionary<BitMask, Metadata[]>();
+        static readonly ConcurrentDictionary<BitMask, Metadata[]> _maskToMetadata = new();
         static readonly Concurrent<State> _state = new State
         {
             Concretes = (new Metadata[8], 0),
-            ConcreteToMetadata = new TypeMap<IComponent, Metadata>(),
-            AbstractToMask = new TypeMap<IComponent, BitMask>(),
-            AbstractToMetadata = new TypeMap<IComponent, Metadata[]>(),
+            ConcreteToMetadata = new(),
+            AbstractToMask = new(),
+            AbstractToMetadata = new(),
         };
 
         public static bool TryGetMetadata(Type type, bool create, out Metadata data)

@@ -1,8 +1,8 @@
-﻿using Entia.Core;
-using Microsoft.CodeAnalysis;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Entia.Core;
+using Microsoft.CodeAnalysis;
 
 namespace Entia.Analyze
 {
@@ -156,8 +156,8 @@ namespace Entia.Analyze
         }
 
         public static bool IsDefaultConstructor(this IMethodSymbol method) =>
-            method.MethodKind == MethodKind.Constructor || method.MethodKind == MethodKind.StaticConstructor ?
-            method.IsImplicitlyDeclared : false;
+            (method.MethodKind == MethodKind.Constructor || method.MethodKind == MethodKind.StaticConstructor) &&
+            method.IsImplicitlyDeclared;
 
         public static bool Implements(this ITypeSymbol symbol, ITypeSymbol type) =>
             symbol == type ||
