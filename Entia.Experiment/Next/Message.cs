@@ -57,7 +57,7 @@ namespace Entia.Experiment.V4
 
     public readonly struct Receiver2<T>
     {
-        public Slice<T>.Read Messages => _messages.Value.Buffer.Slice(_messages.Value.Count);
+        public Slice<T>.Read Messages => _messages.Value.Buffer.Slice(count: _messages.Value.Count);
         readonly Resource<Emitter2<T>.Messages> _messages;
     }
 }

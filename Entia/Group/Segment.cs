@@ -1,11 +1,10 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using Entia.Core;
 using Entia.Core.Documentation;
 using Entia.Modules.Component;
 using Entia.Queryables;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 
 namespace Entia.Modules.Group
 {
@@ -70,7 +69,7 @@ namespace Entia.Modules.Group
         }
 
         /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
-        public Slice<T>.Read.Enumerator GetEnumerator() => Items.Slice(Count).GetEnumerator();
+        public Slice<T>.Read.Enumerator GetEnumerator() => Items.Slice(count: Count).GetEnumerator();
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }

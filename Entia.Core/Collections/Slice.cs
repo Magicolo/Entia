@@ -35,27 +35,29 @@ namespace Entia.Core
                 public void Reset() => _index = -1;
             }
 
-            public static implicit operator Read(T[] array) => new(array, 0, (uint)array.Length);
+            public static implicit operator Read(T[] array) => new(array, 0, (uint)array.Length, 1u);
 
             public ref readonly T this[int index] => ref this[(uint)index];
-            public ref readonly T this[uint index] => ref _array[_index + index];
+            public ref readonly T this[uint index] => ref Array[Index * Step + index];
 
             public readonly uint Count;
-            readonly T[] _array;
-            readonly uint _index;
+            internal readonly uint Index;
+            internal readonly uint Step;
+            internal readonly T[] Array;
 
-            public Read(T[] array, uint index, uint count)
+            public Read(T[] array, uint index, uint count, uint step)
             {
-                _array = array;
-                _index = index;
+                Array = array;
+                Index = index;
+                Step = step;
                 Count = count;
             }
 
             public T[] ToArray()
             {
-                var current = new T[Count];
-                Array.Copy(_array, _index, current, 0, Count);
-                return current;
+                var array = new T[Count];
+                for (var i = 0u; i < Count; i++) array[i] = Array[i * Step + Index];
+                return array;
             }
 
             /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
@@ -90,28 +92,30 @@ namespace Entia.Core
             public void Reset() => _index = -1;
         }
 
-        public static implicit operator Slice<T>(T[] array) => new(array, 0, (uint)array.Length);
-        public static implicit operator Read(in Slice<T> slice) => new(slice._array, slice._index, slice.Count);
+        public static implicit operator Slice<T>(T[] array) => new(array, 0, (uint)array.Length, 1u);
+        public static implicit operator Read(in Slice<T> slice) => new(slice.Array, slice.Index, slice.Count, slice.Step);
 
         public ref T this[int index] => ref this[(uint)index];
-        public ref T this[uint index] => ref _array[_index + index];
+        public ref T this[uint index] => ref Array[Index * Step + index];
 
         public readonly uint Count;
-        readonly T[] _array;
-        readonly uint _index;
+        internal readonly uint Index;
+        internal readonly uint Step;
+        internal readonly T[] Array;
 
-        public Slice(T[] array, uint index, uint count)
+        public Slice(T[] array, uint index, uint count, uint step)
         {
-            _array = array;
-            _index = index;
+            Array = array;
+            Index = index;
+            Step = step;
             Count = count;
         }
 
         public T[] ToArray()
         {
-            var current = new T[Count];
-            Array.Copy(_array, _index, current, 0, Count);
-            return current;
+            var array = new T[Count];
+            for (var i = 0u; i < Count; i++) array[i] = Array[i * Step + Index];
+            return array;
         }
 
         /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>

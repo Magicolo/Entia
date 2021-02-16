@@ -16,6 +16,8 @@ namespace Entia.Experiment.V4
         public int CompareTo(Meta other) => Index.CompareTo(other.Index);
     }
 
+    public delegate void Initialize<T>(in Context context, in T state);
+
     public sealed class World : IEnumerable<World.Enumerator, Entity>
     {
         public struct Datum
@@ -25,24 +27,6 @@ namespace Entia.Experiment.V4
             public Segment.Chunk Chunk;
             public Segment Segment;
         }
-
-        public readonly ref struct Context
-        {
-            public readonly int Index;
-            public readonly int Count;
-            public readonly Segment.Chunk Chunk;
-            public readonly ReadOnlySpan<Entity> Parents;
-
-            public Context(int index, int count, Segment.Chunk chunk, ReadOnlySpan<Entity> parents)
-            {
-                Index = index;
-                Count = count;
-                Chunk = chunk;
-                Parents = parents;
-            }
-        }
-
-        public delegate void Initializer<T>(in Context context, in T state);
 
         public struct Enumerator : IEnumerator<Entity>
         {
@@ -164,12 +148,13 @@ namespace Entia.Experiment.V4
             for (int i = last - count; i < last; i++) entities[reserved++] = new(i, 0);
         }
 
-        public void Initialize<T>(Span<Entity> entities, Span<Entity> parents, Segment segment, in T state, Initializer<T> initialize)
+        public void Initialize<T>(Span<Entity> entities, Slice<Entity>.Read parents, Slice<Entity>.Read children, Segment segment, in T state, Initialize<T> initialize)
         {
             var initialized = 0;
-            while (initialized < entities.Length)
+            var batch = entities.Length;
+            while (initialized < batch)
             {
-                var remaining = entities.Length - initialized;
+                var remaining = batch - initialized;
                 var chunk = segment.Next();
                 if (chunk.Count == segment.Size) continue;
 
@@ -184,7 +169,7 @@ namespace Entia.Experiment.V4
                         var source = initialized + i;
                         var target = index + i;
                         var entity = chunk.Entities[target] = entities[source];
-                        var parent = source < parents.Length ? parents[source] : Entity.Zero;
+                        var parent = source < parents.Count ? parents[source] : Entity.Zero;
                         DatumAt(entity.Index) = new()
                         {
                             Index = target,
@@ -193,9 +178,13 @@ namespace Entia.Experiment.V4
                             Segment = segment,
                         };
                     }
+
                     // Initialize before incrementing 'chunk.Count' to ensure that no reader can
                     // observe a chunk item uninitialized.
-                    var context = new Context(index, count, chunk, parents.Slice(initialized, count));
+                    var context = new Context(
+                        index, count, batch, chunk,
+                        parents.Slice(initialized, count),
+                        children.Slice(initialized, count * batch));
                     initialize(context, state);
                     chunk.Count += count;
                     initialized += count;

@@ -116,11 +116,15 @@ namespace Entia.Core
             return false;
         }
 
-        public static Slice<T> Slice<T>(this T[] array, uint index, uint count) => new(array, index, count);
-        public static Slice<T> Slice<T>(this T[] array, uint count) => array.Slice(0, count);
-        public static Slice<T> Slice<T>(this T[] array, int index, int count) => array.Slice((uint)index, (uint)count);
-        public static Slice<T> Slice<T>(this T[] array, int count) => array.Slice(0, count);
-        public static Slice<T> Slice<T>(this T[] array) => array.Slice(0, array.Length);
+        public static Slice<T> Slice<T>(this T[] array) => new(array, 0, (uint)array.Length, 1u);
+        public static Slice<T> Slice<T>(this T[] array, uint index = 0, uint? count = null, uint step = 1u) => array.Slice().Slice(index, count, step);
+        public static Slice<T> Slice<T>(this T[] array, int index = 0, int? count = null, int step = 1) => array.Slice().Slice((uint)index, (uint)count, (uint)step);
+        public static Slice<T> Slice<T>(this Slice<T> slice, int index = 0, int? count = null, int step = 1) => slice.Slice((uint)index, (uint)count, (uint)step);
+        public static Slice<T> Slice<T>(this Slice<T> slice, uint index = 0u, uint? count = null, uint step = 1u) =>
+            new(slice.Array, slice.Index + index, Math.Min(count ?? slice.Count, (slice.Count - index) / step), slice.Step * step);
+        public static Slice<T>.Read Slice<T>(this Slice<T>.Read slice, int index = 0, int? count = null, int step = 1) => slice.Slice((uint)index, (uint)count, (uint)step);
+        public static Slice<T>.Read Slice<T>(this Slice<T>.Read slice, uint index = 0u, uint? count = null, uint step = 1u) =>
+            new(slice.Array, slice.Index + index, Math.Min(count ?? slice.Count, (slice.Count - index) / step), slice.Step * step);
 
         public static Array Cast(this Array array, Type type)
         {

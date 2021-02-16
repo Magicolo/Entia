@@ -158,6 +158,7 @@ namespace Entia.Experiment.V4
         public static readonly Template<Unit> Abdomen;
         public static readonly Template<Unit> Insect =
             Insect.Create(nameof(Insect))
+                .Adopt(Head, Torso, Abdomen)
                 // .Adopt(new[] { Head, Torso, Abdomen }, (Entity parent, ReadOnlySpan<Entity> children, T state) => new Body { Head = children[0], Torso = children[1], Abdomen = children[2] })
                 // .Add((Entity parent, ReadOnlySpan<Entity> children, T state) => new )
                 ;

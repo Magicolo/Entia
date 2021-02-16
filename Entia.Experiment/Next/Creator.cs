@@ -7,50 +7,59 @@ namespace Entia.Experiment.V4
 {
     public readonly struct Creator<T>
     {
-        static readonly World.Initializer<T> _default = (in World.Context _, in T _) => { };
+        readonly struct Part
+        {
+            public readonly int Parent;
+            public readonly (int index, int count) Children;
+            public readonly Segment Segment;
+            public readonly Initialize<T> Initialize;
+
+            public Part(int parent, (int index, int count) children, Segment segment, Initialize<T> initialize)
+            {
+                Parent = parent;
+                Children = children;
+                Segment = segment;
+                Initialize = initialize;
+            }
+        }
+
+        static readonly Initialize<T> _default = (in Context _, in T _) => { };
 
         public readonly Cache<Segment[]> Segments;
         readonly World _world;
-        readonly (int parent, Segment segment, World.Initializer<T> initialize)[] _parts;
+        readonly Part[] _parts;
 
         public Creator(Template<T> template, World world)
         {
             _world = world;
-            _parts = Parts(template, 0, -1, world).ToArray();
-            Segments = Cache.Constant(_parts.Select(template => template.segment));
+            _parts = Parts(0, -1, new[] { template }, world).ToArray();
+            Segments = Cache.Constant(_parts.Select(part => part.Segment));
 
-            static IEnumerable<(int, Segment, World.Initializer<T>)> Parts(Template<T> template, int self, int parent, World world)
+            static IEnumerable<Part> Parts(int self, int parent, Template<T>[] templates, World world)
             {
-                yield return Part(template, parent, world);
-                parent = self++;
-
-                foreach (var child in template.Children)
+                var index = self + templates.Length;
+                foreach (var template in templates)
                 {
-                    foreach (var part in Parts(child, self, parent, world))
-                    {
-                        yield return part;
-                        self++;
-                    }
+                    var count = template.Children.Length;
+                    yield return Part(template, parent, (index, count), world);
+                    index += count;
                 }
+                var children = templates.Select(template => template.Children).Flatten();
+                foreach (var part in Parts(self + templates.Length, self, children, world)) yield return part;
             }
 
-            static (int, Segment, World.Initializer<T>) Part(Template<T> template, int parent, World world)
+            static Part Part(Template<T> template, int parent, (int index, int count) children, World world)
             {
-                var initializers = template.Initializers.Select(pair => (meta: world.Meta(pair.Type), pair.Initialize));
-                var initialize = default(World.Initializer<T>);
+                var initializers = template.Initializers
+                    .Select(pair => (meta: world.Meta(pair.Type), initialize: pair.Initialize));
+                var initialize = default(Initialize<T>);
                 var segment = world.Segment(initializers.Select(pair => pair.meta), template.Size);
                 foreach (var pair in initializers)
                 {
                     segment.TryIndex(pair.meta, out var store);
-                    initialize += (in World.Context context, in T state) =>
-                        pair.Initialize(new(
-                            context.Index,
-                            context.Count,
-                            context.Chunk.Entities,
-                            context.Chunk.Stores[store],
-                            context.Parents), state);
+                    initialize += (in Context context, in T state) => pair.initialize(store, context, state);
                 }
-                return (parent, segment, initialize ?? _default);
+                return new(parent, children, segment, initialize ?? _default);
             }
         }
 
@@ -65,9 +74,10 @@ namespace Entia.Experiment.V4
         {
             if (_parts.Length == 1)
             {
-                var (parent, segment, initialize) = _parts[0];
+                var part = _parts[0];
                 _world.Reserve(entities);
-                _world.Initialize(entities, Array.Empty<Entity>(), segment, state, initialize);
+                _world.Initialize(entities, Array.Empty<Entity>(), Array.Empty<Entity>(), part.Segment, state, part.Initialize);
+                return;
             }
 
             var batch = entities.Length;
@@ -76,9 +86,12 @@ namespace Entia.Experiment.V4
             _world.Reserve(buffer.AsSpan(0, count));
             for (int i = 0; i < _parts.Length; i++)
             {
-                var (parent, segment, initialize) = _parts[i];
-                var parents = parent >= 0 ? buffer.AsSpan(parent * batch, batch) : Array.Empty<Entity>();
-                _world.Initialize(buffer.AsSpan(i * batch, batch), parents, segment, state, initialize);
+                var part = _parts[i];
+                var parents = part.Parent >= 0 ? buffer.Slice(part.Parent * batch, batch) : Array.Empty<Entity>();
+                var children = part.Children.index >= 0 && part.Children.count > 0 ?
+                    buffer.Slice(part.Children.index * batch, part.Children.count * batch) :
+                    Array.Empty<Entity>();
+                _world.Initialize(buffer.AsSpan(i * batch, batch), parents, children, part.Segment, state, part.Initialize);
             }
             buffer.CopyTo(entities);
         }
