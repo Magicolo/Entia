@@ -26,7 +26,7 @@ namespace Entia.Experiment.V4
 
         static readonly Initialize<T> _default = (in Context _, in T _) => { };
 
-        public readonly Cache<Segment[]> Segments;
+        public readonly Segment[] Segments;
         readonly World _world;
         readonly Part[] _parts;
 
@@ -34,7 +34,7 @@ namespace Entia.Experiment.V4
         {
             _world = world;
             _parts = Parts(0, -1, new[] { template }, world).ToArray();
-            Segments = Cache.Constant(_parts.Select(part => part.Segment));
+            Segments = _parts.Select(part => part.Segment);
 
             static IEnumerable<Part> Parts(int self, int parent, Template<T>[] templates, World world)
             {
@@ -46,7 +46,7 @@ namespace Entia.Experiment.V4
                     index += count;
                 }
                 var children = templates.Select(template => template.Children).Flatten();
-                foreach (var part in Parts(self + templates.Length, self, children, world)) yield return part;
+                if (children.Length > 0) foreach (var part in Parts(self + templates.Length, self, children, world)) yield return part;
             }
 
             static Part Part(Template<T> template, int parent, (int index, int count) children, World world)
@@ -107,10 +107,10 @@ namespace Entia.Experiment.V4
         public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Lazy(world =>
         {
             var creator = world.Creator(template);
+            var writes = creator.Segments.Select(segment => segment.Write<Entity>());
             return provide(creator).Map(plan =>
             {
-                var dependencies = plan.Dependencies.Or(creator.Segments).Change().Map(pair =>
-                    pair.Item1.Append(pair.Item2.Select(segment => segment.Write<Entity>())));
+                var dependencies = plan.Dependencies.Change().Map(writes.Prepend);
                 var runs = plan.Runs.Or(dependencies).Change().Map(pair =>
                     pair.Item2.Conflicts() ? new[] { pair.Item1.Combine().Or(() => { }) } : pair.Item1);
                 return new(runs, dependencies);

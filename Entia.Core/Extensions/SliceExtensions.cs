@@ -12,7 +12,7 @@ namespace Entia.Core
         public static Slice<T> Slice<T>(this (T[] items, int count) source) => source.items.Slice(0, source.count);
         public static Slice<T> Slice<T>(this (T[] items, uint count) source) => source.items.Slice(0u, source.count);
 
-        public static Slice<T> Slice<T>(this Slice<T> source, int index = 0, int? count = null, int step = 1) => source.Slice((uint)index, (uint)count, (uint)step);
+        public static Slice<T> Slice<T>(this Slice<T> source, int index = 0, int? count = null, int step = 1) => source.Slice((uint)index, (uint?)count, (uint)step);
         public static Slice<T> Slice<T>(this Slice<T> source, uint index = 0u, uint? count = null, uint step = 1u)
         {
             index = Math.Min(index, source.Count);
@@ -24,7 +24,7 @@ namespace Entia.Core
                 source.Step * step);
         }
 
-        public static Slice<T>.Read Slice<T>(this Slice<T>.Read source, int index = 0, int? count = null, int step = 1) => source.Slice((uint)index, (uint)count, (uint)step);
+        public static Slice<T>.Read Slice<T>(this Slice<T>.Read source, int index = 0, int? count = null, int step = 1) => source.Slice((uint)index, (uint?)count, (uint)step);
         public static Slice<T>.Read Slice<T>(this Slice<T>.Read source, uint index = 0u, uint? count = null, uint step = 1u)
         {
             index = Math.Min(index, source.Count);

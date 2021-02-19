@@ -53,11 +53,12 @@ namespace Entia.Experiment.V4
             return false;
         }
 
-        public Chunk Next()
+        public Chunk Next(out bool free)
         {
             var chunks = Chunks;
-            if (chunks.TryLast(out var chunk, out var index) && chunk.Count < Size) return chunk;
-            while (Free.TryPop(out var free)) if (free.Count < Size) return free;
+            if (chunks.TryLast(out var chunk, out var index) && chunk.Count < Size) { free = false; return chunk; }
+            free = true;
+            while (Free.TryPop(out var popped)) if (popped.Count < Size) return popped;
 
             var stores = Metas.Select(Size, static (meta, size) => Array.CreateInstance(meta.Type, size));
             var children = ArrayUtility.Filled(Size, (Array.Empty<Entity>(), 0));

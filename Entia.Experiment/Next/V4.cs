@@ -225,16 +225,19 @@ namespace Entia.Experiment.V4
         public static void Do()
         {
             var world = new World();
-            var game = world.Resource<Game>();
-            var entities = (new Entity[1], new Entity[10], new Entity[100], new Entity[1000]);
+            var entities = world.Entities();
+            // var game = world.Resource<Game>();
+            var buffers = (new Entity[1], new Entity[10], new Entity[100], new Entity[1000]);
+            // FIX: multi-threading bug when creating entities :O
             var create = Node.All(
                 Enumerable.Range(0, 10).Select(index => Node.Create(Random(64321 + index), creator => creator.Create())).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(-3572 + index), creator => creator.Create(entities.Item1))).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(987965432 + index), creator => creator.Create(entities.Item2))).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(-98764 + index), creator => creator.Create(entities.Item3))).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(789312 + index), creator => creator.Create(entities.Item4))).All()
-            ).Schedule(world);
-            var destroy = Node.Destroy(Matcher.True).If(() => (_random ??= new()).NextDouble() < 0.1).Schedule(world);
+                Enumerable.Range(0, 10).Select(index => Node.Create(Random(-3572 + index), creator => creator.Create(buffers.Item1))).All(),
+                Enumerable.Range(0, 10).Select(index => Node.Create(Random(987965432 + index), creator => creator.Create(buffers.Item2))).All(),
+                Enumerable.Range(0, 10).Select(index => Node.Create(Random(-98764 + index), creator => creator.Create(buffers.Item3))).All(),
+                Enumerable.Range(0, 10).Select(index => Node.Create(Random(789312 + index), creator => creator.Create(buffers.Item4))).All()
+            ).Synchronous().Schedule(world);
+            var destroy = Node.Destroy(Matcher.True).Schedule(world);
+            // var destroy = Node.Destroy(Matcher.True).If(() => (_random ??= new()).NextDouble() < 0.1).Schedule(world);
             var watch = Stopwatch.StartNew();
             for (int i = 0; i < 10_000; i++)
             {

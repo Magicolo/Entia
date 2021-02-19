@@ -58,7 +58,7 @@ namespace Entia.Experiment.V4
                 current : changed ? previous : Option.None());
 
         public static Cache<TTarget> Map<TSource, TTarget>(this Cache<TSource> cache, Func<TSource, TTarget> map) =>
-            cache.Map(map(cache.Get()), (value, _) => map(value));
+            new(map(cache.Get()), _ => cache.TryGet().Map(map));
         public static Cache<TTarget> Map<TSource, TTarget>(this Cache<TSource> cache, TTarget value, Func<TSource, TTarget, TTarget> map) =>
             new(value, previous => cache.TryGet().Map(previous, map));
 

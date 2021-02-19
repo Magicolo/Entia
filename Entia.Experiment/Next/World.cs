@@ -136,10 +136,10 @@ namespace Entia.Experiment.V4
             var batch = entities.Length;
             while (initialized < batch)
             {
-                var remaining = batch - initialized;
-                var chunk = segment.Next();
+                var chunk = segment.Next(out var free);
                 // Try to prevent the lock if the chunk is full.
                 if (chunk.Count == segment.Size) continue;
+                var remaining = batch - initialized;
 
                 lock (chunk)
                 {
@@ -164,8 +164,7 @@ namespace Entia.Experiment.V4
                     initialized += count;
                 }
 
-                if (chunk.Count == segment.Size) continue;
-                segment.Free.Push(chunk);
+                if (free && chunk.Count < segment.Size) segment.Free.Push(chunk);
             }
         }
 
@@ -181,6 +180,7 @@ namespace Entia.Experiment.V4
             for (int i = 0; i < roots.count; i++)
             {
                 var (child, parent) = roots.items[i];
+                if (parent == Entity.Zero) continue;
                 ref var datum = ref DatumAt(parent.Index);
                 var chunk = datum.Chunk;
                 if (chunk == null) continue;
@@ -200,6 +200,7 @@ namespace Entia.Experiment.V4
                 // Try to prevent the lock if possible.
                 if (index >= chunk.Count) continue;
 
+                var free = false;
                 lock (chunk)
                 {
                     // If this is true, it means that another thread cleared this index.
@@ -226,8 +227,9 @@ namespace Entia.Experiment.V4
                     }
                     // Clear the stores in case there is garbage to be collected in them.
                     foreach (var store in chunk.Stores) Array.Clear(store, source, count - source);
+                    free = count == segment.Size;
                 }
-                segment.Free.Push(chunk);
+                if (free) segment.Free.Push(chunk);
             }
 
             // Free the entities lastly to ensure that they cannot be reserved while the release

@@ -14,7 +14,7 @@ namespace Entia.Experiment.V4
         public Resource(World world)
         {
             var creator = world.Creator(_template);
-            var segment = creator.Segments.Get()[0];
+            var segment = creator.Segments[0];
             if (segment.Chunks.Length == 0) creator.Create();
             _store = (T[])segment.Chunks[0].Stores[0];
         }

@@ -56,4 +56,9 @@ namespace Entia.Experiment.V4
         IEnumerator<Entity> IEnumerable<Entity>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
+
+    public static partial class Extensions
+    {
+        public static Entities Entities(this World world) => new(world);
+    }
 }
