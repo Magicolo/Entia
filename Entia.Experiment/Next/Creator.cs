@@ -57,8 +57,10 @@ namespace Entia.Experiment.V4
                 var segment = world.Segment(initializers.Select(pair => pair.meta), template.Size);
                 foreach (var pair in initializers)
                 {
+                    if (pair.initialize == null) continue;
                     segment.TryIndex(pair.meta, out var store);
-                    initialize += (in Context context, in T state) => pair.initialize(store, context, state);
+                    initialize += (in Context context, in T state) =>
+                        pair.initialize(context.Chunk.Stores[store], context, state);
                 }
                 return new(parent, children, segment, initialize ?? _default);
             }
@@ -104,9 +106,7 @@ namespace Entia.Experiment.V4
             Create(template, creator => Run(() => run(creator)));
         public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Lazy(world =>
         {
-            var creator = world.Creator(template.Descend(child =>
-                child.Has<Family>() ? child :
-                child.Add((entity, parent, children, _) => new Family { Self = entity, Parent = parent, Children = children.ToArray() })));
+            var creator = world.Creator(template);
             return provide(creator).Map(plan =>
             {
                 var dependencies = plan.Dependencies.Or(creator.Segments).Change().Map(pair =>

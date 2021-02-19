@@ -37,7 +37,7 @@ namespace Entia.Experiment.V4
         {
             Index = index;
             Metas = metas;
-            Size = size ?? 256;
+            Size = size ?? 64;
         }
 
         public bool TryIndex(Meta meta, out int index) => (index = Array.BinarySearch(Metas, meta)) >= 0;
