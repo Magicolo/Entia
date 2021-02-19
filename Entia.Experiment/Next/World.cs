@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,56 +16,43 @@ namespace Entia.Experiment.V4
     }
 
     public delegate void Initialize<T>(in Context context, in T state);
+    struct WorldBufferKey { }
 
-    public sealed class World : IEnumerable<World.Enumerator, Entity>
+    public sealed class World
     {
         public struct Datum
         {
             public int Index;
-            public Entity Parent;
             public Segment.Chunk Chunk;
             public Segment Segment;
         }
 
-        public struct Enumerator : IEnumerator<Entity>
+        struct ReleaseBuffers
         {
-            public Entity Current => _chunk.Entities[_indices.entity];
-            object IEnumerator.Current => Current;
-
-            readonly World _world;
-            (int segment, int chunk, int entity) _indices;
-            Segment _segment;
-            Segment.Chunk _chunk;
-
-            public Enumerator(World world)
+            public static readonly ReleaseBuffers Empty = new()
             {
-                _world = world;
-                _indices = (-1, -1, -1);
-                _segment = default;
-                _chunk = default;
-            }
+                Entities = Array.Empty<Entity>(),
+                Indices = Array.Empty<int>(),
+                Chunks = Array.Empty<Segment.Chunk>(),
+                Segments = Array.Empty<Segment>(),
+            };
 
-            public bool MoveNext()
+            public Entity[] Entities;
+            public int[] Indices;
+            public Segment.Chunk[] Chunks;
+            public Segment[] Segments;
+            public int Count;
+            public int Capacity;
+
+            public void Ensure()
             {
-                while (true)
-                {
-                    if (_segment == null && !_world._segments.TryAt(++_indices.segment, out _segment)) return false;
-                    else if (_chunk == null && !_segment.Chunks.TryAt(++_indices.chunk, out _chunk))
-                    {
-                        _indices.chunk = -1;
-                        _segment = null;
-                    }
-                    else if (++_indices.entity < _chunk.Count) return true;
-                    else
-                    {
-                        _indices.entity = -1;
-                        _chunk = null;
-                    }
-                }
+                if (Count <= Capacity) return;
+                Capacity = Math.Max(Capacity * 2, 8);
+                Buffer.Ensure<ReleaseBuffers, Entity>(ref Entities, Capacity);
+                Buffer.Ensure<ReleaseBuffers, int>(ref Indices, Capacity);
+                Buffer.Ensure<ReleaseBuffers, Segment.Chunk>(ref Chunks, Capacity);
+                Buffer.Ensure<ReleaseBuffers, Segment>(ref Segments, Capacity);
             }
-
-            public void Reset() { _indices = (-1, -1, -1); _segment = default; _chunk = default; }
-            public void Dispose() => this = default;
         }
 
         const int Shift = 8;
@@ -129,7 +115,7 @@ namespace Entia.Experiment.V4
             var reserved = 0;
             if (_last + entities.Length > Capacity)
             {
-                var buffer = Buffer<World, Entity>.Get(entities.Length);
+                var buffer = Buffer.Get<WorldBufferKey, Entity>(entities.Length);
                 var popped = _free.TryPopRange(buffer, 0, entities.Length);
                 for (int i = 0; i < popped; i++) entities[i] = new(buffer[i].Index, buffer[i].Generation + 1);
                 reserved += popped;
@@ -148,7 +134,7 @@ namespace Entia.Experiment.V4
             for (int i = last - count; i < last; i++) entities[reserved++] = new(i, 0);
         }
 
-        public void Initialize<T>(Span<Entity> entities, Slice<Entity>.Read parents, Slice<Entity>.Read children, Segment segment, in T state, Initialize<T> initialize)
+        public void Initialize<T>(ReadOnlySpan<Entity> entities, Slice<Entity>.Read parents, Slice<Entity>.Read children, Segment segment, in T state, Initialize<T> initialize)
         {
             var initialized = 0;
             var batch = entities.Length;
@@ -156,6 +142,7 @@ namespace Entia.Experiment.V4
             {
                 var remaining = batch - initialized;
                 var chunk = segment.Next();
+                // Try to prevent the lock if the chunk is full.
                 if (chunk.Count == segment.Size) continue;
 
                 lock (chunk)
@@ -163,28 +150,20 @@ namespace Entia.Experiment.V4
                     if (chunk.Count == segment.Size) continue;
                     var index = chunk.Count;
                     var count = Math.Min(segment.Size - index, remaining);
-
                     for (int i = 0; i < count; i++)
                     {
                         var source = initialized + i;
                         var target = index + i;
-                        var entity = chunk.Entities[target] = entities[source];
-                        var parent = source < parents.Count ? parents[source] : Entity.Zero;
-                        DatumAt(entity.Index) = new()
-                        {
-                            Index = target,
-                            Parent = parent,
-                            Chunk = chunk,
-                            Segment = segment,
-                        };
+                        var entity = entities[source];
+                        chunk.Entities[target] = entity;
+                        chunk.Parents[target] = parents.Get(source).Or(Entity.Zero);
+                        chunk.Children[target].Reset(children.Slice(source, step: batch));
+                        DatumAt(entity.Index) = new() { Index = target, Chunk = chunk, Segment = segment };
                     }
 
                     // Initialize before incrementing 'chunk.Count' to ensure that no reader can
                     // observe a chunk item uninitialized.
-                    var context = new Context(
-                        index, count, batch, chunk,
-                        parents.Slice(initialized, count),
-                        children.Slice(initialized, count * batch));
+                    var context = new Context(index, count, chunk);
                     initialize(context, state);
                     chunk.Count += count;
                     initialized += count;
@@ -195,52 +174,114 @@ namespace Entia.Experiment.V4
             }
         }
 
-        public int Release(Segment segment)
+        public uint Release(ReadOnlySpan<Entity> entities)
         {
-            var destroyed = 0;
-            foreach (var chunk in segment.Chunks)
-            {
-                if (chunk.Count == 0) continue;
-                for (int i = 0; i < chunk.Count; i++) DatumAt(chunk.Entities[i].Index).Segment = null;
-                foreach (var store in chunk.Stores) Array.Clear(store, 0, chunk.Count);
-                _free.PushRange(chunk.Entities, 0, chunk.Count);
-                destroyed += chunk.Count;
-                chunk.Count = 0;
-            }
-            segment.Free.Clear();
-            segment.Free.PushRange(segment.Chunks);
-            return destroyed;
-        }
+            if (entities.Length == 0) return 0;
+            var roots = (items: Buffer.Get<WorldBufferKey, int>(entities.Length), count: 0);
+            var buffers = ReleaseBuffers.Empty;
+            foreach (var entity in entities) if (entity.Index < _last) Collect(entity, ref roots, ref buffers);
+            if (buffers.Count == 0) return 0;
 
-        public bool Release(Entity entity)
-        {
-            if (entity.Index >= _last) return false;
-
-            ref var datum = ref DatumAt(entity.Index);
-            if (Interlocked.Exchange(ref datum.Segment, null) is Segment segment &&
-                entity == datum.Chunk.Entities[datum.Index])
+            for (int i = 0; i < buffers.Count; i++)
             {
-                var chunk = datum.Chunk;
+                var index = buffers.Indices[i];
+                var chunk = buffers.Chunks[i];
+                var segment = buffers.Segments[i];
+                // Try to prevent the lock if possible.
+                if (index >= chunk.Count) continue;
+
                 lock (chunk)
                 {
+                    // If this is true, it means that another thread cleared this index.
+                    if (index >= chunk.Count) continue;
+
+                    // To make the most of the lock and reduce contention, this thread tries to clear the 'index'
+                    // and if it crosses greater indices that must also be cleared, it clears those as well.
+                    var count = chunk.Count;
                     var source = --chunk.Count;
-                    var target = datum.Index;
-                    if (source != target)
+                    while (index < source)
                     {
-                        chunk.Entities[target] = chunk.Entities[source];
-                        foreach (var store in chunk.Stores)
+                        var last = chunk.Entities[source];
+                        ref var datum = ref DatumAt(last.Index);
+                        if (datum.Chunk == chunk)
                         {
-                            Array.Copy(store, source, store, target, 1);
-                            Array.Clear(store, source, 1);
+                            chunk.Entities[index] = last;
+                            chunk.Parents[index] = chunk.Parents[source];
+                            chunk.Children.Swap(source, index);
+                            foreach (var store in chunk.Stores) Array.Copy(store, source, store, index, 1);
+                            datum.Index = index;
+                            break;
                         }
-                        DatumAt(target).Index = datum.Index;
+                        else source = --chunk.Count;
                     }
+                    // Clear the stores in case there is garbage to be collected in them.
+                    foreach (var store in chunk.Stores) Array.Clear(store, source, count - source);
                 }
                 segment.Free.Push(chunk);
-                _free.Push(entity);
-                return true;
             }
-            return false;
+
+            // Remove the root entities from their parent's children.
+            for (int i = 0; i < roots.count; i++)
+            {
+                var root = roots.items[i];
+                var child = buffers.Entities[root];
+                var parent = buffers.Chunks[root].Parents[buffers.Indices[root]];
+                ref var datum = ref DatumAt(parent.Index);
+                var chunk = datum.Chunk;
+                if (chunk == null) continue;
+                lock (chunk)
+                {
+                    // If 'datum.Chunk' was taken while waiting on the lock, it is unnecessary
+                    // to remove the child.
+                    if (datum.Chunk == chunk) chunk.Children[datum.Index].Remove(child);
+                }
+            }
+
+            // Free the entities lastly to ensure that they cannot be reserved while the release
+            // operation is ongoing.
+            _free.PushRange(buffers.Entities, 0, buffers.Count);
+            return (uint)buffers.Count;
+        }
+
+        bool TryTake(Entity entity, out int index, out Segment.Chunk chunk, out Segment segment)
+        {
+            ref var datum = ref DatumAt(entity.Index);
+            chunk = datum.Chunk;
+            if (chunk == null)
+            {
+                index = default;
+                segment = default;
+                return false;
+            }
+
+            lock (chunk)
+            {
+                index = datum.Index;
+                segment = datum.Segment;
+                if (datum.Chunk == chunk && chunk.Entities[index] == entity)
+                {
+                    datum = default;
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        void Collect(Entity entity, ref (int[] items, int count) roots, ref ReleaseBuffers buffers, bool root = true)
+        {
+            if (TryTake(entity, out var index, out var chunk, out var segment))
+            {
+                var count = buffers.Count++;
+                buffers.Ensure();
+                buffers.Entities[count] = entity;
+                buffers.Indices[count] = index;
+                buffers.Chunks[count] = chunk;
+                buffers.Segments[count] = segment;
+                if (root) roots.items[roots.count++] = count;
+
+                var children = chunk.Children[index];
+                for (int i = 0; i < children.count; i++) Collect(children.items[i], ref roots, ref buffers, false);
+            }
         }
 
         ref Datum DatumAt(int index) => ref _data[index >> Shift][index & Mask];
@@ -255,9 +296,5 @@ namespace Entia.Experiment.V4
             datum = default;
             return false;
         }
-
-        public Enumerator GetEnumerator() => new(this);
-        IEnumerator<Entity> IEnumerable<Entity>.GetEnumerator() => GetEnumerator();
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

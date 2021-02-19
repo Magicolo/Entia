@@ -21,7 +21,7 @@ namespace Entia.Core
                 readonly Read _slice;
                 int _index;
 
-                public Enumerator(in Read slice, int index = -1)
+                public Enumerator(Read slice, int index = -1)
                 {
                     _slice = slice;
                     _index = index;
@@ -35,29 +35,22 @@ namespace Entia.Core
                 public void Reset() => _index = -1;
             }
 
-            public static implicit operator Read(T[] array) => new(array, 0, (uint)array.Length, 1u);
+            public static implicit operator Read(T[] array) => array.Slice();
 
             public ref readonly T this[int index] => ref this[(uint)index];
-            public ref readonly T this[uint index] => ref Array[Index * Step + index];
+            public ref readonly T this[uint index] => ref Array[index * Step + Index];
 
             public readonly uint Count;
             internal readonly uint Index;
             internal readonly uint Step;
             internal readonly T[] Array;
 
-            public Read(T[] array, uint index, uint count, uint step)
+            internal Read(T[] array, uint index, uint count, uint step)
             {
                 Array = array;
                 Index = index;
                 Step = step;
                 Count = count;
-            }
-
-            public T[] ToArray()
-            {
-                var array = new T[Count];
-                for (var i = 0u; i < Count; i++) array[i] = Array[i * Step + Index];
-                return array;
             }
 
             /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>
@@ -68,7 +61,7 @@ namespace Entia.Core
 
         public struct Enumerator : IEnumerator<T>
         {
-            public static implicit operator Read.Enumerator(in Enumerator enumerator) => new(enumerator._slice, enumerator._index);
+            public static implicit operator Read.Enumerator(Enumerator enumerator) => new(enumerator._slice, enumerator._index);
 
             /// <inheritdoc cref="IEnumerator{T}.Current"/>
             public ref T Current => ref _slice[_index];
@@ -78,7 +71,7 @@ namespace Entia.Core
             readonly Slice<T> _slice;
             int _index;
 
-            public Enumerator(in Slice<T> slice, int index = -1)
+            public Enumerator(Slice<T> slice, int index = -1)
             {
                 _slice = slice;
                 _index = index;
@@ -92,30 +85,23 @@ namespace Entia.Core
             public void Reset() => _index = -1;
         }
 
-        public static implicit operator Slice<T>(T[] array) => new(array, 0, (uint)array.Length, 1u);
-        public static implicit operator Read(in Slice<T> slice) => new(slice.Array, slice.Index, slice.Count, slice.Step);
+        public static implicit operator Slice<T>(T[] array) => array.Slice();
+        public static implicit operator Read(Slice<T> slice) => new(slice.Array, slice.Index, slice.Count, slice.Step);
 
         public ref T this[int index] => ref this[(uint)index];
-        public ref T this[uint index] => ref Array[Index * Step + index];
+        public ref T this[uint index] => ref Array[index * Step + Index];
 
         public readonly uint Count;
         internal readonly uint Index;
         internal readonly uint Step;
         internal readonly T[] Array;
 
-        public Slice(T[] array, uint index, uint count, uint step)
+        internal Slice(T[] array, uint index, uint count, uint step)
         {
             Array = array;
             Index = index;
             Step = step;
             Count = count;
-        }
-
-        public T[] ToArray()
-        {
-            var array = new T[Count];
-            for (var i = 0u; i < Count; i++) array[i] = Array[i * Step + Index];
-            return array;
         }
 
         /// <inheritdoc cref="IEnumerable{T}.GetEnumerator"/>

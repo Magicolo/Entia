@@ -15,6 +15,13 @@ namespace Entia.Core
             return ref target;
         }
 
+        public static T Set<T>(ref this T source, T value) where T : struct
+        {
+            var old = source;
+            source = value;
+            return old;
+        }
+
         public static bool Change(ref this bool source, bool target)
         {
             var changed = source != target;

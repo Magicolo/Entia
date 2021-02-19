@@ -10,6 +10,13 @@ namespace Entia.Core
             public static readonly Comparison<T> Compare = Comparer<T>.Default.Compare;
         }
 
+        public static void Swap<T>(this T[] array, int source, int target)
+        {
+            var value = array[source];
+            array[source] = array[target];
+            array[target] = value;
+        }
+
         public static TSource MaxBy<TSource, T>(this TSource[] array, Func<TSource, T> selector, Comparison<T> compare = null)
         {
             compare ??= Cache<T>.Compare;
@@ -103,28 +110,6 @@ namespace Entia.Core
         }
 
         public static void Clear<T>(this T[] array) => Array.Clear(array, 0, array.Length);
-
-        public static bool TryGet<T>(this (T[] items, int count) array, int index, out T item)
-        {
-            if (index < array.count)
-            {
-                item = array.items[index];
-                return true;
-            }
-
-            item = default;
-            return false;
-        }
-
-        public static Slice<T> Slice<T>(this T[] array) => new(array, 0, (uint)array.Length, 1u);
-        public static Slice<T> Slice<T>(this T[] array, uint index = 0, uint? count = null, uint step = 1u) => array.Slice().Slice(index, count, step);
-        public static Slice<T> Slice<T>(this T[] array, int index = 0, int? count = null, int step = 1) => array.Slice().Slice((uint)index, (uint)count, (uint)step);
-        public static Slice<T> Slice<T>(this Slice<T> slice, int index = 0, int? count = null, int step = 1) => slice.Slice((uint)index, (uint)count, (uint)step);
-        public static Slice<T> Slice<T>(this Slice<T> slice, uint index = 0u, uint? count = null, uint step = 1u) =>
-            new(slice.Array, slice.Index + index, Math.Min(count ?? slice.Count, (slice.Count - index) / step), slice.Step * step);
-        public static Slice<T>.Read Slice<T>(this Slice<T>.Read slice, int index = 0, int? count = null, int step = 1) => slice.Slice((uint)index, (uint)count, (uint)step);
-        public static Slice<T>.Read Slice<T>(this Slice<T>.Read slice, uint index = 0u, uint? count = null, uint step = 1u) =>
-            new(slice.Array, slice.Index + index, Math.Min(count ?? slice.Count, (slice.Count - index) / step), slice.Step * step);
 
         public static Array Cast(this Array array, Type type)
         {

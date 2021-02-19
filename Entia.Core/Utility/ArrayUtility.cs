@@ -12,45 +12,65 @@ namespace Entia.Core
             public static readonly Func<T, int> Hash = EqualityComparer<T>.Default.GetHashCode;
         }
 
+        public static T[] Filled<T>(int size, T value)
+        {
+            if (size == 0) return Array.Empty<T>();
+            var source = new T[size];
+            for (int i = 0; i < source.Length; i++) source[i] = value;
+            return source;
+        }
+
+        public static T[] Filled<T>(int size, Func<T> provide)
+        {
+            if (size == 0) return Array.Empty<T>();
+            var source = new T[size];
+            for (int i = 0; i < source.Length; i++) source[i] = provide();
+            return source;
+        }
+
+        public static T[] Filled<T, TState>(int size, TState state, Func<TState, T> provide)
+        {
+            if (size == 0) return Array.Empty<T>();
+            var source = new T[size];
+            for (int i = 0; i < source.Length; i++) source[i] = provide(state);
+            return source;
+        }
+
+        public static T[] Filled<T>(int size, Func<int, T> provide)
+        {
+            if (size == 0) return Array.Empty<T>();
+            var source = new T[size];
+            for (int i = 0; i < source.Length; i++) source[i] = provide(i);
+            return source;
+        }
+
+        public static T[] Filled<T, TState>(int size, TState state, Func<int, TState, T> provide)
+        {
+            if (size == 0) return Array.Empty<T>();
+            var source = new T[size];
+            for (int i = 0; i < source.Length; i++) source[i] = provide(i, state);
+            return source;
+        }
+
         public static bool Ensure<T>(ref T[] source, int size)
         {
-            if (size <= source.Length) return false;
-            Array.Resize(ref source, MathUtility.NextPowerOfTwo(size));
+            if (source == null) { source = new T[size]; return true; }
+            if (size < 0 || size <= source.Length) return false;
+
+            var target = new T[MathUtility.NextPowerOfTwo(size)];
+            source.CopyTo(target, 0);
+            source = target;
             return true;
         }
 
-        public static bool Ensure<T>(ref T[] source, int size, T initial)
-        {
-            if (size <= source.Length) return false;
-            var old = source.Length;
-            var @new = MathUtility.NextPowerOfTwo(size);
-            Array.Resize(ref source, @new);
-            source.Fill(initial, old, @new - old);
-            return true;
-        }
-
-        public static bool Ensure<T>(ref T[] source, int size, Func<T> initial)
-        {
-            if (size <= source.Length) return false;
-            var old = source.Length;
-            var @new = MathUtility.NextPowerOfTwo(size);
-            Array.Resize(ref source, @new);
-            source.Fill(initial, old, @new - old);
-            return true;
-        }
-
-        public static bool Ensure<T>(ref T[] source, uint size) => Ensure(ref source, MathUtility.ClampToInt(size));
+        public static bool Ensure<T>(ref T[] source, uint size) => Ensure(ref source, (int)size);
 
         public static bool Ensure(ref Array source, Type element, int size)
         {
-            if (size <= source.Length) return false;
-            Resize(ref source, element, MathUtility.NextPowerOfTwo(size));
-            return true;
-        }
+            if (source == null) { source = Array.CreateInstance(element, size); return true; }
+            if (size < 0 || size <= source.Length) return false;
 
-        public static bool Resize(ref Array source, Type element, int size)
-        {
-            var target = Array.CreateInstance(element, size);
+            var target = Array.CreateInstance(element, MathUtility.NextPowerOfTwo(size));
             source.CopyTo(target, 0);
             source = target;
             return true;
@@ -86,8 +106,7 @@ namespace Entia.Core
         public static bool Insert<T>(ref T[] source, int index, params T[] items)
         {
             if (items.Length == 1) return Insert(ref source, index, items[0]);
-            if (index < 0 || index > source.Length) return false;
-            if (items.Length == 0) return false;
+            if (index < 0 || index > source.Length || items.Length == 0) return false;
             if (source.Length == 0) { source = items; return true; }
 
             var target = new T[source.Length + items.Length];

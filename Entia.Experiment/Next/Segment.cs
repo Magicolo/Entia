@@ -10,17 +10,19 @@ namespace Entia.Experiment.V4
     {
         public sealed class Chunk
         {
-            // 'Entities' could technically be moved to the 'Segment' in 1 continuous array rather than being separated
-            // chunks, but this setup will be practical to dispatch threads with only a chunk.
-            public readonly Entity[] Entities;
-            public readonly Array[] Stores;
             public readonly uint Index;
+            public readonly Entity[] Entities;
+            public readonly Entity[] Parents;
+            public readonly (Entity[] items, int count)[] Children;
+            public readonly Array[] Stores;
             public int Count;
 
-            public Chunk(uint index, Entity[] entities, Array[] stores)
+            public Chunk(uint index, Entity[] entities, Entity[] parents, (Entity[] items, int count)[] children, Array[] stores)
             {
                 Index = index;
                 Entities = entities;
+                Parents = parents;
+                Children = children;
                 Stores = stores;
             }
         }
@@ -57,8 +59,10 @@ namespace Entia.Experiment.V4
             if (chunks.TryLast(out var chunk, out var index) && chunk.Count < Size) return chunk;
             while (Free.TryPop(out var free)) if (free.Count < Size) return free;
 
+            var stores = Metas.Select(Size, static (meta, size) => Array.CreateInstance(meta.Type, size));
+            var children = ArrayUtility.Filled(Size, (Array.Empty<Entity>(), 0));
             index = chunks.Length;
-            chunk = new((uint)index, new Entity[Size], Metas.Select(meta => Array.CreateInstance(meta.Type, Size)));
+            chunk = new((uint)index, new Entity[Size], new Entity[Size], children, stores);
             // If the 'CompareExchange' fails, it means that another thread added a chunk before this one
             // finished. In this case, this thread's work will be discarded, which is fine.
             Interlocked.CompareExchange(ref Chunks, chunks.Append(chunk), chunks);

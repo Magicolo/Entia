@@ -5,6 +5,7 @@ using Entia.Core;
 
 namespace Entia.Experiment.V4
 {
+    struct CreatorBufferKey { }
     public readonly struct Creator<T>
     {
         readonly struct Part
@@ -82,7 +83,7 @@ namespace Entia.Experiment.V4
 
             var batch = entities.Length;
             var count = batch * _parts.Length;
-            var buffer = Buffer<Creator<Unit>, Entity>.Get(count);
+            var buffer = Buffer.Get<CreatorBufferKey, Entity>(count);
             _world.Reserve(buffer.AsSpan(0, count));
             for (int i = 0; i < _parts.Length; i++)
             {
@@ -103,7 +104,9 @@ namespace Entia.Experiment.V4
             Create(template, creator => Run(() => run(creator)));
         public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Lazy(world =>
         {
-            var creator = world.Creator(template);
+            var creator = world.Creator(template.Descend(child =>
+                child.Has<Family>() ? child :
+                child.Add((entity, parent, children, _) => new Family { Self = entity, Parent = parent, Children = children.ToArray() })));
             return provide(creator).Map(plan =>
             {
                 var dependencies = plan.Dependencies.Or(creator.Segments).Change().Map(pair =>

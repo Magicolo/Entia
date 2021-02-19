@@ -1,7 +1,7 @@
-﻿using Entia.Core;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Entia.Core;
 
 namespace Entia.Core
 {

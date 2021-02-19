@@ -88,6 +88,14 @@ namespace Entia.Experiment.V4
         be continued on the next frame. This would require the task to frequently check a cancellation token.
         - Increasing the size of chunks could be triggered when 'chunkCount / chunkSize > processors'.
         - This operation will have a 'Write' dependency on everything in the segment.
+    - Relationship data will need to be stored in 'World.Datum' or in a component.
+        - 'World.Datum' allows to reuse the 'Children' array.
+        - As a 'World.Datum', it would be initialized in 'World.Create'.
+
+        - A component is the most obvious place to put it.
+        - As a component, it would be initialized as a 'Template<T>.Initialize'.
+        - When querying, components will be contiguous in memory while 'World.Datum' will not.
+
     - Allow 'world.Create' to create a hierarchy of entities in a batch.
         - Ex: A template describes a hierarchy of 13 entities and we would want to instantiate 8 of these. Then
         the world could reserve 8 * 13 entities in a single operation and then initialize them.

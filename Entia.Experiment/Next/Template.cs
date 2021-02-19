@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Mime;
 using Entia.Core;
 
 namespace Entia.Experiment.V4
@@ -9,19 +10,13 @@ namespace Entia.Experiment.V4
     {
         public readonly int Index;
         public readonly int Count;
-        public readonly int Batch;
         public readonly Segment.Chunk Chunk;
-        public readonly Slice<Entity>.Read Parents;
-        public readonly Slice<Entity>.Read Children;
 
-        public Context(int index, int count, int batch, Segment.Chunk chunk, Slice<Entity>.Read parents, Slice<Entity>.Read children)
+        public Context(int index, int count, Segment.Chunk chunk)
         {
             Index = index;
             Count = count;
-            Batch = batch;
             Chunk = chunk;
-            Parents = parents;
-            Children = children;
         }
     }
 
@@ -34,9 +29,9 @@ namespace Entia.Experiment.V4
 
         public static implicit operator Template<T>(Template<Unit> template) => template.Adapt<T>();
 
-        public readonly int? Size;
         public readonly Template.Initializer<T>[] Initializers;
         public readonly Template<T>[] Children;
+        public readonly int? Size;
         public Template(Template.Initializer<T>[] initializers, Template<T>[] children, int? size)
         {
             Initializers = initializers;
@@ -44,9 +39,12 @@ namespace Entia.Experiment.V4
             Size = size;
         }
 
+        public bool Has<TComponent>() => this.Has(typeof(TComponent));
         public Template<T> Add<TComponent>() => this.Add(typeof(TComponent));
         public Template<T> Remove<TComponent>() => this.Remove(typeof(TComponent));
         public Template<TTarget> Adapt<TTarget>(Func<TTarget, T> adapt) => this.Adapt<T, TTarget>(adapt);
+        public Template<T> With(Template.Initializer<T>[] initializers = null, Template<T>[] children = null, int? size = null) =>
+            new(initializers ?? Initializers, children ?? Children, size ?? Size);
     }
 
     public static class Template
@@ -63,8 +61,10 @@ namespace Entia.Experiment.V4
         public static Template<T> Empty<T>() => Template<T>.Empty;
         public static Template<Unit> Empty() => Empty<Unit>();
 
-        public static Template<T> Size<T>(this Template<T> template, int size) =>
-            new(template.Initializers, template.Children, size);
+        public static Template<T> Size<T>(this Template<T> template, int size) => template.With(size: size);
+
+        public static Template<TTarget> Descend<TSource, TTarget>(this Template<TSource> template, Func<Template<TSource>, Template<TTarget>> map) =>
+            map(template).With(children: template.Children.Select(map, Descend));
 
         public static Template<Unit> Adapt<T>(this Template<T> template, T state) => template.Adapt<T, Unit>(_ => state);
         public static Template<T> Adapt<T>(this Template<Unit> template) => template.Adapt<Unit, T>(_ => default);
@@ -76,7 +76,7 @@ namespace Entia.Experiment.V4
             template.Size);
 
         public static Template<T> Adopt<T>(this Template<T> template, params Template<T>[] children) =>
-            new(template.Initializers, template.Children.Append(children), template.Size);
+            template.With(children: template.Children.Append(children));
         public static Template<TSource> Adopt<TSource, TTarget>(this Template<TSource> template, Template<TTarget> child, Func<TSource, TTarget> adapt) =>
             template.Adopt(child.Adapt(adapt));
 
@@ -84,85 +84,74 @@ namespace Entia.Experiment.V4
         public static Template<T> All<T>(this IEnumerable<Template<T>> templates) => new(
             templates
                 .SelectMany(template => template.Initializers)
-                .GroupBy(pair => pair.Type)
+                .GroupBy(initializer => initializer.Type)
                 .Select(group => group.Last())
                 .ToArray(),
             templates.SelectMany(template => template.Children).ToArray(),
             templates.Max(template => template.Size));
 
         public static Template<T> Add<T>(this Template<T> template, Type type) => template.Add(new[] { type });
-        public static Template<T> Add<T>(this Template<T> template, params Type[] types) => new(
-            template.Remove(types).Initializers.Append(types.Select(type =>
-                new Initializer<T>(type, (int _, in Context _, in T _) => { }))),
-            template.Children, template.Size);
+        public static Template<T> Add<T>(this Template<T> template, params Type[] types) =>
+            template.With(template.Remove(types).Initializers.Append(types.Select(type =>
+                new Initializer<T>(type, (int _, in Context _, in T _) => { }))));
 
-        public static Template<T> Add<T, TComponent>(this Template<T> template, TComponent component) => new(
-            template.Remove<TComponent>().Initializers.Append(new Initializer<T>(
-                typeof(TComponent),
-                (int store, in Context context, in T state) =>
+        public static Template<T> Add<T, TComponent>(this Template<T> template, TComponent component) =>
+            template.With(template.Remove<TComponent>().Initializers.Append(
+                new Initializer<T>(typeof(TComponent), (int store, in Context context, in T state) =>
                 {
                     var casted = (TComponent[])context.Chunk.Stores[store];
                     Array.Fill(casted, component, context.Index, context.Count);
-                })),
-            template.Children, template.Size);
+                })));
 
-        public static Template<T> Add<T, TComponent>(this Template<T> template, Func<T, TComponent> provide) => new(
-            template.Remove<TComponent>().Initializers.Append(new Initializer<T>(
-                typeof(TComponent),
-                (int store, in Context context, in T state) =>
+        public static Template<T> Add<T, TComponent>(this Template<T> template, Func<T, TComponent> provide) =>
+            template.With(template.Remove<TComponent>().Initializers.Append(
+                new Initializer<T>(typeof(TComponent), (int store, in Context context, in T state) =>
                 {
                     var casted = (TComponent[])context.Chunk.Stores[store];
                     for (int i = 0; i < context.Count; i++) casted[i + context.Index] = provide(state);
-                })),
-            template.Children, template.Size);
+                })));
 
-        public static Template<T> Add<T, TComponent>(this Template<T> template, Func<Entity, T, TComponent> provide) => new(
-            template.Remove<TComponent>().Initializers.Append(new Initializer<T>(
-                typeof(TComponent),
-                (int store, in Context context, in T state) =>
+        public static Template<T> Add<T, TComponent>(this Template<T> template, Func<Entity, T, TComponent> provide) =>
+            template.With(template.Remove<TComponent>().Initializers.Append(
+                new Initializer<T>(typeof(TComponent), (int store, in Context context, in T state) =>
                 {
                     var casted = (TComponent[])context.Chunk.Stores[store];
                     var entities = context.Chunk.Entities;
                     for (int i = 0; i < context.Count; i++)
                     {
-                        var index = i + context.Index;
+                        var index = context.Index + i;
                         casted[index] = provide(entities[index], state);
                     }
-                })),
-            template.Children, template.Size);
+                })));
 
-        public static Template<T> Add<T, TComponent>(this Template<T> template, Func<Entity, Entity, T, TComponent> provide) => new(
-            template.Remove<TComponent>().Initializers.Append(new Initializer<T>(
-                typeof(TComponent),
-                (int store, in Context context, in T state) =>
+        public static Template<T> Add<T, TComponent>(this Template<T> template, Func<Entity, Entity, T, TComponent> provide) =>
+            template.With(template.Remove<TComponent>().Initializers.Append(
+                new Initializer<T>(typeof(TComponent), (int store, in Context context, in T state) =>
                 {
                     var casted = (TComponent[])context.Chunk.Stores[store];
                     var entities = context.Chunk.Entities;
-                    var parents = context.Parents;
+                    var parents = context.Chunk.Parents;
                     for (int i = 0; i < context.Count; i++)
                     {
-                        var index = i + context.Index;
-                        casted[index] = provide(entities[index], parents[i], state);
+                        var index = context.Index + i;
+                        casted[index] = provide(entities[index], parents[index], state);
                     }
-                })),
-            template.Children, template.Size);
+                })));
 
-        public static Template<T> Add<T, TComponent>(this Template<T> template, Func<Entity, Entity, Slice<Entity>.Read, T, TComponent> provide) => new(
-            template.Remove<TComponent>().Initializers.Append(new Initializer<T>(
-                typeof(TComponent),
-                (int store, in Context context, in T state) =>
+        public static Template<T> Add<T, TComponent>(this Template<T> template, Func<Entity, Entity, Slice<Entity>.Read, T, TComponent> provide) =>
+            template.With(template.Remove<TComponent>().Initializers.Append(
+                new Initializer<T>(typeof(TComponent), (int store, in Context context, in T state) =>
                 {
                     var casted = (TComponent[])context.Chunk.Stores[store];
                     var entities = context.Chunk.Entities;
-                    var parents = context.Parents;
+                    var parents = context.Chunk.Parents;
+                    var children = context.Chunk.Children;
                     for (int i = 0; i < context.Count; i++)
                     {
-                        var children = context.Children.Slice(i, step: context.Batch);
-                        var index = i + context.Index;
-                        casted[index] = provide(entities[index], parents[i], children, state);
+                        var index = context.Index + i;
+                        casted[index] = provide(entities[index], parents[index], children[index].Slice(), state);
                     }
-                })),
-            template.Children, template.Size);
+                })));
 
         public static Template<TSource> Add<TSource, TTarget>(this Template<TSource> template, Template<TTarget> other, Func<TSource, TTarget> adapt) =>
             template.Add(other.Adapt(adapt));
@@ -174,8 +163,11 @@ namespace Entia.Experiment.V4
             All(others.Prepend(template));
 
         public static Template<T> Remove<T>(this Template<T> template, params Type[] types) =>
-            new(template.Initializers.Where(pair => !types.Contains(pair.Type)).ToArray(), template.Children, template.Size);
+            template.With(template.Initializers.Where(initializer => !types.Contains(initializer.Type)).ToArray());
         public static Template<TSource> Remove<TSource, TTarget>(this Template<TSource> template, params Template<TTarget>[] templates) =>
-            template.Remove(templates.Select(template => template.Initializers.Select(pair => pair.Type)).Flatten());
+            template.Remove(templates.Select(template => template.Initializers.Select(initializer => initializer.Type)).Flatten());
+
+        public static bool Has<T>(this Template<T> template, Type type) =>
+            template.Initializers.Any(initializer => initializer.Type == type);
     }
 }

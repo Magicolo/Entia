@@ -9,13 +9,7 @@ namespace Entia.Core
         {
             readonly Func<T, T, bool> _equals;
             readonly Func<T, int> _hash;
-
-            public FunctionComparer(Func<T, T, bool> equals, Func<T, int> hash)
-            {
-                this._equals = equals;
-                this._hash = hash;
-            }
-
+            public FunctionComparer(Func<T, T, bool> equals, Func<T, int> hash) { _equals = equals; _hash = hash; }
             public bool Equals(T x, T y) => _equals(x, y);
             public int GetHashCode(T obj) => _hash(obj);
         }
