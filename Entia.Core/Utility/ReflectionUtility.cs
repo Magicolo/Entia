@@ -148,6 +148,47 @@ namespace Entia.Core
         public static bool IsByRefLike(this Type type) => _isByRefLike(type);
         public static bool IsConcrete(this Type type) => !type.IsAbstract && !type.IsInterface && !type.IsGenericTypeDefinition && !type.IsGenericParameter;
 
+        public static bool IsPlain(this Type type)
+        {
+            if (type.IsPrimitive || type.IsPointer || type.IsEnum) return true;
+            return type.IsValueType && type.Fields(true, false).All(field => field.FieldType.IsPlain());
+        }
+
+        public static bool IsBlittable(this Type type)
+        {
+            if (type.IsArray || type.IsPointer) return type.GetElementType().IsBlittable();
+            if (type.IsEnum) return type.GetEnumUnderlyingType().IsBlittable();
+            if (type.IsGenericType) return false;
+            if (type.IsPrimitive) return type != typeof(bool) && type != typeof(char) && type != typeof(decimal);
+            return type.IsValueType && type.Fields(true, false).All(field => field.FieldType.IsBlittable());
+        }
+
+        public static unsafe Option<int> Size(this Type type)
+        {
+            switch (Type.GetTypeCode(type))
+            {
+                case TypeCode.Boolean: return sizeof(bool);
+                case TypeCode.Byte: return sizeof(byte);
+                case TypeCode.Char: return sizeof(char);
+                case TypeCode.DateTime: return sizeof(DateTime);
+                case TypeCode.Decimal: return sizeof(decimal);
+                case TypeCode.Double: return sizeof(double);
+                case TypeCode.Int16: return sizeof(short);
+                case TypeCode.Int32: return sizeof(int);
+                case TypeCode.Int64: return sizeof(long);
+                case TypeCode.SByte: return sizeof(sbyte);
+                case TypeCode.Single: return sizeof(float);
+                case TypeCode.UInt16: return sizeof(ushort);
+                case TypeCode.UInt32: return sizeof(uint);
+                case TypeCode.UInt64: return sizeof(ulong);
+                default:
+                    // Do not 'try-catch' 'Marshal.SizeOf' because it may cause inconsistencies between
+                    // serialization and deserialization if they occur on different platforms
+                    if (type.IsBlittable()) return Marshal.SizeOf(type);
+                    return Option.None();
+            }
+        }
+
         public static IEnumerable<string> Path(this Type type)
         {
             var stack = new Stack<string>();

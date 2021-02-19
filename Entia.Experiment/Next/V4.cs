@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
 using Entia.Core;
 
 namespace Entia.Experiment.V4
@@ -212,43 +213,47 @@ namespace Entia.Experiment.V4
             return template;
         }
 
-        [ThreadStatic] static Random _random;
         static readonly Type[] _types = typeof(Test).GetNestedTypes().Where(type => type.IsValueType).ToArray();
         public static Template<Unit> Random(int seed)
         {
             var random = new Random(seed);
             var template = Template.Empty();
-            while (random.NextDouble() < 0.9) template = template.Add(_types[random.Next(_types.Length)]);
+            while (random.NextDouble() < 0.95) template = template.Add(_types[random.Next(_types.Length)]);
             return template;
         }
 
         public static void Do()
         {
+            // TODO: Reorder plans to allow for more parallelism.
+
             var world = new World();
             var entities = world.Entities();
             // var game = world.Resource<Game>();
-            var buffers = (new Entity[1], new Entity[10], new Entity[100], new Entity[1000]);
-            // FIX: multi-threading bug when creating entities :O
+            var buffers = new ThreadLocal<Entity[][]>(() => new[] { new Entity[1], new Entity[10], new Entity[100], new Entity[1000] });
+            var random = new ThreadLocal<Random>(() => new(0));
             var create = Node.All(
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(64321 + index), creator => creator.Create())).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(-3572 + index), creator => creator.Create(buffers.Item1))).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(987965432 + index), creator => creator.Create(buffers.Item2))).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(-98764 + index), creator => creator.Create(buffers.Item3))).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(789312 + index), creator => creator.Create(buffers.Item4))).All()
-            ).Synchronous().Schedule(world);
-            var destroy = Node.Destroy(Matcher.True).Schedule(world);
-            // var destroy = Node.Destroy(Matcher.True).If(() => (_random ??= new()).NextDouble() < 0.1).Schedule(world);
+                Enumerable.Range(0, 100).Select(index => Node.Create(Random(64321 + index), creator => creator.Create())).All(),
+                Enumerable.Range(0, 100).Select(index => Node.Create(Random(-3572 + index), 1)).All(),
+                Enumerable.Range(0, 100).Select(index => Node.Create(Random(987965432 + index), 10)).All(),
+                Enumerable.Range(0, 100).Select(index => Node.Create(Random(-98764 + index), 100)).All(),
+                Enumerable.Range(0, 100).Select(index => Node.Create(Random(789312 + index), 1000)).All()
+            );
+            var value = 0L;
+            var sum = Node.Run(Sum);
+            var destroy = Node.Destroy(Matcher.True);//.If(() => random.Value.NextDouble() < 0.1);
+            var run = Node.All(create, sum, destroy).Schedule(world);
             var watch = Stopwatch.StartNew();
-            for (int i = 0; i < 10_000; i++)
+            for (int i = 0; i < 100; i++)
             {
-                create();
-                destroy();
-                if ((i % 100) == 0)
+                run();
+                if ((i % 10) == 0)
                 {
                     Console.WriteLine($"Iteration({i}): {watch.Elapsed} | {world.Count}/{world.Capacity}");
                     watch.Restart();
                 }
             }
+
+            void Sum(Entity entity) { for (int i = 0; i < 1_000; i++) value += entity.Identifier; }
 
             /*
             Node.Run(

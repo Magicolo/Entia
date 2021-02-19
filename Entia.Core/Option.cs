@@ -171,6 +171,7 @@ namespace Entia.Core
         public static T OrThrow<T>(this Option<T> option, string message) => option.Or(message, state => throw new InvalidOperationException(state));
         public static T OrThrow<T>(this Option<T> option) => option.Or(() => throw new InvalidOperationException());
         public static T OrDefault<T>(this Option<T> option) => option.Or(default(T));
+        public static T[] OrEmpty<T>(this Option<T[]> option) => option.Or(Array.Empty<T>());
         public static Option<Unit> Ignore<T>(this Option<T> option) => option.Map(_ => default(Unit));
         public static Option<object> Box<T>(this Option<T> option) => option.Map(value => (object)value);
 

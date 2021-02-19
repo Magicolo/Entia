@@ -23,22 +23,40 @@ namespace Entia.Experiment.V4
     {
         public static Nodes.INode Destroy(Matcher matcher) => Schedule(world =>
         {
-            var runs = world.Segments(matcher).Change(Array.Empty<(Segment segment, Action[] runs)>(), (segments, pairs) =>
+            var runs = world.Segments(matcher).Update(Array.Empty<Action[]>(), (segments, runs) =>
             {
-                var changed = segments.Length > pairs.Length;
-                pairs = pairs.Append(segments.Skip(pairs.Length).Select(static segment => (segment, Array.Empty<Action>())));
-                foreach (ref var pair in pairs.AsSpan())
+                var changed = false;
+                if (segments.Length > runs.Length)
                 {
-                    changed |= pair.segment.Chunks.Length > pair.runs.Length;
-                    pair.runs = pair.runs.Append(pair.segment.Chunks
-                        .Skip(pair.runs.Length)
-                        .Select(world, static (chunk, world) => new Action(() => world.Release(chunk.Entities.AsSpan(0, chunk.Count)))));
+                    changed = true;
+                    runs = runs.Append(segments.Skip(runs.Length).Select(_ => Array.Empty<Action>()));
                 }
-                return changed ? pairs : Option.None();
-            }).Map(static pairs => pairs.Select(pair => pair.runs).Flatten());
-            var dependencies = Cache.Change(() => world.Segments)
-                .Map(Array.Empty<Dependency>(), static (segments, dependencies) => dependencies.Append(
-                    segments.Skip(dependencies.Length).Select(segment => segment.Write<Entity>())));
+
+                for (int i = 0; i < segments.Length; i++)
+                {
+                    var segment = segments[i];
+                    ref var run = ref runs[i];
+                    if (segment.Chunks.Length > run.Length)
+                    {
+                        changed = true;
+                        run = run.Append(segment.Chunks.Skip(run.Length).Select(world, (chunk, world) =>
+                            new Action(() => world.Release(chunk.Entities.AsSpan(0, chunk.Count)))));
+                    }
+                }
+
+                return changed ? runs : Option.None();
+            }).Map(runs => runs.Flatten());
+            var dependencies = Cache.Create(Array.Empty<Dependency>(), dependencies =>
+            {
+                var changed = false;
+                var segments = world.Segments;
+                if (segments.Length > dependencies.Length)
+                {
+                    changed = true;
+                    dependencies = dependencies.Append(segments.Skip(dependencies.Length).Select(segment => segment.Write<Entity>()));
+                }
+                return changed ? dependencies : Option.None();
+            });
             return new(runs, dependencies);
         });
 
@@ -46,13 +64,12 @@ namespace Entia.Experiment.V4
         public static Nodes.INode Destroy(Func<Destroyer, Nodes.INode> provide) => Lazy(world =>
         {
             var destroyer = world.Destroyer();
-            var segments = Cache.Change(() => world.Segments);
             return provide(destroyer).Map(plan =>
             {
-                var dependencies = plan.Dependencies.Or(segments).Change().Map(static pair =>
-                    pair.Item1.Append(pair.Item2.Select(static segment => segment.Write<Entity>())));
-                var runs = plan.Runs.Or(dependencies).Change().Map(pair =>
-                    pair.Item2.Conflicts() ? new[] { pair.Item1.Combine().Or(() => { }) } : pair.Item1);
+                var dependencies = Cache.Change(() => world.Segments).Or(plan.Dependencies.Change()).Map(pair =>
+                    pair.Item2.Append(pair.Item1.Select(segment => segment.Write<Entity>())));
+                var runs = plan.Runs.Change().Or(dependencies.Change()).Map(pair =>
+                    pair.Item2.Conflicts() ? pair.Item1.Combine().Map(run => new[] { run }).OrEmpty() : pair.Item1);
                 return new(runs, dependencies);
             });
         });

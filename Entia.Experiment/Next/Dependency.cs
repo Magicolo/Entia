@@ -20,6 +20,8 @@ namespace Entia.Experiment.V4
             Type = type;
             Segment = segment;
         }
+
+        public override string ToString() => $"{{ Kind: {Kind}, Type: {Type}, Segment: {Segment.Index} }}";
     }
 
     public static partial class Extensions

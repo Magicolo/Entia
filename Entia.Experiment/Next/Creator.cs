@@ -5,7 +5,7 @@ using Entia.Core;
 
 namespace Entia.Experiment.V4
 {
-    struct CreatorBufferKey { }
+    struct BufferKey { }
     public readonly struct Creator<T>
     {
         readonly struct Part
@@ -85,7 +85,7 @@ namespace Entia.Experiment.V4
 
             var batch = entities.Length;
             var count = batch * _parts.Length;
-            var buffer = Buffer.Get<CreatorBufferKey, Entity>(count);
+            var buffer = Buffer.Get<BufferKey, Entity>(count);
             _world.Reserve(buffer.AsSpan(0, count));
             for (int i = 0; i < _parts.Length; i++)
             {
@@ -102,6 +102,10 @@ namespace Entia.Experiment.V4
 
     public static partial class Node
     {
+        readonly struct BufferKey { }
+
+        public static Nodes.INode Create(Template<Unit> template, int count) =>
+            Create(template, creator => Run(() => creator.Create(Buffer.Get<BufferKey, Entity>(count).AsSpan(0, count))));
         public static Nodes.INode Create<T>(Template<T> template, Action<Creator<T>> run) =>
             Create(template, creator => Run(() => run(creator)));
         public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Lazy(world =>
@@ -110,9 +114,9 @@ namespace Entia.Experiment.V4
             var writes = creator.Segments.Select(segment => segment.Write<Entity>());
             return provide(creator).Map(plan =>
             {
-                var dependencies = plan.Dependencies.Change().Map(writes.Prepend);
-                var runs = plan.Runs.Or(dependencies).Change().Map(pair =>
-                    pair.Item2.Conflicts() ? new[] { pair.Item1.Combine().Or(() => { }) } : pair.Item1);
+                var dependencies = plan.Dependencies.Change(writes.Prepend);
+                var runs = plan.Runs.Change().Or(dependencies.Change()).Map(pair =>
+                    pair.Item2.Conflicts() ? pair.Item1.Combine().Map(run => new[] { run }).OrEmpty() : pair.Item1);
                 return new(runs, dependencies);
             });
         });

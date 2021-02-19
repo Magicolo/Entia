@@ -9,14 +9,22 @@ namespace Entia.Experiment.V4
 {
     public sealed record Meta : IComparable<Meta>
     {
-        public readonly Type Type;
         public readonly uint Index;
-        public Meta(Type type, uint index) { Type = type; Index = index; }
+        public readonly Type Type;
+        public readonly bool IsPlain;
+        public readonly bool IsBlittable;
+        public Meta(uint index, Type type)
+        {
+            Index = index;
+            Type = type;
+            IsPlain = type.IsPlain();
+            IsBlittable = type.IsBlittable();
+        }
+
         public int CompareTo(Meta other) => Index.CompareTo(other.Index);
     }
 
     public delegate void Initialize<T>(in Context context, in T state);
-    struct WorldBufferKey { }
 
     public sealed class World
     {
@@ -29,6 +37,7 @@ namespace Entia.Experiment.V4
             public void Deconstruct(out int index, out Segment.Chunk chunk, out Segment segment) => (index, chunk, segment) = (Index, Chunk, Segment);
         }
 
+        struct BufferKey { }
         struct ReleaseBuffers
         {
             public static readonly ReleaseBuffers Empty = new()
@@ -46,8 +55,8 @@ namespace Entia.Experiment.V4
             {
                 if (Count <= Capacity) return;
                 Capacity = Math.Max(Capacity * 2, 8);
-                Buffer.Ensure<WorldBufferKey, Entity>(ref Entities, Capacity);
-                Buffer.Ensure<WorldBufferKey, Datum>(ref Data, Capacity);
+                Buffer.Ensure<BufferKey, Entity>(ref Entities, Capacity);
+                Buffer.Ensure<BufferKey, Datum>(ref Data, Capacity);
             }
         }
 
@@ -56,10 +65,11 @@ namespace Entia.Experiment.V4
         const int Mask = Size - 1;
 
         public int Capacity => _data.Length * Size;
-        public int Count => _last - _free.Count;
+        public int Count => _last - _free.count;
         internal Segment[] Segments => _segments;
 
-        readonly ConcurrentStack<Entity> _free = new(new[] { Entity.Zero });
+        // readonly ConcurrentStack<Entity> _free = new(new[] { Entity.Zero });
+        (Entity[] items, object @lock, int count) _free = (new Entity[Size], new(), 1);
         Dictionary<Type, Meta> _metas = new();
         Datum[][] _data = { new Datum[Size] };
         Segment[] _segments = { };
@@ -95,7 +105,7 @@ namespace Entia.Experiment.V4
             while (true)
             {
                 if (metas.TryGetValue(type, out var meta)) return meta;
-                meta = new(type, (uint)metas.Count);
+                meta = new((uint)metas.Count, type);
                 if (Interlocked.CompareExchange(ref _metas, new(_metas) { { meta.Type, meta } }, metas) == metas) return meta;
                 metas = _metas;
             }
@@ -111,10 +121,13 @@ namespace Entia.Experiment.V4
             var reserved = 0;
             if (_last + entities.Length > Capacity)
             {
-                var buffer = Buffer.Get<WorldBufferKey, Entity>(entities.Length);
-                var popped = _free.TryPopRange(buffer, 0, entities.Length);
-                for (int i = 0; i < popped; i++) entities[i] = new(buffer[i].Index, buffer[i].Generation + 1);
-                reserved += popped;
+                foreach (var entity in Reserve(entities.Length))
+                    entities[reserved++] = new(entity.Index, entity.Generation + 1);
+
+                // var buffer = Buffer.Get<BufferKey, Entity>(entities.Length);
+                // var popped = _free.TryPopRange(buffer, 0, entities.Length);
+                // for (int i = 0; i < popped; i++) entities[i] = new(buffer[i].Index, buffer[i].Generation + 1);
+                // reserved += popped;
             }
 
             if (reserved == entities.Length) return;
@@ -164,14 +177,14 @@ namespace Entia.Experiment.V4
                     initialized += count;
                 }
 
-                if (free && chunk.Count < segment.Size) segment.Free.Push(chunk);
+                if (free && chunk.Count < segment.Size) segment.Free.Enqueue(chunk);
             }
         }
 
         public uint Release(ReadOnlySpan<Entity> entities)
         {
             if (entities.Length == 0) return 0;
-            var roots = (items: Buffer.Get<WorldBufferKey, (Entity child, Entity parent)>(entities.Length), count: 0);
+            var roots = (items: Buffer.Get<BufferKey, (Entity child, Entity parent)>(entities.Length), count: 0);
             var buffers = ReleaseBuffers.Empty;
             foreach (var entity in entities) if (entity.Index < _last) TakeData(entity, ref roots, ref buffers, true);
             if (buffers.Count == 0) return 0;
@@ -200,7 +213,7 @@ namespace Entia.Experiment.V4
                 // Try to prevent the lock if possible.
                 if (index >= chunk.Count) continue;
 
-                var free = false;
+                int count, source;
                 lock (chunk)
                 {
                     // If this is true, it means that another thread cleared this index.
@@ -208,8 +221,8 @@ namespace Entia.Experiment.V4
 
                     // To make the most of the lock and reduce contention, this thread tries to clear the 'index'
                     // and if it crosses greater indices that must also be cleared, it clears those as well.
-                    var count = chunk.Count;
-                    var source = --chunk.Count;
+                    count = chunk.Count;
+                    source = --chunk.Count;
                     while (index < source)
                     {
                         var last = chunk.Entities[source];
@@ -225,28 +238,61 @@ namespace Entia.Experiment.V4
                         }
                         else source = --chunk.Count;
                     }
-                    // Clear the stores in case there is garbage to be collected in them.
-                    foreach (var store in chunk.Stores) Array.Clear(store, source, count - source);
-                    free = count == segment.Size;
                 }
-                if (free) segment.Free.Push(chunk);
+
+                // Clear the stores in case there is garbage to be collected in them.
+                // This doesn't need to happen within the lock since the indices '[source, count[' are
+                // exclusive to this thread.
+                for (int j = 0; j < segment.Metas.Length; j++)
+                {
+                    if (segment.Metas[j].IsPlain) continue;
+                    Array.Clear(chunk.Stores[j], source, count - source);
+                }
+                if (count == segment.Size) segment.Free.Enqueue(chunk);
             }
 
             // Free the entities lastly to ensure that they cannot be reserved while the release
             // operation is ongoing.
-            _free.PushRange(buffers.Entities, 0, buffers.Count);
+            Free(buffers.Entities.AsSpan(0, buffers.Count));
             return (uint)buffers.Count;
+        }
+
+        ReadOnlySpan<Entity> Reserve(int count)
+        {
+            int index;
+            lock (_free.@lock)
+            {
+                count = Math.Min(_free.count, count);
+                index = _free.count -= count;
+            }
+            return _free.items.AsSpan(index, count);
+        }
+
+        void Free(ReadOnlySpan<Entity> entities)
+        {
+            var count = Interlocked.Add(ref _free.count, entities.Length);
+            var index = count - entities.Length;
+            var items = _free.items;
+            while (count > items.Length)
+            {
+                Interlocked.CompareExchange(ref _free.items, items.Resized(MathUtility.NextPowerOfTwo(count)), items);
+                items = _free.items;
+                count = _free.count;
+            }
+
+            while (true)
+            {
+                entities.CopyTo(items.AsSpan(index));
+                if (items == _free.items) return;
+                items = _free.items;
+            }
         }
 
         bool TryTakeDatum(Entity entity, out Datum datum)
         {
             ref var current = ref DatumAt(entity.Index);
             var chunk = current.Chunk;
-            if (chunk == null)
-            {
-                datum = default;
-                return false;
-            }
+            if (chunk == null) { datum = default; return false; }
 
             lock (chunk)
             {

@@ -30,10 +30,10 @@ namespace Entia.Experiment.V4
             var mutator = world.Mutator<T>();
             return provide(mutator).Map(plan =>
             {
-                var dependencies = plan.Dependencies.Or(mutator.Segments).Change().Map(pair =>
-                    pair.Item1.Append(pair.Item2.Select(segment => segment.Write()).Flatten()));
-                var runs = plan.Runs.Or(dependencies).Change().Map(pair =>
-                    pair.Item2.Conflicts() ? new[] { pair.Item1.Combine().Or(() => { }) } : pair.Item1);
+                var dependencies = mutator.Segments.Change().Or(plan.Dependencies.Change()).Map(pair =>
+                    pair.Item2.Append(pair.Item1.Select(segment => segment.Write<Entity>())));
+                var runs = plan.Runs.Change().Or(dependencies.Change()).Map(pair =>
+                    pair.Item2.Conflicts() ? pair.Item1.Combine().Map(run => new[] { run }).OrEmpty() : pair.Item1);
                 return new(runs, dependencies);
             });
         });

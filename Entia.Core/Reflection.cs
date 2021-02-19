@@ -40,7 +40,7 @@ namespace Entia.Core
         public TypeData[] Bases => _bases.Value;
         public bool IsPlain => _isPlain.Value;
         public bool IsBlittable => _isBlittable.Value;
-        public object Default => _default.Value;
+        public Option<object> Default => _default.Value;
         public Option<int> Size => _size.Value;
 
         MemberInfo IMemberData.Member => Type;
@@ -67,7 +67,7 @@ namespace Entia.Core
         readonly Lazy<TypeData[]> _bases;
         readonly Lazy<bool> _isPlain;
         readonly Lazy<bool> _isBlittable;
-        readonly Lazy<object> _default;
+        readonly Lazy<Option<object>> _default;
         readonly Lazy<Option<int>> _size;
 
         public TypeData(Type type)
@@ -81,70 +81,6 @@ namespace Entia.Core
                     .FirstOrDefault(child => child.IsGenericType && child.GetGenericTypeDefinition() == typeof(IEnumerable<>))
                     ?.GetGenericArguments()
                     ?.FirstOrDefault();
-            }
-
-            static object GetDefault(Type current)
-            {
-                try { return System.Array.CreateInstance(current, 1).GetValue(0); }
-                catch { return null; }
-            }
-
-            static bool GetIsPlain(TypeData current)
-            {
-                if (current.Type.IsPrimitive || current.Type.IsPointer || current.Type.IsEnum) return true;
-                if (current.Type.IsValueType)
-                {
-                    foreach (var field in current.InstanceFields)
-                    {
-                        if (GetIsPlain(field.Type)) continue;
-                        else return false;
-                    }
-                    return true;
-                }
-                return false;
-            }
-
-            static bool GetIsBlittable(TypeData current)
-            {
-                if (current.Type.IsPrimitive || current.Type.IsPointer || current.Type.IsEnum)
-                    return current != typeof(bool) && current != typeof(char) && current != typeof(decimal);
-                else if (current.Type.IsGenericType) return false;
-                else if (current.Type.IsValueType)
-                {
-                    foreach (var field in current.InstanceFields)
-                    {
-                        if (GetIsBlittable(field.Type)) continue;
-                        else return false;
-                    }
-                    return true;
-                }
-                else return false;
-            }
-
-            static unsafe Option<int> GetSize(TypeData current)
-            {
-                switch (current.Code)
-                {
-                    case TypeCode.Boolean: return sizeof(bool);
-                    case TypeCode.Byte: return sizeof(byte);
-                    case TypeCode.Char: return sizeof(char);
-                    case TypeCode.DateTime: return sizeof(DateTime);
-                    case TypeCode.Decimal: return sizeof(decimal);
-                    case TypeCode.Double: return sizeof(double);
-                    case TypeCode.Int16: return sizeof(short);
-                    case TypeCode.Int32: return sizeof(int);
-                    case TypeCode.Int64: return sizeof(long);
-                    case TypeCode.SByte: return sizeof(sbyte);
-                    case TypeCode.Single: return sizeof(float);
-                    case TypeCode.UInt16: return sizeof(ushort);
-                    case TypeCode.UInt32: return sizeof(uint);
-                    case TypeCode.UInt64: return sizeof(ulong);
-                    default:
-                        // NOTE: do not 'try-catch' 'Marshal.SizeOf' because it may cause inconsistencies between
-                        // serialization and deserialization if they occur on different platforms
-                        if (current.IsBlittable) return Marshal.SizeOf(current);
-                        return Option.None();
-                }
             }
 
             Type = type;
@@ -169,10 +105,10 @@ namespace Entia.Core
             _defaultConstructor = new Lazy<Option<ConstructorData>>(() => Type.DefaultConstructor().Map(constructor => constructor.GetData()));
             _declaring = new Lazy<TypeData[]>(() => Type.Declaring().Select(declaring => declaring.GetData()).ToArray());
             _arguments = new Lazy<TypeData[]>(() => Type.GetGenericArguments().Select(argument => argument.GetData()));
-            _isPlain = new Lazy<bool>(() => GetIsPlain(this));
-            _isBlittable = new Lazy<bool>(() => GetIsBlittable(Element.Filter(Type.IsArray).Or(this)));
-            _default = new Lazy<object>(() => GetDefault(Type));
-            _size = new Lazy<Option<int>>(() => GetSize(this));
+            _isPlain = new Lazy<bool>(() => Type.IsPlain());
+            _isBlittable = new Lazy<bool>(() => Type.IsBlittable());
+            _default = new Lazy<Option<object>>(() => Type.DefaultInstance());
+            _size = new Lazy<Option<int>>(() => Type.Size());
         }
 
         public override string ToString() => Type.FullFormat();

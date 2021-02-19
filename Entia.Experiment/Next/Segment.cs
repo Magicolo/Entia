@@ -31,13 +31,13 @@ namespace Entia.Experiment.V4
         public readonly Meta[] Metas;
         public readonly int Size;
         internal Chunk[] Chunks = { };
-        internal readonly ConcurrentStack<Chunk> Free = new();
+        internal readonly ConcurrentQueue<Chunk> Free = new();
 
         public Segment(uint index, Meta[] metas, int? size = default)
         {
             Index = index;
             Metas = metas;
-            Size = size ?? 64;
+            Size = size ?? 256;
         }
 
         public bool TryIndex(Meta meta, out int index) => (index = Array.BinarySearch(Metas, meta)) >= 0;
@@ -53,13 +53,13 @@ namespace Entia.Experiment.V4
             return false;
         }
 
-        public Chunk Next(out bool free)
+        public Chunk Next(out bool freed)
         {
             var chunks = Chunks;
-            if (chunks.TryLast(out var chunk, out var index) && chunk.Count < Size) { free = false; return chunk; }
-            free = true;
-            while (Free.TryPop(out var popped)) if (popped.Count < Size) return popped;
+            if (chunks.TryLast(out var chunk, out var index) && chunk.Count < Size) { freed = false; return chunk; }
+            while (Free.TryDequeue(out var free)) if (free.Count < Size) { freed = true; return free; }
 
+            freed = false;
             var stores = Metas.Select(Size, static (meta, size) => Array.CreateInstance(meta.Type, size));
             var children = ArrayUtility.Filled(Size, (Array.Empty<Entity>(), 0));
             index = chunks.Length;

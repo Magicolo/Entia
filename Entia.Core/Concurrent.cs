@@ -8,7 +8,7 @@ namespace Entia.Core
         public interface IRead : IDisposable { object Value { get; } }
         public interface IWrite : IDisposable { object Value { get; set; } }
 
-        public static T Mutate<T>(ref T location, in T value) where T : class
+        public static T Mutate<T>(ref T location, T value) where T : class
         {
             T initial, comparand, mutated;
             do
@@ -34,17 +34,20 @@ namespace Entia.Core
             return mutated;
         }
 
-        public static T Mutate<T, TState>(ref T location, in TState state, Func<T, TState, T> mutate) where T : class
+        public static T Mutate<T, TState>(ref T location, TState state, Func<T, TState, T> mutate) where T : class
         {
-            T initial, comparand, mutated;
-            do
-            {
-                comparand = location;
-                mutated = mutate(comparand, state);
-                initial = Interlocked.CompareExchange(ref location, mutated, comparand);
-            }
-            while (initial != comparand);
-            return mutated;
+            T value;
+            do if (TryMutate(ref location, state, mutate, out value)) break;
+            while (true);
+            return value;
+        }
+
+        public static bool TryMutate<T, TState>(ref T location, TState state, Func<T, TState, T> mutate, out T value) where T : class
+        {
+            var comparand = location;
+            value = mutate(comparand, state);
+            var initial = Interlocked.CompareExchange(ref location, value, comparand);
+            return ReferenceEquals(initial, comparand);
         }
     }
 
