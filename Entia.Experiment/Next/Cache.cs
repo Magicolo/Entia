@@ -31,38 +31,40 @@ namespace Entia.Experiment.V4
         public static Cache<T[]> Empty<T>() => Array<T>.Empty;
 
         public static Cache<T> Change<T>(this Cache<T> cache, Func<T, T, bool> equals = null) =>
-            cache.Change(value => value, equals);
+            Change(cache.Get, equals);
         public static Cache<T> Change<T>(Func<T> provide, Func<T, T, bool> equals = null) =>
-            Constant(provide()).Change(_ => provide(), equals);
-        public static Cache<TTarget> Change<TSource, TTarget>(TSource value, Func<TSource, TTarget> change, Func<TTarget, TTarget, bool> equals = null) =>
-            Constant(value).Change(change, equals);
+            Change(provide(), _ => provide(), equals);
+        public static Cache<T> Change<T>(T value, Func<T, T> change, Func<T, T, bool> equals = null)
+        {
+            equals ??= EqualityComparer<T>.Default.Equals;
+            return new(value, previous =>
+                change(previous) is var current &&
+                equals(previous, current) ? Option.None() : current);
+        }
+
         public static Cache<TTarget> Change<TSource, TTarget>(this Cache<TSource> cache, Func<TSource, TTarget> change, Func<TTarget, TTarget, bool> equals = null) =>
             cache.Change(change(cache.Get()), (value, _) => change(value), equals);
         public static Cache<TTarget> Change<TSource, TTarget>(this Cache<TSource> cache, TTarget value, Func<TSource, TTarget, TTarget> change, Func<TTarget, TTarget, bool> equals = null)
         {
             equals ??= EqualityComparer<TTarget>.Default.Equals;
-            return cache.Change(value, (source, target) =>
-                change(source, target) is var value &&
-                equals(target, value) ? Option.None() : value);
+            return new(value, previous =>
+                change(cache.Get(out var changed), previous) is var current &&
+                equals(previous, current) ? changed ? previous : Option.None() : current);
         }
 
-        public static Cache<T> Change<T>(T value, Func<T, T, Option<T>> change) => Constant(value).Change(change);
-        public static Cache<T> Change<T>(this Cache<T> cache, Func<T, T, Option<T>> change) => cache.Change(cache.Get(), change);
         public static Cache<TTarget> Change<TSource, TTarget>(this Cache<TSource> cache, TTarget value, Func<TSource, TTarget, Option<TTarget>> change) =>
             new(value, previous =>
-            {
-                var value = cache.Get(out var changed);
-                return change(value, previous).TryValue(out var current) ? current : changed ? previous : Option.None();
-            });
+                change(cache.Get(out var changed), previous).TryValue(out var current) ?
+                current : changed ? previous : Option.None());
 
         public static Cache<TTarget> Map<TSource, TTarget>(this Cache<TSource> cache, Func<TSource, TTarget> map) =>
             cache.Map(map(cache.Get()), (value, _) => map(value));
         public static Cache<TTarget> Map<TSource, TTarget>(this Cache<TSource> cache, TTarget value, Func<TSource, TTarget, TTarget> map) =>
             new(value, previous => cache.TryGet().Map(previous, map));
 
-        public static Cache<T[]> Any<T>(this IEnumerable<Cache<T>> caches) => caches.ToArray().Any();
+        public static Cache<T[]> Any<T>(this IEnumerable<Cache<T>> caches) => Any(caches.ToArray());
         public static Cache<T[]> Any<T>(params Cache<T>[] caches) =>
-            Change(caches.Select(cache => cache.Get()), (_, values) =>
+            new(caches.Select(cache => cache.Get()), values =>
             {
                 var changed = false;
                 for (int i = 0; i < caches.Length; i++) changed |= caches[i].TryGet().Set(ref values[i]);
@@ -70,7 +72,7 @@ namespace Entia.Experiment.V4
             });
 
         public static Cache<(TLeft, TRight)> Or<TLeft, TRight>(this Cache<TLeft> left, Cache<TRight> right) =>
-            Change((left.Get(), right.Get()), (_, pair) =>
+            new((left.Get(), right.Get()), pair =>
                 left.TryGet(out var leftValue) ? (leftValue, pair.Item2) :
                 right.TryGet(out var rightvalue) ? (pair.Item1, rightvalue) :
                 Option.None());

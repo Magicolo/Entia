@@ -23,8 +23,6 @@ namespace Entia.Experiment.V4
     {
         public static Nodes.INode Destroy(Matcher matcher) => Schedule(world =>
         {
-            var dependencies = Cache.Change(() => world.Segments)
-                .Map(static segments => segments.Select(segment => segment.Write<Entity>()));
             var runs = world.Segments(matcher)
                 .Change(Array.Empty<(Segment segment, Action[] runs)>(), (segments, pairs) =>
                 {
@@ -40,11 +38,13 @@ namespace Entia.Experiment.V4
                     return changed ? pairs : Option.None();
                 })
                 .Map(static pairs => pairs.Select(pair => pair.runs).Flatten());
-            return new Plan(runs, dependencies);
+            var dependencies = Cache.Change(() => world.Segments)
+                .Map(Array.Empty<Dependency>(), static (segments, dependencies) => dependencies.Append(
+                    segments.Skip(dependencies.Length).Select(segment => segment.Write<Entity>())));
+            return new(runs, dependencies);
         });
 
-        public static Nodes.INode Destroy(Action<Destroyer> run) =>
-            Destroy(destroyer => Run(() => run(destroyer)));
+        public static Nodes.INode Destroy(Action<Destroyer> run) => Destroy(destroyer => Run(() => run(destroyer)));
         public static Nodes.INode Destroy(Func<Destroyer, Nodes.INode> provide) => Lazy(world =>
         {
             var destroyer = world.Destroyer();

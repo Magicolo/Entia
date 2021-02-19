@@ -40,7 +40,10 @@ namespace Entia.Experiment.V4
             public T[] Buffer;
             public int Count;
         }
+
         readonly Resource<Messages> _messages;
+        public Emitter2(World world) => _messages = world.Resource<Messages>();
+
         public void Emit(in T message)
         {
             ref var messages = ref _messages.Value;
@@ -59,5 +62,6 @@ namespace Entia.Experiment.V4
     {
         public Slice<T>.Read Messages => _messages.Value.Buffer.Slice(count: _messages.Value.Count);
         readonly Resource<Emitter2<T>.Messages> _messages;
+        public Receiver2(World world) => _messages = world.Resource<Emitter2<T>.Messages>();
     }
 }

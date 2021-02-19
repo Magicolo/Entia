@@ -60,21 +60,19 @@ namespace Entia.Experiment.V4
 
         public static Nodes.INode Run<TComponent1>(RunEC1<TComponent1> run, Matcher? matcher = null) => Schedule(world =>
         {
-            var states = world.States(matcher ?? Matcher.True, world.Meta(typeof(TComponent1)));
-            var runs = states.Runs((chunk, stores) =>
+            var segments = world.Segments(matcher ?? Matcher.True, world.Meta(typeof(TComponent1)));
+            var runs = segments.Runs((chunk, stores) =>
             {
                 var entities = chunk.Entities;
                 var store1 = (TComponent1[])chunk.Stores[stores[0]];
                 return () => { for (int i = 0; i < chunk.Count; i++) run(entities[i], ref store1[i]); };
             });
-            var dependencies = states.Dependencies(segment => new[] { segment.Read<Entity>(), segment.Write<TComponent1>() });
+            var dependencies = segments.Dependencies(segment => new[] { segment.Read<Entity>(), segment.Write<TComponent1>() });
             return new Plan(runs, dependencies);
         });
 
         public static Action Schedule(this Nodes.INode node, World world)
         {
-            // var runs = Plans(node, world).Select(cache => cache.Map(plan => plan.Dependencies).Change()).Any();
-            // var dependencies = Plans(node, world).Select(cache => cache.Map(plan => plan.Dependencies).Change()).Any();
             var plans = Plans(node, world);
             var shrinks = Shrink(plans);
             return () =>
@@ -94,7 +92,7 @@ namespace Entia.Experiment.V4
             static void Run(Action[] runs, bool sequential)
             {
                 if (sequential || runs.Length <= 8) foreach (var run in runs) run();
-                else runs.Select(Task.Run).Iterate(task => task.Wait());
+                else runs.Select(Task.Run).Iterate(static task => task.Wait());
             }
 
             static IEnumerable<(int begin, int end)> Groups(Plan[] plans)
@@ -115,8 +113,14 @@ namespace Entia.Experiment.V4
 
             static Plan Merge(Slice<Plan> plans)
             {
-                var runs = plans.Select(plan => plan.Runs).Any().Map(runs => runs.Flatten());
-                var dependencies = plans.Select(plan => plan.Dependencies).Any().Map(dependencies => dependencies.Flatten());
+                var runs = plans
+                    .Select(static plan => plan.Runs.Change())
+                    .Any()
+                    .Map(static runs => runs.Flatten());
+                var dependencies = plans
+                    .Select(static plan => plan.Dependencies.Change())
+                    .Any()
+                    .Map(static dependencies => dependencies.Flatten());
                 return new(runs, dependencies);
             }
 
@@ -155,40 +159,40 @@ namespace Entia.Experiment.V4
                 return state;
             }).Map(state => state.segments);
 
-        static Cache<(Segment segment, Action[] runs, int[] stores)[]> States(this World world, Matcher matcher, params Meta[] metas) =>
-            Cache.Change((index: 0u, segments: Array.Empty<(Segment segment, Action[] runs, int[] stores)>()), state =>
+        static Cache<(Segment segment, int[] stores)[]> Segments(this World world, Matcher matcher, params Meta[] metas)
+        {
+            var index = 0u;
+            return Cache.Change(Array.Empty<(Segment segment, int[] stores)>(), segments =>
             {
-                ref var segments = ref state.segments;
-                while (state.index < world.Segments.Length)
+                while (index < world.Segments.Length)
                 {
-                    var segment = world.Segments[state.index++];
+                    var segment = world.Segments[index++];
                     var stores = new int[metas.Length];
                     var all = true;
                     for (int i = 0; i < metas.Length; i++) all &= segment.TryIndex(metas[i], out stores[i]);
-                    if (all && matcher.Match(segment, world)) segments = segments.Append((segment, Array.Empty<Action>(), stores));
+                    if (all && matcher.Match(segment, world)) segments = segments.Append((segment, stores));
                 }
-                return state;
-            }).Map(state => state.segments);
+                return segments;
+            });
+        }
 
-        static Cache<Action[]> Runs(this Cache<(Segment segment, Action[] runs, int[] stores)[]> states, Func<Segment.Chunk, int[], Action> run) =>
-            states.Change(states =>
+        static Cache<Action[]> Runs(this Cache<(Segment segment, int[] stores)[]> segments, Func<Segment.Chunk, int[], Action> provide) =>
+            segments.Change(Array.Empty<Action[]>(), (segments, runs) =>
             {
-                var changed = false;
-                foreach (ref var state in states.AsSpan())
+                var changed = segments.Length > runs.Length;
+                runs = runs.Append(segments.Skip(runs.Length).Select(_ => Array.Empty<Action>()));
+                for (int i = 0; i < segments.Length; i++)
                 {
-                    if (state.runs.Length == state.segment.Chunks.Length) continue;
-                    changed = true;
-                    var start = state.runs.Length;
-                    // Ensures the 'runs' array is always of the proper size.
-                    // If a segment is shrunk, excess runs will be thrown out.
-                    Array.Resize(ref state.runs, state.segment.Chunks.Length);
-                    for (int j = start; j < state.runs.Length; j++) state.runs[j] = run(state.segment.Chunks[j], state.stores);
+                    var (segment, stores) = segments[i];
+                    ref var run = ref runs[i];
+                    changed |= segment.Chunks.Length > run.Length;
+                    run = run.Append(segment.Chunks.Skip(run.Length).Select(stores, provide));
                 }
-                return Option.From(states).Filter(changed);
-            }).Map(states => states.Select(state => state.runs).Flatten());
+                return changed ? runs : Option.None();
+            }).Map(runs => runs.Flatten());
 
-        static Cache<Dependency[]> Dependencies(this Cache<(Segment segment, Action[] runs, int[] stores)[]> states, Func<Segment, Dependency[]> dependencies) =>
-            states.Change(states => states.Select(segment => dependencies(segment.segment)).Flatten());
+        static Cache<Dependency[]> Dependencies(this Cache<(Segment segment, int[] stores)[]> segments, Func<Segment, Dependency[]> dependencies) =>
+            segments.Change(segments => segments.Select(segment => dependencies(segment.segment)).Flatten());
     }
 
     namespace Nodes

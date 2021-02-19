@@ -317,7 +317,9 @@ namespace Entia.Modules
         }
 
         bool Reject(ref Relationships parent, ref Relationships child) =>
-            child.Parent == parent.Entity && RejectAt(parent.Children.IndexOf(child.Entity), ref parent, ref child);
+            child.Parent == parent.Entity &&
+            parent.Children.IndexOf(child.Entity).TryValue(out var index) &&
+            RejectAt(index, ref parent, ref child);
 
         bool RejectAt(int index, ref Relationships parent)
         {
@@ -351,9 +353,10 @@ namespace Entia.Modules
         bool Replace(ref Relationships child, ref Relationships parent, ref Relationships replacement)
         {
             if (child.Entity == replacement.Entity) return false;
-
-            var index = parent.Children.IndexOf(child.Entity);
-            return index >= 0 && RejectAt(index, ref parent, ref child) && AdoptAt(index, ref parent, ref replacement);
+            return
+                parent.Children.IndexOf(child.Entity).TryValue(out var index) &&
+                RejectAt(index, ref parent, ref child) &&
+                AdoptAt(index, ref parent, ref replacement);
         }
     }
 }

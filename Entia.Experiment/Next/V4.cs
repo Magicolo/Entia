@@ -234,7 +234,7 @@ namespace Entia.Experiment.V4
                 Enumerable.Range(0, 10).Select(index => Node.Create(Random(-98764 + index), creator => creator.Create(entities.Item3))).All(),
                 Enumerable.Range(0, 10).Select(index => Node.Create(Random(789312 + index), creator => creator.Create(entities.Item4))).All()
             ).Schedule(world);
-            var destroy = Node.Destroy().If(() => (_random ??= new()).NextDouble() < 0.1).Schedule(world);
+            var destroy = Node.Destroy(Matcher.True).If(() => (_random ??= new()).NextDouble() < 0.1).Schedule(world);
             var watch = Stopwatch.StartNew();
             for (int i = 0; i < 10_000; i++)
             {
