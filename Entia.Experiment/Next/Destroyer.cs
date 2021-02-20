@@ -46,18 +46,7 @@ namespace Entia.Experiment.V4
 
                 return changed ? runs : Option.None();
             }).Map(runs => runs.Flatten());
-            var dependencies = Cache.Create(Array.Empty<Dependency>(), dependencies =>
-            {
-                var changed = false;
-                var segments = world.Segments;
-                if (segments.Length > dependencies.Length)
-                {
-                    changed = true;
-                    dependencies = dependencies.Append(segments.Skip(dependencies.Length).Select(segment => segment.Write<Entity>()));
-                }
-                return changed ? dependencies : Option.None();
-            });
-            return new(runs, dependencies);
+            return new(runs, Cache.Constant(new[] { Dependency.Destroy }));
         });
 
         public static Nodes.INode Destroy(Action<Destroyer> run) => Destroy(destroyer => Run(() => run(destroyer)));
@@ -66,8 +55,7 @@ namespace Entia.Experiment.V4
             var destroyer = world.Destroyer();
             return provide(destroyer).Map(plan =>
             {
-                var dependencies = Cache.Change(() => world.Segments).Or(plan.Dependencies.Change()).Map(pair =>
-                    pair.Item2.Append(pair.Item1.Select(segment => segment.Write<Entity>())));
+                var dependencies = plan.Dependencies.Change(dependencies => dependencies.Prepend(Dependency.Destroy));
                 var runs = plan.Runs.Change().Or(dependencies.Change()).Map(pair =>
                     pair.Item2.Conflicts() ? pair.Item1.Combine().Map(run => new[] { run }).OrEmpty() : pair.Item1);
                 return new(runs, dependencies);

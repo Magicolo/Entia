@@ -57,9 +57,8 @@ namespace Entia.Experiment.V4
         {
             var chunks = Chunks;
             if (chunks.TryLast(out var chunk, out var index) && chunk.Count < Size) { freed = false; return chunk; }
-            while (Free.TryDequeue(out var free)) if (free.Count < Size) { freed = true; return free; }
-
-            freed = false;
+            freed = true;
+            while (Free.TryDequeue(out var free)) if (free.Count < Size) { return free; }
             var stores = Metas.Select(Size, static (meta, size) => Array.CreateInstance(meta.Type, size));
             var children = ArrayUtility.Filled(Size, (Array.Empty<Entity>(), 0));
             index = chunks.Length;

@@ -123,18 +123,18 @@ namespace Entia.Experiment.V4
                 data.Segment.TryStore(meta, out var store))
                 return ref ((T[])store)[data.Index];
 
+    TODO:
+    - Reorder plans to allow for more parallelism.
+    - Test family instantiation.
+    - Test family destruction.
+    - Test adding segments between frames.
+
     FIX:
-    - If a system has internally conflicting dependencies, there may be race condictions.
-        - Ex: A system may create an entity in a segment that is being iterated on.
-        - When conflicts are detected, the 'Runs' array of the sub runner can be combined in one
-        synchronous run.
-
-    - Create/Destroy operations can unpredictable (but thread-safe) effects when they affect a segment that is being
-    iterated on.
-        - Create could visit or not the newly created entity.
-        - Destroy could cause an entity to not be visited since it has been moved.
-
-    - The 'If' node must not evaluate the condition for each 'run', but rather once per 'Runner'.
+    - There's a rare multi-threading bug where some entities fail to be destroyed.
+    - Create/Destroy operations can have unpredictable (but thread-safe) effects when they affect a segment
+    that is being iterated on.
+        - Create could cause the iteration to visit or not the newly created entity.
+        - Destroy could cause an entity to not be visited since it has been swapped.
     */
 
     public static class Test
@@ -162,15 +162,13 @@ namespace Entia.Experiment.V4
         public struct IsObservable { }
         public enum DamageKinds { None = 0, Body = 1 << 0, Bullet = 1 << 1 }
 
-        public static readonly Template<Unit> Head;
-        public static readonly Template<Unit> Torso;
-        public static readonly Template<Unit> Abdomen;
+        public static readonly Template<Unit> Head = Head.Create(nameof(Head));
+        public static readonly Template<Unit> Torso = Torso.Create(nameof(Torso));
+        public static readonly Template<Unit> Abdomen = Abdomen.Create(nameof(Abdomen));
         public static readonly Template<Unit> Insect =
             Insect.Create(nameof(Insect))
                 .Adopt(Head, Torso, Abdomen)
-                // .Adopt(new[] { Head, Torso, Abdomen }, (Entity parent, ReadOnlySpan<Entity> children, T state) => new Body { Head = children[0], Torso = children[1], Abdomen = children[2] })
-                // .Add((Entity parent, ReadOnlySpan<Entity> children, T state) => new )
-                ;
+                .Add((_, _, children, _) => new Body { Head = children[0], Torso = children[1], Abdomen = children[2] });
 
         public static readonly Template<(Vector2 position, double angle)> Player =
             Player.Create(nameof(Player))
@@ -224,8 +222,6 @@ namespace Entia.Experiment.V4
 
         public static void Do()
         {
-            // TODO: Reorder plans to allow for more parallelism.
-
             var world = new World();
             var entities = world.Entities();
             // var game = world.Resource<Game>();
@@ -240,13 +236,13 @@ namespace Entia.Experiment.V4
             );
             var value = 0L;
             var sum = Node.Run(Sum);
-            var destroy = Node.Destroy(Matcher.True);//.If(() => random.Value.NextDouble() < 0.1);
+            var destroy = Enumerable.Range(0, 100).Select(_ => Node.Destroy(Matcher.True).If(() => random.Value.NextDouble() < 0.01)).All();
             var run = Node.All(create, sum, destroy).Schedule(world);
             var watch = Stopwatch.StartNew();
             for (int i = 0; i < 100; i++)
             {
                 run();
-                if ((i % 10) == 0)
+                if ((i % 1) == 0)
                 {
                     Console.WriteLine($"Iteration({i}): {watch.Elapsed} | {world.Count}/{world.Capacity}");
                     watch.Restart();

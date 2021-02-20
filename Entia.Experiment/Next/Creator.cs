@@ -111,10 +111,10 @@ namespace Entia.Experiment.V4
         public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Lazy(world =>
         {
             var creator = world.Creator(template);
-            var writes = creator.Segments.Select(segment => segment.Write<Entity>());
+            var creates = creator.Segments.Select(segment => segment.Create());
             return provide(creator).Map(plan =>
             {
-                var dependencies = plan.Dependencies.Change(writes.Prepend);
+                var dependencies = plan.Dependencies.Change(creates.Prepend);
                 var runs = plan.Runs.Change().Or(dependencies.Change()).Map(pair =>
                     pair.Item2.Conflicts() ? pair.Item1.Combine().Map(run => new[] { run }).OrEmpty() : pair.Item1);
                 return new(runs, dependencies);

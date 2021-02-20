@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -120,15 +119,8 @@ namespace Entia.Experiment.V4
             // pre-emptively allocated the next chunk of data, it is not worth trying to synchronize.
             var reserved = 0;
             if (_last + entities.Length > Capacity)
-            {
                 foreach (var entity in Reserve(entities.Length))
                     entities[reserved++] = new(entity.Index, entity.Generation + 1);
-
-                // var buffer = Buffer.Get<BufferKey, Entity>(entities.Length);
-                // var popped = _free.TryPopRange(buffer, 0, entities.Length);
-                // for (int i = 0; i < popped; i++) entities[i] = new(buffer[i].Index, buffer[i].Generation + 1);
-                // reserved += popped;
-            }
 
             if (reserved == entities.Length) return;
             var count = entities.Length - reserved;

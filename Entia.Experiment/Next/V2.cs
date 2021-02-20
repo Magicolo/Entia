@@ -255,7 +255,6 @@ namespace Entia.Experiment.V2
                 }
             }
 
-            // TODO: Add batch destruction: bool Destroy(Span<Entity> buffer)
             public bool Destroy(Entity entity, out int segment, out int index)
             {
                 ref var data = ref DataAt(entity.Index);
@@ -313,8 +312,6 @@ namespace Entia.Experiment.V2
         {
             if (_entities.Destroy(entity, out var segment, out var index))
             {
-                // TODO: Since 'Destroy' and 'Remove' are in 2 distinct steps, a query could observe an destroyed entity.
-                // Might not be a big deal since it essentially only affects 'Has(entity)'...
                 _components.Segments[segment].Remove(index);
                 return true;
             }
