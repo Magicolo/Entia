@@ -31,7 +31,13 @@ namespace Entia.Experiment.V4
         public static Nodes.INode Depend(this Nodes.INode node, params Dependency[] dependencies) =>
             node.Map(plan => new(plan.Runs, plan.Dependencies.Change(dependencies.Prepend)));
         public static Nodes.INode If(this Nodes.INode node, Func<bool> condition) =>
-            node.Map(plan => new(plan.Runs.Update((runs, _) => condition() ? runs : Array.Empty<Action>()), plan.Dependencies));
+            node.Map(plan => new(
+                plan.Runs.Update((current, previous) =>
+                {
+                    var next = condition() ? current : Array.Empty<Action>();
+                    return previous == next ? Option.None() : next;
+                }),
+                plan.Dependencies));
 
         public delegate void RunR1M1EC1<TResource1, TMessage1, TComponent1>(ref TResource1 resource1, in TMessage1 message1, Entity entity, ref TComponent1 component1);
         public delegate void RunR1EC1<TResource1, TComponent1>(ref TResource1 resource1, Entity entity, ref TComponent1 component1);
@@ -101,13 +107,8 @@ namespace Entia.Experiment.V4
 
             static void Run(Action[] runs, bool sequential)
             {
-                if (sequential || runs.Length <= 8) foreach (var run in runs) run();
-                else
-                {
-                    var buffer = Buffer.Get<BufferKey, Task>(runs.Length);
-                    for (int i = 0; i < runs.Length; i++) buffer[i] = Task.Run(runs[i]);
-                    for (int i = 0; i < runs.Length; i++) buffer[i].Wait();
-                }
+                if (sequential || runs.Length < 2) foreach (var run in runs) run();
+                else Parallel.Invoke(runs);
             }
 
             static IEnumerable<(int begin, int end)> Groups(Plan[] plans)
@@ -201,36 +202,21 @@ namespace Entia.Experiment.V4
         static Cache<Action[]> Runs(this Cache<(Segment segment, int[] stores)[]> segments, Func<Segment.Chunk, int[], Action> provide) =>
             segments.Update(Array.Empty<Action[]>(), (segments, runs) =>
             {
-                var changed = false;
-                if (segments.Length > runs.Length)
-                {
-                    changed = true;
-                    runs = runs.Append(segments.Skip(runs.Length).Select(_ => Array.Empty<Action>()));
-                }
-
+                var changed = ArrayUtility.Extend(ref runs, segments.Length, _ => Array.Empty<Action>());
                 for (int i = 0; i < segments.Length; i++)
                 {
                     var (segment, stores) = segments[i];
-                    ref var run = ref runs[i];
-                    if (segment.Chunks.Length > run.Length)
-                    {
-                        changed = true;
-                        run = run.Append(segment.Chunks.Skip(run.Length).Select(stores, provide));
-                    }
+                    changed |= ArrayUtility.Extend(ref runs[i], segment.Chunks.Length, (segment, stores, provide), (index, state) =>
+                        state.provide(state.segment.Chunks[index], state.stores));
                 }
-
                 return changed ? runs : Option.None();
             }).Map(runs => runs.Flatten());
 
         static Cache<Dependency[]> Dependencies(this Cache<(Segment segment, int[] stores)[]> segments, Func<Segment, Dependency[]> provide) =>
             segments.Update(Array.Empty<Dependency[]>(), (pairs, dependencies) =>
             {
-                var changed = false;
-                if (pairs.Length > dependencies.Length)
-                {
-                    changed = true;
-                    dependencies = pairs.Skip(dependencies.Length).Select(pair => provide(pair.segment));
-                }
+                var changed = ArrayUtility.Extend(ref dependencies, pairs.Length, (pairs, provide), (index, state) =>
+                    state.provide(state.pairs[index].segment));
                 return changed ? dependencies : Option.None();
             }).Map(dependencies => dependencies.Flatten());
     }

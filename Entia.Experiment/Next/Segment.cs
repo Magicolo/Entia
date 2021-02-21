@@ -31,13 +31,13 @@ namespace Entia.Experiment.V4
         public readonly Meta[] Metas;
         public readonly int Size;
         internal Chunk[] Chunks = { };
-        internal readonly ConcurrentQueue<Chunk> Free = new();
+        readonly ConcurrentQueue<Chunk> _free = new();
 
         public Segment(uint index, Meta[] metas, int? size = default)
         {
             Index = index;
             Metas = metas;
-            Size = size ?? 256;
+            Size = size ?? 64;
         }
 
         public bool TryIndex(Meta meta, out int index) => (index = Array.BinarySearch(Metas, meta)) >= 0;
@@ -53,21 +53,36 @@ namespace Entia.Experiment.V4
             return false;
         }
 
-        public Chunk Next(out bool freed)
+        public Chunk Next()
         {
+            if (TryTake(out var chunk)) return chunk;
             var chunks = Chunks;
-            if (chunks.TryLast(out var chunk, out var index) && chunk.Count < Size) { freed = false; return chunk; }
-            freed = true;
-            while (Free.TryDequeue(out var free)) if (free.Count < Size) { return free; }
-            var stores = Metas.Select(Size, static (meta, size) => Array.CreateInstance(meta.Type, size));
+            var stores = Metas.Select(Size, (meta, size) => Array.CreateInstance(meta.Type, size));
             var children = ArrayUtility.Filled(Size, (Array.Empty<Entity>(), 0));
-            index = chunks.Length;
+            var index = chunks.Length;
             chunk = new((uint)index, new Entity[Size], new Entity[Size], children, stores);
             // If the 'CompareExchange' fails, it means that another thread added a chunk before this one
             // finished. In this case, this thread's work will be discarded, which is fine.
-            Interlocked.CompareExchange(ref Chunks, chunks.Append(chunk), chunks);
-            // Read from 'Chunks' in case 'CompareExchange' fails.
-            return Chunks[index];
+            if (Interlocked.CompareExchange(ref Chunks, chunks.Append(chunk), chunks) == chunks)
+            {
+                Put(chunk);
+                return chunk;
+            }
+            // Another thread created the chunk so just use it.
+            else return Chunks[index];
+        }
+
+        public bool TryTake(out Chunk chunk)
+        {
+            while (_free.TryDequeue(out chunk)) if (Put(chunk)) return true;
+            return false;
+        }
+
+        public bool Put(Chunk chunk)
+        {
+            if (chunk.Count == Size) return false;
+            _free.Enqueue(chunk);
+            return true;
         }
 
         public int CompareTo(Segment other) => Index.CompareTo(other.Index);

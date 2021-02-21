@@ -67,7 +67,6 @@ namespace Entia.Experiment.V4
         public int Count => _last - _free.count;
         internal Segment[] Segments => _segments;
 
-        // readonly ConcurrentStack<Entity> _free = new(new[] { Entity.Zero });
         (Entity[] items, object @lock, int count) _free = (new Entity[Size], new(), 1);
         Dictionary<Type, Meta> _metas = new();
         Datum[][] _data = { new Datum[Size] };
@@ -141,7 +140,7 @@ namespace Entia.Experiment.V4
             var batch = entities.Length;
             while (initialized < batch)
             {
-                var chunk = segment.Next(out var free);
+                var chunk = segment.Next();
                 // Try to prevent the lock if the chunk is full.
                 if (chunk.Count == segment.Size) continue;
                 var remaining = batch - initialized;
@@ -168,8 +167,6 @@ namespace Entia.Experiment.V4
                     chunk.Count += count;
                     initialized += count;
                 }
-
-                if (free && chunk.Count < segment.Size) segment.Free.Enqueue(chunk);
             }
         }
 
@@ -240,12 +237,12 @@ namespace Entia.Experiment.V4
                     if (segment.Metas[j].IsPlain) continue;
                     Array.Clear(chunk.Stores[j], source, count - source);
                 }
-                if (count == segment.Size) segment.Free.Enqueue(chunk);
+                if (count == segment.Size) segment.Put(chunk);
             }
 
             // Free the entities lastly to ensure that they cannot be reserved while the release
             // operation is ongoing.
-            Free(buffers.Entities.AsSpan(0, buffers.Count));
+            Concurrent.Push(ref _free.items, ref _free.count, buffers.Entities.AsSpan(0, buffers.Count));
             return (uint)buffers.Count;
         }
 
@@ -258,26 +255,6 @@ namespace Entia.Experiment.V4
                 index = _free.count -= count;
             }
             return _free.items.AsSpan(index, count);
-        }
-
-        void Free(ReadOnlySpan<Entity> entities)
-        {
-            var count = Interlocked.Add(ref _free.count, entities.Length);
-            var index = count - entities.Length;
-            var items = _free.items;
-            while (count > items.Length)
-            {
-                Interlocked.CompareExchange(ref _free.items, items.Resized(MathUtility.NextPowerOfTwo(count)), items);
-                items = _free.items;
-                count = _free.count;
-            }
-
-            while (true)
-            {
-                entities.CopyTo(items.AsSpan(index));
-                if (items == _free.items) return;
-                items = _free.items;
-            }
         }
 
         bool TryTakeDatum(Entity entity, out Datum datum)

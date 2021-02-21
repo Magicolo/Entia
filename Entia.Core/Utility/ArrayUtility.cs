@@ -12,6 +12,24 @@ namespace Entia.Core
             public static readonly Func<T, int> Hash = EqualityComparer<T>.Default.GetHashCode;
         }
 
+        public static bool Extend<T>(ref T[] source, int count, Func<int, T> provide)
+        {
+            if (source.Length >= count) return false;
+            var index = source.Length;
+            Array.Resize(ref source, count);
+            for (int i = index; i < count; i++) source[i] = provide(i);
+            return true;
+        }
+
+        public static bool Extend<T, TState>(ref T[] source, int count, TState state, Func<int, TState, T> provide)
+        {
+            if (source.Length >= count) return false;
+            var index = source.Length;
+            Array.Resize(ref source, count);
+            for (int i = index; i < count; i++) source[i] = provide(i, state);
+            return true;
+        }
+
         public static T[] Filled<T>(int size, T value)
         {
             if (size == 0) return Array.Empty<T>();

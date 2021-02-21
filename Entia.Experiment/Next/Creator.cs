@@ -6,6 +6,7 @@ using Entia.Core;
 namespace Entia.Experiment.V4
 {
     struct BufferKey { }
+
     public readonly struct Creator<T>
     {
         readonly struct Part
@@ -102,10 +103,8 @@ namespace Entia.Experiment.V4
 
     public static partial class Node
     {
-        readonly struct BufferKey { }
-
         public static Nodes.INode Create(Template<Unit> template, int count) =>
-            Create(template, creator => Run(() => creator.Create(Buffer.Get<BufferKey, Entity>(count).AsSpan(0, count))));
+            Create(template, creator => Run(() => creator.Create(count)));
         public static Nodes.INode Create<T>(Template<T> template, Action<Creator<T>> run) =>
             Create(template, creator => Run(() => run(creator)));
         public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Lazy(world =>
@@ -124,8 +123,13 @@ namespace Entia.Experiment.V4
 
     public static partial class Extensions
     {
+        struct BufferKey { }
+
         public static Creator<T> Creator<T>(this World world, Template<T> template) => new(template, world);
         public static Entity Create(this Creator<Unit> creator) => creator.Create(default);
         public static void Create(this Creator<Unit> creator, Span<Entity> entities) => creator.Create(entities, default);
+        public static void Create(this Creator<Unit> creator, int count) => creator.Create(default, count);
+        public static void Create<T>(this Creator<T> creator, T state, int count) =>
+            creator.Create(Buffer.Get<BufferKey, Entity>(count).AsSpan(0, count), state);
     }
 }

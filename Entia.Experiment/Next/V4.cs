@@ -124,7 +124,9 @@ namespace Entia.Experiment.V4
                 return ref ((T[])store)[data.Index];
 
     TODO:
-    - Reorder plans to allow for more parallelism.
+    - Allow plans to be reordered to allow for more parallelism.
+    - Figure out a messaging mechanism.
+    - Make a source generator for the 'Run' functions.
     - Test family instantiation.
     - Test family destruction.
     - Test adding segments between frames.
@@ -225,24 +227,23 @@ namespace Entia.Experiment.V4
             var world = new World();
             var entities = world.Entities();
             // var game = world.Resource<Game>();
-            var buffers = new ThreadLocal<Entity[][]>(() => new[] { new Entity[1], new Entity[10], new Entity[100], new Entity[1000] });
             var random = new ThreadLocal<Random>(() => new(0));
             var create = Node.All(
-                Enumerable.Range(0, 100).Select(index => Node.Create(Random(64321 + index), creator => creator.Create())).All(),
-                Enumerable.Range(0, 100).Select(index => Node.Create(Random(-3572 + index), 1)).All(),
-                Enumerable.Range(0, 100).Select(index => Node.Create(Random(987965432 + index), 10)).All(),
-                Enumerable.Range(0, 100).Select(index => Node.Create(Random(-98764 + index), 100)).All(),
-                Enumerable.Range(0, 100).Select(index => Node.Create(Random(789312 + index), 1000)).All()
+                Enumerable.Range(0, 10).Select(index => Node.Create(Random(64321 + index), creator => creator.Create())).All(),
+                Enumerable.Range(0, 10).Select(index => Node.Create(Random(-3572 + index), 1)).All(),
+                Enumerable.Range(0, 10).Select(index => Node.Create(Random(987965432 + index), 10)).All(),
+                Enumerable.Range(0, 10).Select(index => Node.Create(Random(-98764 + index), 100)).All(),
+                Enumerable.Range(0, 10).Select(index => Node.Create(Random(789312 + index), 1000)).All()
             );
             var value = 0L;
             var sum = Node.Run(Sum);
-            var destroy = Enumerable.Range(0, 100).Select(_ => Node.Destroy(Matcher.True).If(() => random.Value.NextDouble() < 0.01)).All();
+            var destroy = Node.Destroy(Matcher.True).If(() => random.Value.NextDouble() < 0.1);
             var run = Node.All(create, sum, destroy).Schedule(world);
             var watch = Stopwatch.StartNew();
             for (int i = 0; i < 100; i++)
             {
                 run();
-                if ((i % 1) == 0)
+                if ((i % 10) == 0)
                 {
                     Console.WriteLine($"Iteration({i}): {watch.Elapsed} | {world.Count}/{world.Capacity}");
                     watch.Restart();

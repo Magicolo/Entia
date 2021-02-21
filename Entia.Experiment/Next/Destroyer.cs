@@ -25,25 +25,16 @@ namespace Entia.Experiment.V4
         {
             var runs = world.Segments(matcher).Update(Array.Empty<Action[]>(), (segments, runs) =>
             {
-                var changed = false;
-                if (segments.Length > runs.Length)
-                {
-                    changed = true;
-                    runs = runs.Append(segments.Skip(runs.Length).Select(_ => Array.Empty<Action>()));
-                }
-
+                var changed = ArrayUtility.Extend(ref runs, segments.Length, _ => Array.Empty<Action>());
                 for (int i = 0; i < segments.Length; i++)
                 {
                     var segment = segments[i];
-                    ref var run = ref runs[i];
-                    if (segment.Chunks.Length > run.Length)
+                    changed |= ArrayUtility.Extend(ref runs[i], segment.Chunks.Length, (chunks: segment.Chunks, world), (index, state) =>
                     {
-                        changed = true;
-                        run = run.Append(segment.Chunks.Skip(run.Length).Select(world, (chunk, world) =>
-                            new Action(() => world.Release(chunk.Entities.AsSpan(0, chunk.Count)))));
-                    }
+                        var chunk = state.chunks[index];
+                        return new Action(() => world.Release(chunk.Entities.AsSpan(0, chunk.Count)));
+                    });
                 }
-
                 return changed ? runs : Option.None();
             }).Map(runs => runs.Flatten());
             return new(runs, Cache.Constant(new[] { Dependency.Destroy }));
