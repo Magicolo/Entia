@@ -73,41 +73,23 @@ namespace Entia.Experiment.V4
         Segment[] _segments = { };
         int _last = 1; // Skip 'Entity(0, 0)' to prevent bugs when mistakenly using 'default(Entity)' or 'Entity.Zero'.
 
-        public Segment Segment(Meta[] metas, int? size = default)
-        {
-            var segments = _segments;
-            metas.Sort();
-            while (true)
-            {
-                if (Find(segments, metas, out var segment)) return segment;
-                segment = new((uint)_segments.Length, metas, size);
-                if (Interlocked.CompareExchange(ref _segments, segments.Append(segment), segments) == segments) return segment;
-                segments = _segments;
-            }
-
-            static bool Find(Segment[] segments, Meta[] metas, out Segment segment)
-            {
-                for (int i = 0; i < segments.Length; i++)
-                    if (ArrayUtility.Equals((segment = segments[i]).Metas, metas)) return true;
-                segment = default;
-                return false;
-            }
-        }
+        public Segment Segment(Meta[] metas, int? size = default) =>
+            Concurrent.MutateUntilGet(ref _segments, (metas: metas.Sorted(), size),
+                static (segments, pair) =>
+                {
+                    for (int i = 0; segments.TryAt(i, out var segment); i++)
+                        if (ArrayUtility.Equals(segment.Metas, pair.metas)) return Option.From(segment);
+                    return Option.None();
+                },
+                static (segments, pair) => segments.Append(new Segment((uint)segments.Length, pair.metas, pair.size)));
 
         public bool TryDatum(Entity entity, out Datum datum) =>
             TryDatumAt(entity.Index, out datum) && datum.Chunk?.Entities[datum.Index] == entity;
 
-        public Meta Meta(Type type)
-        {
-            var metas = _metas;
-            while (true)
-            {
-                if (metas.TryGetValue(type, out var meta)) return meta;
-                meta = new((uint)metas.Count, type);
-                if (Interlocked.CompareExchange(ref _metas, new(_metas) { { meta.Type, meta } }, metas) == metas) return meta;
-                metas = _metas;
-            }
-        }
+        public Meta Meta(Type type) =>
+            Concurrent.MutateUntilGet(ref _metas, type,
+                static (metas, type) => metas.TryGetValue(type, out var meta) ? Option.From(meta) : Option.None(),
+                static (metas, type) => new(metas) { { type, new((uint)metas.Count, type) } });
 
         public bool TryMeta(Type type, out Meta meta) => _metas.TryGetValue(type, out meta);
 
@@ -122,16 +104,10 @@ namespace Entia.Experiment.V4
                     entities[reserved++] = new(entity.Index, entity.Generation + 1);
 
             if (reserved == entities.Length) return;
-            var count = entities.Length - reserved;
-            var last = Interlocked.Add(ref _last, count);
-            var chunk = (last - 1) >> Shift;
-            var data = _data;
-            while (chunk >= data.Length)
-            {
-                Interlocked.CompareExchange(ref _data, data.Append(new Datum[Size]), data);
-                data = _data;
-            }
-            for (int i = last - count; i < last; i++) entities[reserved++] = new(i, 0);
+            var remaining = entities.Length - reserved;
+            var last = Interlocked.Add(ref _last, remaining);
+            Concurrent.Extend(ref _data, ((last - 1) >> Shift) + 1, static _ => new Datum[Size]);
+            for (int i = last - remaining; i < last; i++) entities[reserved++] = new(i, 0);
         }
 
         public void Initialize<T>(ReadOnlySpan<Entity> entities, Slice<Entity>.Read parents, Slice<Entity>.Read children, Segment segment, in T state, Initialize<T> initialize)
@@ -266,7 +242,6 @@ namespace Entia.Experiment.V4
             lock (chunk)
             {
                 datum = current;
-                var index = datum.Index;
                 if (current.Chunk == chunk && chunk.Entities[datum.Index] == entity)
                 {
                     current = default;

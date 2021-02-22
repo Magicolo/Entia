@@ -2,11 +2,21 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Entia.Experiment",
+			"name": "Entia.Experiment.Debug",
 			"type": "coreclr",
 			"request": "launch",
 			"preLaunchTask": "build debug",
 			"program": "${workspaceFolder}/Entia.Experiment/bin/Debug/netcoreapp3.1/Entia.Experiment.dll",
+			"cwd": "${workspaceFolder}/Entia.Experiment/",
+			"console": "externalTerminal",
+			"internalConsoleOptions": "neverOpen"
+		},
+		{
+			"name": "Entia.Experiment.Release",
+			"type": "coreclr",
+			"request": "launch",
+			"preLaunchTask": "build release",
+			"program": "${workspaceFolder}/Entia.Experiment/bin/Release/netcoreapp3.1/Entia.Experiment.dll",
 			"cwd": "${workspaceFolder}/Entia.Experiment/",
 			"console": "externalTerminal",
 			"internalConsoleOptions": "neverOpen"

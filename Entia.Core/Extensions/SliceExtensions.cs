@@ -20,7 +20,7 @@ namespace Entia.Core
             return new(
                 source.Array,
                 source.Index + index * source.Step,
-                Math.Min(count ?? source.Count, (source.Count - index) / step),
+                Math.Min(count ?? source.Count, (source.Count - index + step - 1) / step),
                 source.Step * step);
         }
 
@@ -32,7 +32,7 @@ namespace Entia.Core
             return new(
                 source.Array,
                 source.Index + index * source.Step,
-                Math.Min(count ?? source.Count, (source.Count - index) / step),
+                Math.Min(count ?? source.Count, (source.Count - index + step - 1) / step),
                 source.Step * step);
         }
 

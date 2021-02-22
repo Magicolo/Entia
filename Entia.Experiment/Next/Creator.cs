@@ -97,14 +97,14 @@ namespace Entia.Experiment.V4
                     Array.Empty<Entity>();
                 _world.Initialize(buffer.AsSpan(i * batch, batch), parents, children, part.Segment, state, part.Initialize);
             }
-            buffer.CopyTo(entities);
+            buffer.AsSpan(0, entities.Length).CopyTo(entities);
         }
     }
 
     public static partial class Node
     {
         public static Nodes.INode Create(Template<Unit> template, int count) =>
-            Create(template, creator => Run(() => creator.Create(count)));
+            count <= 0 ? Empty : Create(template, creator => Run(() => creator.Create(count)));
         public static Nodes.INode Create<T>(Template<T> template, Action<Creator<T>> run) =>
             Create(template, creator => Run(() => run(creator)));
         public static Nodes.INode Create<T>(Template<T> template, Func<Creator<T>, Nodes.INode> provide) => Lazy(world =>
@@ -129,7 +129,10 @@ namespace Entia.Experiment.V4
         public static Entity Create(this Creator<Unit> creator) => creator.Create(default);
         public static void Create(this Creator<Unit> creator, Span<Entity> entities) => creator.Create(entities, default);
         public static void Create(this Creator<Unit> creator, int count) => creator.Create(default, count);
-        public static void Create<T>(this Creator<T> creator, T state, int count) =>
+        public static void Create<T>(this Creator<T> creator, T state, int count)
+        {
+            if (count <= 0) return;
             creator.Create(Buffer.Get<BufferKey, Entity>(count).AsSpan(0, count), state);
+        }
     }
 }

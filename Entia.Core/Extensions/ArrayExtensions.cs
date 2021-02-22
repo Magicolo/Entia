@@ -10,6 +10,12 @@ namespace Entia.Core
             public static readonly Comparison<T> Compare = Comparer<T>.Default.Compare;
         }
 
+        public static T[] Extended<T>(this T[] array, int count, Func<int, T> provide)
+        {
+            ArrayUtility.Extend(ref array, count, provide);
+            return array;
+        }
+
         public static void Swap<T>(this T[] array, int source, int target)
         {
             var value = array[source];

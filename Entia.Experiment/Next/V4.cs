@@ -1,10 +1,10 @@
 using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
-using System.Threading;
+using Entia.Bench;
 using Entia.Core;
+using Entia.Experiment.V4.Nodes;
 
 namespace Entia.Experiment.V4
 {
@@ -132,7 +132,9 @@ namespace Entia.Experiment.V4
     - Test adding segments between frames.
 
     FIX:
+    - Oh oh: `Node.Destroy(destroyer => Node.Create(Template.Empty().Add((entity, _) => destroyer.Destroy(entity)), 100))`
     - There's a rare multi-threading bug where some entities fail to be destroyed.
+        - Most likely related with a buffer resize.
     - Create/Destroy operations can have unpredictable (but thread-safe) effects when they affect a segment
     that is being iterated on.
         - Create could cause the iteration to visit or not the newly created entity.
@@ -214,11 +216,12 @@ namespace Entia.Experiment.V4
         }
 
         static readonly Type[] _types = typeof(Test).GetNestedTypes().Where(type => type.IsValueType).ToArray();
-        public static Template<Unit> Random(int seed)
+        static readonly Random _random = new();
+        static Template<Unit> Random(int depth = 12)
         {
-            var random = new Random(seed);
             var template = Template.Empty();
-            while (random.NextDouble() < 0.95) template = template.Add(_types[random.Next(_types.Length)]);
+            while (_random.NextDouble() < 0.95) template = template.Add(_types[_random.Next(_types.Length)]);
+            while (_random.NextDouble() < 8.0 / depth) template = template.Adopt(Random(depth + 1));
             return template;
         }
 
@@ -227,30 +230,31 @@ namespace Entia.Experiment.V4
             var world = new World();
             var entities = world.Entities();
             // var game = world.Resource<Game>();
-            var random = new ThreadLocal<Random>(() => new(0));
-            var create = Node.All(
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(64321 + index), creator => creator.Create())).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(-3572 + index), 1)).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(987965432 + index), 10)).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(-98764 + index), 100)).All(),
-                Enumerable.Range(0, 10).Select(index => Node.Create(Random(789312 + index), 1000)).All()
-            );
-            var value = 0L;
-            var sum = Node.Run(Sum);
-            var destroy = Node.Destroy(Matcher.True).If(() => random.Value.NextDouble() < 0.1);
-            var run = Node.All(create, sum, destroy).Schedule(world);
-            var watch = Stopwatch.StartNew();
-            for (int i = 0; i < 100; i++)
-            {
-                run();
-                if ((i % 10) == 0)
-                {
-                    Console.WriteLine($"Iteration({i}): {watch.Elapsed} | {world.Count}/{world.Capacity}");
-                    watch.Restart();
-                }
-            }
 
+            var value = 0L;
             void Sum(Entity entity) { for (int i = 0; i < 1_000; i++) value += entity.Identifier; }
+
+            while (true)
+            {
+                var templates = new[] { Player.Adapt(default), Enemy.Adapt(default), Bullet.Adapt(default), Insect, Head, Torso, Abdomen }
+                    .Concat(Enumerable.Range(0, 17).Select(_ => Random()))
+                    .ToArray();
+                templates.Shuffle();
+
+                var tests = Enumerable.Range(5, 5)
+                    .Select(index => Math.Pow(2, index))
+                    .Select(size => (size, node: Node.All(
+                        templates.Select((template, count) => Node.Create(template.Size((int)size), count + 1)).All(),
+                        Node.Run(Sum),
+                        Node.Destroy(Matcher.True))))
+                    .SelectMany(pair => new[]
+                    {
+                        new Bencher.Test($"Sequential{pair.size}", pair.node.Synchronous().Schedule(new())),
+                        new Bencher.Test($"Parallel{pair.size}", pair.node.Schedule(new()))
+                    })
+                    .ToArray();
+                Bencher.Measure(tests[0], tests, 100, 1);
+            }
 
             /*
             Node.Run(

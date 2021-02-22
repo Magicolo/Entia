@@ -14,6 +14,7 @@
     <ProjectReference Include="..\Entia.Json\Entia.Json.csproj" />
     <ProjectReference Include="..\Entia\Entia.csproj" />
     <ProjectReference Include="..\Entia.Check\Entia.Check.csproj" />
+    <ProjectReference Include="..\Entia.Bench\Entia.Bench.csproj" />
     <ProjectReference Include="..\Entia.Generate\Entia.Generate.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
