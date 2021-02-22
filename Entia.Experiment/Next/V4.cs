@@ -4,7 +4,6 @@ using System.Linq;
 using System.Numerics;
 using Entia.Bench;
 using Entia.Core;
-using Entia.Experiment.V4.Nodes;
 
 namespace Entia.Experiment.V4
 {
@@ -127,8 +126,6 @@ namespace Entia.Experiment.V4
     - Allow plans to be reordered to allow for more parallelism.
     - Figure out a messaging mechanism.
     - Make a source generator for the 'Run' functions.
-    - Test family instantiation.
-    - Test family destruction.
     - Test adding segments between frames.
 
     FIX:
@@ -139,6 +136,76 @@ namespace Entia.Experiment.V4
     that is being iterated on.
         - Create could cause the iteration to visit or not the newly created entity.
         - Destroy could cause an entity to not be visited since it has been swapped.
+
+
+
+
+
+
+
+    public enum Characters { None, Octopus = 1 << 0 }
+    struct Weapon
+    {
+        public Characters UsableBy;
+    }
+    struct Physics
+    {
+        struct Body { public bool Active; }
+    }
+    struct Character
+    {
+        public struct Arm { ... }
+        public Characters Kind;
+    }
+
+    INode EquipWeapon =
+        Node.Families(families =>
+        Node.Query(All(Read<Weapon>(), Write<Physics.Body>(), Root())), queryWeapons =>
+        Node.Query(Children(All(Has<Character.Arm>(), Not(Child(Has<Weapon>())))), queryArms =>
+        Node.Run((in Physics physics, in Physics.Body body, in Character character) =>
+        {
+            foreach (var weaponItem in physics.Collisions(body, queryWeapons))
+            {
+                if (weaponItem.Weapon.UsableBy.HasAll(character.Kind))
+                {
+                    foreach (var armItem in queryArms)
+                    {
+                        weaponItem.Body.Active = false;
+                        families.Adopt(weaponItem.Entity, armItem.Entity);
+                        break;
+                    }
+                }
+            }
+        }))));
+
+    Template<Unit> Octopus = Template.Empty()
+        .Add(Enumerable.Repeat(Template.Empty(), 8), (arms, _) => new Character { Arms = arms.ToArray() })
+        .Adopt(Enumerable.Repeat(Template.Empty(), 8))
+        .Add((_, _, children, _) => new Character { Arms = children.Slice(0, 8).ToArray() });
+    ;
+    INode EquipWeapon =
+        Node.Inject((Entities entities) =>
+        Node.Query(Write<Character.Arm>(), queryArms =>
+        Node.Query(All(Write<Weapon>(), Write<Physics.Body>())), queryWeapons =>
+        Node.Run((in Physics physics, Entity entity, in Physics.Body body, in Character character) =>
+        {
+            foreach (var weaponItem in physics.Collisions(body, queryWeapons))
+            {
+                if (weaponItem.Weapon.UsableBy.HasAll(character.Kind) && !entities.Has(weaponItem.Weapon.Owner))
+                {
+                    foreach (var arm in character.Arms)
+                    {
+                        if (queryArms.TryGet(arm, out var armItem) && !entities.Has(armItem.Arm.Weapon))
+                        {
+                            armItem.Arm.Weapon = weaponItem.Entity;
+                            weaponItem.Weapon.Owner = entity;
+                            weaponItem.Body.Active = false;
+                            break;
+                        }
+                    }
+                }
+            }
+        }))));
     */
 
     public static class Test
